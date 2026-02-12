@@ -4,6 +4,7 @@ mod middleware;
 mod network;
 mod process;
 mod system;
+mod theme;
 
 use axum::{middleware as axum_middleware, routing, Router};
 use tower_http::cors::{Any, CorsLayer};
@@ -16,7 +17,7 @@ pub async fn start_server(state: AppState) -> Result<(), Box<dyn std::error::Err
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let api_routes = Router::new()
+    let authenticated_routes = Router::new()
         // System
         .route("/v1/system/info", routing::get(system::system_info))
         // Filesystem
@@ -42,7 +43,14 @@ pub async fn start_server(state: AppState) -> Result<(), Box<dyn std::error::Err
         ));
 
     let app = Router::new()
-        .nest("/api", api_routes)
+        // Public routes (no auth required)
+        .route("/api/v1/theme.css", routing::get(theme::theme_css))
+        .route(
+            "/api/v1/theme/fonts/{filename}",
+            routing::get(theme::theme_font),
+        )
+        // Authenticated routes
+        .nest("/api", authenticated_routes)
         .layer(cors)
         .with_state(state);
 

@@ -30,6 +30,10 @@ export async function pluginRemove(pluginId: string): Promise<void> {
   return invoke("plugin_remove", { pluginId });
 }
 
+export async function pluginSyncStatus(): Promise<InstalledPlugin[]> {
+  return invoke("plugin_sync_status");
+}
+
 export async function pluginLogs(
   pluginId: string,
   tail?: number

@@ -41,9 +41,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Serve static files
-  let filePath = req.url === "/" ? "/index.html" : req.url;
-  const fullPath = path.join(publicDir, filePath);
+  // Serve index.html with NEXUS_API_URL templated in
+  if (req.url === "/" || req.url === "/index.html") {
+    const html = fs
+      .readFileSync(path.join(publicDir, "index.html"), "utf8")
+      .replace(/\{\{NEXUS_API_URL\}\}/g, NEXUS_API_URL);
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(html);
+    return;
+  }
+
+  // Serve other static files
+  const fullPath = path.join(publicDir, req.url);
   const ext = path.extname(fullPath);
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
 

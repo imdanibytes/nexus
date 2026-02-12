@@ -144,12 +144,19 @@ impl PluginManager {
             .get(plugin_id)
             .ok_or_else(|| NexusError::PluginNotFound(plugin_id.to_string()))?;
 
+        let image_name = plugin.manifest.image.clone();
+
         if let Some(container_id) = &plugin.container_id {
             // Stop first if running
             if plugin.status == PluginStatus::Running {
                 let _ = docker::stop_container(container_id).await;
             }
             docker::remove_container(container_id).await?;
+        }
+
+        // Remove the Docker image (ignore failure — another container may reference it)
+        if let Err(e) = docker::remove_image(&image_name).await {
+            log::warn!("Could not remove image {}: {}", image_name, e);
         }
 
         self.storage.remove(plugin_id)?;

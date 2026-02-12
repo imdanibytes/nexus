@@ -4,16 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hello World - Nexus Plugin</title>
+  <link rel="stylesheet" href="{{NEXUS_API_URL}}/api/v1/theme.css" />
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
+      font-family: var(--font-sans);
+      background: var(--color-nx-deep);
+      color: var(--color-nx-text);
+      margin: 0;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+      -webkit-font-smoothing: antialiased;
     }
     .container {
       max-width: 480px;
@@ -23,73 +25,104 @@
     h1 {
       font-size: 1.5rem;
       font-weight: 700;
-      margin-bottom: 0.5rem;
+      margin: 0 0 0.25rem;
     }
     .subtitle {
-      color: #94a3b8;
+      color: var(--color-nx-text-secondary);
       font-size: 0.875rem;
-      margin-bottom: 2rem;
+      margin: 0 0 2rem;
     }
+    .accent { color: var(--color-nx-accent); }
     .card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
+      background: var(--color-nx-surface);
+      border: 1px solid var(--color-nx-border);
+      border-radius: var(--radius-card);
       padding: 1.5rem;
     }
     .card h2 {
-      font-size: 0.75rem;
+      font-size: 0.6875rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #64748b;
-      margin-bottom: 1rem;
+      letter-spacing: 0.06em;
+      color: var(--color-nx-text-muted);
+      margin: 0 0 1rem;
+      font-weight: 600;
     }
     .info-row {
       display: flex;
       justify-content: space-between;
       padding: 0.5rem 0;
-      border-bottom: 1px solid #334155;
+      border-bottom: 1px solid var(--color-nx-border-subtle);
       font-size: 0.875rem;
     }
     .info-row:last-child { border-bottom: none; }
-    .info-label { color: #94a3b8; }
-    .info-value { color: #e2e8f0; font-weight: 500; }
-    .status {
+    .info-label { color: var(--color-nx-text-muted); }
+    .info-value { color: var(--color-nx-text); font-weight: 500; }
+    .info-value.mono { font-family: var(--font-mono); font-size: 0.8125rem; }
+    .status-bar {
+      margin-top: 1.5rem;
+      padding: 0.75rem 1rem;
+      background: var(--color-nx-accent-muted);
+      border: 1px solid var(--color-nx-border-accent);
+      border-radius: var(--radius-button);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8125rem;
+      color: var(--color-nx-accent);
+      font-weight: 500;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-nx-accent);
+      flex-shrink: 0;
+    }
+    .loading-state {
       text-align: center;
       padding: 2rem;
-      color: #64748b;
+      color: var(--color-nx-text-ghost);
       font-size: 0.875rem;
     }
-    .error { color: #f87171; }
-    .loading { animation: pulse 1.5s infinite; }
+    .error-state {
+      text-align: center;
+      padding: 1.25rem;
+      background: var(--color-nx-error-muted);
+      border: 1px solid var(--color-nx-error);
+      border-radius: var(--radius-button);
+      color: var(--color-nx-error);
+      font-size: 0.8125rem;
+    }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+      50% { opacity: 0.4; }
     }
+    .loading-state { animation: pulse 1.5s infinite; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Hello World</h1>
-    <p class="subtitle">Nexus Plugin Demo</p>
+    <h1>Hello <span class="accent">World</span></h1>
+    <p class="subtitle">Nexus Plugin Demo — using the shared design system</p>
 
     <div class="card">
       <h2>Host System Info</h2>
       <div id="content">
-        <div class="status loading">Fetching system info from Host API...</div>
+        <div class="loading-state">Fetching system info from Host API...</div>
       </div>
     </div>
+    <div id="status"></div>
   </div>
 
   <script>
     async function init() {
       const content = document.getElementById('content');
+      const status = document.getElementById('status');
 
       try {
-        // Get auth config from our backend
         const configRes = await fetch('/api/config');
         const config = await configRes.json();
 
-        // Call the Nexus Host API
         const res = await fetch(`${config.apiUrl}/api/v1/system/info`, {
           headers: { 'Authorization': `Bearer ${config.token}` }
         });
@@ -107,7 +140,7 @@
           </div>
           <div class="info-row">
             <span class="info-label">Hostname</span>
-            <span class="info-value">${info.hostname}</span>
+            <span class="info-value mono">${info.hostname}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Uptime</span>
@@ -122,19 +155,27 @@
             <span class="info-value">${formatBytes(info.total_memory)}</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Nexus Version</span>
-            <span class="info-value">v${info.nexus_version}</span>
+            <span class="info-label">Nexus</span>
+            <span class="info-value mono">v${info.nexus_version}</span>
+          </div>
+        `;
+
+        status.innerHTML = `
+          <div class="status-bar">
+            <span class="status-dot"></span>
+            Connected to Host API
           </div>
         `;
       } catch (err) {
-        content.innerHTML = `<div class="status error">Failed to connect: ${err.message}</div>`;
+        content.innerHTML = `<div class="error-state">Failed to connect: ${err.message}</div>`;
       }
     }
 
     function formatUptime(seconds) {
-      const h = Math.floor(seconds / 3600);
+      const d = Math.floor(seconds / 86400);
+      const h = Math.floor((seconds % 86400) / 3600);
       const m = Math.floor((seconds % 3600) / 60);
-      return `${h}h ${m}m`;
+      return d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m`;
     }
 
     function formatBytes(bytes) {

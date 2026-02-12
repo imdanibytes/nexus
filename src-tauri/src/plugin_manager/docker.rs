@@ -2,11 +2,12 @@ use bollard::container::{
     Config, CreateContainerOptions, ListContainersOptions, LogOutput, LogsOptions,
     RemoveContainerOptions, StopContainerOptions,
 };
-use bollard::image::CreateImageOptions;
+use bollard::image::{BuildImageOptions, CreateImageOptions, RemoveImageOptions};
 use bollard::network::CreateNetworkOptions;
 use bollard::Docker;
 use futures_util::StreamExt;
 use std::collections::HashMap;
+use std::path::Path;
 
 use crate::error::{NexusError, NexusResult};
 
@@ -89,6 +90,46 @@ pub async fn pull_image(image: &str) -> NexusResult<()> {
         }
     }
 
+    Ok(())
+}
+
+pub async fn build_image(context_dir: &Path, tag: &str) -> NexusResult<()> {
+    let docker = connect()?;
+
+    // Create a tar archive of the build context
+    let mut archive = tar::Builder::new(Vec::new());
+    archive
+        .append_dir_all(".", context_dir)
+        .map_err(|e| NexusError::Other(format!("Failed to create build context: {}", e)))?;
+    let tar_bytes = archive
+        .into_inner()
+        .map_err(|e| NexusError::Other(format!("Failed to finalize build context: {}", e)))?;
+
+    let opts = BuildImageOptions {
+        t: tag,
+        rm: true,
+        ..Default::default()
+    };
+
+    let mut stream = docker.build_image(opts, None, Some(tar_bytes.into()));
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(info) => {
+                if let Some(stream) = info.stream {
+                    let msg = stream.trim();
+                    if !msg.is_empty() {
+                        log::debug!("Build: {}", msg);
+                    }
+                }
+                if let Some(error) = info.error {
+                    return Err(NexusError::Other(format!("Docker build error: {}", error)));
+                }
+            }
+            Err(e) => return Err(NexusError::Docker(e)),
+        }
+    }
+
+    log::info!("Built image: {}", tag);
     Ok(())
 }
 
@@ -180,6 +221,22 @@ pub async fn remove_container(container_id: &str) -> NexusResult<()> {
     Ok(())
 }
 
+pub async fn remove_image(image: &str) -> NexusResult<()> {
+    let docker = connect()?;
+    docker
+        .remove_image(
+            image,
+            Some(RemoveImageOptions {
+                force: false,
+                noprune: false,
+            }),
+            None,
+        )
+        .await
+        .map_err(NexusError::Docker)?;
+    Ok(())
+}
+
 pub async fn get_logs(container_id: &str, tail: u32) -> NexusResult<Vec<String>> {
     let docker = connect()?;
 
@@ -232,15 +289,18 @@ pub async fn list_containers() -> NexusResult<Vec<bollard::service::ContainerSum
         .map_err(NexusError::Docker)
 }
 
-pub async fn container_running(container_id: &str) -> NexusResult<bool> {
+/// Returns "running", "stopped", or errors if the container doesn't exist.
+pub async fn container_state(container_id: &str) -> NexusResult<&'static str> {
     let docker = connect()?;
     let info = docker
         .inspect_container(container_id, None)
         .await
         .map_err(NexusError::Docker)?;
 
-    Ok(info
+    let running = info
         .state
         .and_then(|s| s.running)
-        .unwrap_or(false))
+        .unwrap_or(false);
+
+    Ok(if running { "running" } else { "stopped" })
 }

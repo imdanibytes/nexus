@@ -59,6 +59,7 @@ pub fn run() {
             commands::plugins::plugin_start,
             commands::plugins::plugin_stop,
             commands::plugins::plugin_remove,
+            commands::plugins::plugin_sync_status,
             commands::plugins::plugin_logs,
             commands::marketplace::marketplace_search,
             commands::marketplace::marketplace_refresh,

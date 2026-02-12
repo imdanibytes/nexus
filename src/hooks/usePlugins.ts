@@ -1,20 +1,42 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
 import * as api from "../lib/tauri";
+
+const SYNC_INTERVAL_MS = 5000;
 
 export function usePlugins() {
   const {
     installedPlugins,
     selectedPluginId,
+    removingPluginIds,
     setPlugins,
     selectPlugin,
     removePlugin: removeFromStore,
+    setRemoving,
     addNotification,
   } = useAppStore();
 
   const selectedPlugin = installedPlugins.find(
     (p) => p.manifest.id === selectedPluginId
   );
+
+  // Poll Docker state every 5 seconds
+  const syncingRef = useRef(false);
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (syncingRef.current) return;
+      syncingRef.current = true;
+      try {
+        const plugins = await api.pluginSyncStatus();
+        setPlugins(plugins);
+      } catch {
+        // Docker may not be running — silently ignore
+      } finally {
+        syncingRef.current = false;
+      }
+    }, SYNC_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [setPlugins]);
 
   const refresh = useCallback(async () => {
     try {
@@ -79,15 +101,18 @@ export function usePlugins() {
 
   const remove = useCallback(
     async (pluginId: string) => {
+      setRemoving(pluginId, true);
       try {
         await api.pluginRemove(pluginId);
         removeFromStore(pluginId);
         addNotification("Plugin removed", "info");
       } catch (e) {
         addNotification(`Remove failed: ${e}`, "error");
+      } finally {
+        setRemoving(pluginId, false);
       }
     },
-    [removeFromStore, addNotification]
+    [removeFromStore, setRemoving, addNotification]
   );
 
   const getLogs = useCallback(
@@ -106,6 +131,7 @@ export function usePlugins() {
     plugins: installedPlugins,
     selectedPlugin,
     selectedPluginId,
+    removingPluginIds,
     selectPlugin,
     refresh,
     install,

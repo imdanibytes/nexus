@@ -1,0 +1,70 @@
+/*
+ * Nexus Design System — CSS Custom Properties
+ * @nexus-dashboard/tokens
+ *
+ * Usage: @import "@nexus-dashboard/tokens";
+ * Or:    @import "@nexus-dashboard/tokens/tokens.css";
+ *
+ * Fonts: Geist Sans + Geist Mono are referenced but not bundled.
+ * Install the "geist" npm package or load fonts from the Nexus Host API.
+ */
+
+:root {
+  /* --- Surface / Background --- */
+  --color-nx-deep: #0C0E12;
+  --color-nx-base: #12141A;
+  --color-nx-surface: #1A1D25;
+  --color-nx-raised: #222631;
+  --color-nx-overlay: #2A2E3A;
+  --color-nx-wash: #323744;
+
+  /* --- Accent --- */
+  --color-nx-accent: #2DD4A8;
+  --color-nx-accent-hover: #22B893;
+  --color-nx-accent-muted: oklch(0.72 0.15 168 / 0.15);
+  --color-nx-accent-subtle: oklch(0.72 0.15 168 / 0.08);
+
+  /* --- Highlight (secondary accent) --- */
+  --color-nx-highlight: #F0AB3A;
+  --color-nx-highlight-muted: oklch(0.78 0.15 75 / 0.15);
+
+  /* --- Text --- */
+  --color-nx-text: #E8ECF2;
+  --color-nx-text-secondary: #9BA3B2;
+  --color-nx-text-muted: #848d9f;
+  --color-nx-text-ghost: #66728a;
+
+  /* --- Border --- */
+  --color-nx-border: #2A2E3A;
+  --color-nx-border-subtle: #222631;
+  --color-nx-border-strong: #3D4452;
+  --color-nx-border-accent: oklch(0.72 0.15 168 / 0.5);
+
+  /* --- Status --- */
+  --color-nx-success: #34D399;
+  --color-nx-success-muted: oklch(0.73 0.17 163 / 0.12);
+  --color-nx-warning: #FBBF24;
+  --color-nx-warning-muted: oklch(0.83 0.16 85 / 0.12);
+  --color-nx-error: #F87171;
+  --color-nx-error-muted: oklch(0.68 0.19 22 / 0.12);
+  --color-nx-info: #60A5FA;
+  --color-nx-info-muted: oklch(0.7 0.14 250 / 0.12);
+
+  /* --- Shadows --- */
+  --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-focus: 0 0 0 2px oklch(0.72 0.15 168 / 0.3);
+  --shadow-card-hover: 0 0 0 1px oklch(0.72 0.15 168 / 0.15);
+
+  /* --- Border Radius --- */
+  --radius-card: 10px;
+  --radius-button: 8px;
+  --radius-input: 8px;
+  --radius-modal: 14px;
+  --radius-tag: 6px;
+
+  /* --- Typography --- */
+  --font-sans: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+}

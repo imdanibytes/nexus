@@ -13,6 +13,7 @@ interface AppState {
   currentView: View;
   installedPlugins: InstalledPlugin[];
   selectedPluginId: string | null;
+  removingPluginIds: string[];
   marketplacePlugins: RegistryEntry[];
   selectedRegistryEntry: RegistryEntry | null;
   searchQuery: string;
@@ -24,6 +25,7 @@ interface AppState {
   updatePlugin: (plugin: InstalledPlugin) => void;
   removePlugin: (pluginId: string) => void;
   selectPlugin: (pluginId: string | null) => void;
+  setRemoving: (pluginId: string, removing: boolean) => void;
   setMarketplace: (plugins: RegistryEntry[]) => void;
   selectRegistryEntry: (entry: RegistryEntry | null) => void;
   setSearchQuery: (query: string) => void;
@@ -38,6 +40,7 @@ export const useAppStore = create<AppState>((set) => ({
   currentView: "plugins",
   installedPlugins: [],
   selectedPluginId: null,
+  removingPluginIds: [],
   marketplacePlugins: [],
   selectedRegistryEntry: null,
   searchQuery: "",
@@ -61,6 +64,12 @@ export const useAppStore = create<AppState>((set) => ({
         state.selectedPluginId === pluginId ? null : state.selectedPluginId,
     })),
   selectPlugin: (pluginId) => set({ selectedPluginId: pluginId }),
+  setRemoving: (pluginId, removing) =>
+    set((state) => ({
+      removingPluginIds: removing
+        ? [...state.removingPluginIds, pluginId]
+        : state.removingPluginIds.filter((id) => id !== pluginId),
+    })),
   setMarketplace: (plugins) => set({ marketplacePlugins: plugins }),
   selectRegistryEntry: (entry) => set({ selectedRegistryEntry: entry }),
   setSearchQuery: (query) => set({ searchQuery: query }),

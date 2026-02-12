@@ -1,9 +1,10 @@
 import type { InstalledPlugin } from "../../types/plugin";
 import { PluginControls } from "./PluginControls";
-import { Play, StopCircle } from "lucide-react";
+import { Play, StopCircle, Loader2, Trash2 } from "lucide-react";
 
 interface Props {
   plugin: InstalledPlugin;
+  isRemoving: boolean;
   onStart: () => void;
   onStop: () => void;
   onRemove: () => void;
@@ -12,6 +13,7 @@ interface Props {
 
 export function PluginViewport({
   plugin,
+  isRemoving,
   onStart,
   onStop,
   onRemove,
@@ -21,7 +23,7 @@ export function PluginViewport({
   const iframeSrc = `http://localhost:${plugin.assigned_port}${plugin.manifest.ui.path}`;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* Plugin header */}
       <div className="flex items-center justify-between px-5 py-3 bg-nx-raised/60 border-b border-nx-border">
         <div>
@@ -34,6 +36,7 @@ export function PluginViewport({
         </div>
         <PluginControls
           status={plugin.status}
+          disabled={isRemoving}
           onStart={onStart}
           onStop={onStop}
           onRemove={onRemove}
@@ -43,7 +46,7 @@ export function PluginViewport({
 
       {/* Plugin content */}
       <div className="flex-1 relative">
-        {isRunning ? (
+        {isRunning && !isRemoving ? (
           <iframe
             src={iframeSrc}
             className="w-full h-full border-0"
@@ -51,7 +54,7 @@ export function PluginViewport({
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             allow="clipboard-read; clipboard-write"
           />
-        ) : (
+        ) : !isRemoving ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4">
               <StopCircle size={28} strokeWidth={1.5} className="text-nx-text-ghost" />
@@ -69,8 +72,28 @@ export function PluginViewport({
               Start Plugin
             </button>
           </div>
-        )}
+        ) : null}
       </div>
+
+      {/* Removing overlay */}
+      {isRemoving && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-nx-deep/90 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-error-muted flex items-center justify-center">
+              <Trash2 size={28} strokeWidth={1.5} className="text-nx-error" />
+            </div>
+            <div className="text-center">
+              <p className="text-[14px] font-semibold text-nx-text mb-1">
+                Removing {plugin.manifest.name}
+              </p>
+              <p className="text-[12px] text-nx-text-muted">
+                Stopping container and cleaning up...
+              </p>
+            </div>
+            <Loader2 size={20} strokeWidth={1.5} className="text-nx-text-muted animate-spin" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

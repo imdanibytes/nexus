@@ -16,22 +16,24 @@ export function PermissionList({ pluginId }: Props) {
 
   if (grants.length === 0) {
     return (
-      <p className="text-xs text-slate-500">No permissions granted</p>
+      <p className="text-[11px] text-nx-text-ghost">No permissions granted</p>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {grants.map((grant) => {
         const info = PERMISSION_INFO[grant.permission as Permission];
         return (
           <div
             key={grant.permission}
-            className="flex items-center justify-between p-2 rounded-lg bg-slate-900"
+            className="flex items-center justify-between p-2.5 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
           >
             <div>
-              <p className="text-sm text-slate-200">{grant.permission}</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-[12px] text-nx-text font-medium font-mono">
+                {grant.permission}
+              </p>
+              <p className="text-[11px] text-nx-text-muted mt-0.5">
                 {info?.description ?? "Unknown permission"}
               </p>
             </div>
@@ -39,7 +41,7 @@ export function PermissionList({ pluginId }: Props) {
               onClick={() =>
                 revoke(pluginId, [grant.permission as Permission])
               }
-              className="text-xs px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+              className="text-[11px] font-medium px-2 py-1 rounded-[var(--radius-tag)] bg-nx-error-muted text-nx-error hover:bg-nx-error/20 transition-colors duration-150"
             >
               Revoke
             </button>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 
 export function UpdateCheck() {
   const [checking, setChecking] = useState(false);
@@ -23,17 +24,18 @@ export function UpdateCheck() {
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleCheck}
-          disabled={checking}
-          className="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors disabled:opacity-50"
-        >
-          {checking ? "Checking..." : "Check for Updates"}
-        </button>
-        {status && <span className="text-xs text-slate-400">{status}</span>}
-      </div>
+    <div className="flex items-center gap-3">
+      <button
+        onClick={handleCheck}
+        disabled={checking}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
+      >
+        <RefreshCw size={12} strokeWidth={1.5} className={checking ? "animate-spin" : ""} />
+        {checking ? "Checking..." : "Check for Updates"}
+      </button>
+      {status && (
+        <span className="text-[11px] text-nx-text-muted">{status}</span>
+      )}
     </div>
   );
 }

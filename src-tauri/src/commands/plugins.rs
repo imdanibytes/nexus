@@ -14,7 +14,7 @@ pub async fn plugin_install(
     state: tauri::State<'_, AppState>,
     manifest_url: String,
 ) -> Result<InstalledPlugin, String> {
-    let manifest = registry::fetch_manifest_from_url(&manifest_url)
+    let manifest = registry::fetch_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
 

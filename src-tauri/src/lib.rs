@@ -68,6 +68,10 @@ pub fn run() {
             commands::system::app_version,
             commands::system::check_docker,
             commands::system::open_docker_desktop,
+            commands::registries::registry_list,
+            commands::registries::registry_add,
+            commands::registries::registry_remove,
+            commands::registries::registry_toggle,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

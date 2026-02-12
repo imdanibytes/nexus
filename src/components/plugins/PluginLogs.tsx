@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 
 interface Props {
   pluginId: string;
@@ -34,41 +35,29 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center">
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-4xl h-96 bg-slate-900 border border-slate-700 rounded-t-xl flex flex-col">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-700">
-          <h3 className="text-sm font-semibold text-slate-300">
-            Logs &mdash; {pluginId}
+      <div className="relative w-full max-w-4xl h-96 bg-nx-deep border border-nx-border rounded-t-[var(--radius-modal)] flex flex-col">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-nx-border-subtle">
+          <h3 className="text-[12px] font-semibold text-nx-text-secondary">
+            Logs &mdash; <span className="font-mono text-nx-text-muted">{pluginId}</span>
           </h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-nx-text-muted hover:text-nx-text transition-colors duration-150"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X size={14} strokeWidth={1.5} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs">
+        <div className="flex-1 overflow-y-auto p-4 font-mono text-[12px]">
           {loading && logs.length === 0 ? (
-            <p className="text-slate-500">Loading logs...</p>
+            <p className="text-nx-text-ghost">Loading logs...</p>
           ) : logs.length === 0 ? (
-            <p className="text-slate-500">No logs available</p>
+            <p className="text-nx-text-ghost">No logs available</p>
           ) : (
             logs.map((line, i) => (
-              <div key={i} className="text-slate-300 whitespace-pre-wrap leading-5">
+              <div key={i} className="text-nx-text-secondary whitespace-pre-wrap leading-5">
                 {line}
               </div>
             ))

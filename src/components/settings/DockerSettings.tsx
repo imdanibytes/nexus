@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { checkDocker, type DockerStatus } from "../../lib/tauri";
+import { Container, RefreshCw } from "lucide-react";
 
 export function DockerSettings() {
   const [status, setStatus] = useState<DockerStatus | null>(null);
@@ -27,35 +28,39 @@ export function DockerSettings() {
   }, [refresh]);
 
   return (
-    <section className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+    <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-white">Docker</h3>
+        <div className="flex items-center gap-2">
+          <Container size={15} strokeWidth={1.5} className="text-nx-text-muted" />
+          <h3 className="text-[14px] font-semibold text-nx-text">Docker</h3>
+        </div>
         <button
           onClick={refresh}
           disabled={checking}
-          className="px-2.5 py-1 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
         >
+          <RefreshCw size={12} strokeWidth={1.5} className={checking ? "animate-spin" : ""} />
           {checking ? "Checking..." : "Refresh"}
         </button>
       </div>
 
       {status === null ? (
-        <div className="text-sm text-slate-400">Checking Docker status...</div>
+        <div className="text-[13px] text-nx-text-muted">Checking Docker status...</div>
       ) : (
         <div className="space-y-4">
           <div className="space-y-3">
             {/* Installed */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <span
-                  className={`w-2 h-2 rounded-full ${
-                    status.installed ? "bg-green-500" : "bg-red-500"
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    status.installed ? "bg-nx-success" : "bg-nx-error"
                   }`}
                 />
-                <span className="text-sm text-slate-300">Installed</span>
+                <span className="text-[13px] text-nx-text-secondary">Installed</span>
               </div>
               {status.installed ? (
-                <span className="text-xs text-slate-400">
+                <span className="text-[11px] text-nx-text-muted font-mono">
                   {status.version ? `v${status.version}` : "Yes"}
                 </span>
               ) : (
@@ -63,7 +68,7 @@ export function DockerSettings() {
                   href="https://www.docker.com/products/docker-desktop/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs px-2.5 py-1 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-colors"
+                  className="text-[11px] font-medium px-2.5 py-1 rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
                 >
                   Download
                 </a>
@@ -72,17 +77,20 @@ export function DockerSettings() {
 
             {/* Engine running */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <span
-                  className={`w-2 h-2 rounded-full ${
-                    status.running ? "bg-green-500" : "bg-red-500"
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    status.running ? "bg-nx-success" : "bg-nx-error"
                   }`}
+                  style={status.running ? { animation: "pulse-status 2s ease-in-out infinite" } : undefined}
                 />
-                <span className="text-sm text-slate-300">Engine</span>
+                <span className="text-[13px] text-nx-text-secondary">Engine</span>
               </div>
               <span
-                className={`text-xs ${
-                  status.running ? "text-green-400" : "text-red-400"
+                className={`text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-tag)] ${
+                  status.running
+                    ? "bg-nx-success-muted text-nx-success"
+                    : "bg-nx-error-muted text-nx-error"
                 }`}
               >
                 {status.running ? "Running" : "Stopped"}
@@ -91,7 +99,7 @@ export function DockerSettings() {
           </div>
 
           {/* Message */}
-          <p className="text-xs text-slate-500">{status.message}</p>
+          <p className="text-[11px] text-nx-text-ghost">{status.message}</p>
         </div>
       )}
     </section>

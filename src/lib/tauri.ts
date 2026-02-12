@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { InstalledPlugin, RegistryEntry } from "../types/plugin";
+import type { InstalledPlugin, RegistryEntry, RegistrySource } from "../types/plugin";
 import type { GrantedPermission, Permission } from "../types/permissions";
 
 export async function pluginList(): Promise<InstalledPlugin[]> {
@@ -89,4 +89,28 @@ export async function checkDocker(): Promise<DockerStatus> {
 
 export async function openDockerDesktop(): Promise<void> {
   return invoke("open_docker_desktop");
+}
+
+// Registries
+export async function registryList(): Promise<RegistrySource[]> {
+  return invoke("registry_list");
+}
+
+export async function registryAdd(
+  name: string,
+  kind: string,
+  url: string
+): Promise<RegistrySource> {
+  return invoke("registry_add", { name, kind, url });
+}
+
+export async function registryRemove(id: string): Promise<void> {
+  return invoke("registry_remove", { id });
+}
+
+export async function registryToggle(
+  id: string,
+  enabled: boolean
+): Promise<void> {
+  return invoke("registry_toggle", { id, enabled });
 }

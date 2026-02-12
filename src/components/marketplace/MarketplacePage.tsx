@@ -5,6 +5,7 @@ import { usePlugins } from "../../hooks/usePlugins";
 import { useAppStore } from "../../stores/appStore";
 import { RegistryPluginCard } from "../plugins/PluginCard";
 import { SearchBar } from "./SearchBar";
+import { FolderOpen, RefreshCw, Package } from "lucide-react";
 
 export function MarketplacePage() {
   const { plugins, isLoading, refresh, search } = useMarketplace();
@@ -35,8 +36,8 @@ export function MarketplacePage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-bold text-white">Add Plugins</h2>
-          <p className="text-sm text-slate-400">
+          <h2 className="text-[18px] font-bold text-nx-text">Add Plugins</h2>
+          <p className="text-[13px] text-nx-text-secondary">
             Browse the marketplace or install from a local manifest
           </p>
         </div>
@@ -44,15 +45,17 @@ export function MarketplacePage() {
           <button
             onClick={handleLocalInstall}
             disabled={installing}
-            className="px-3 py-1.5 text-xs rounded-lg bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep transition-all duration-150"
           >
+            <FolderOpen size={12} strokeWidth={1.5} />
             {installing ? "Installing..." : "Install Local"}
           </button>
           <button
             onClick={refresh}
             disabled={isLoading}
-            className="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
           >
+            <RefreshCw size={12} strokeWidth={1.5} className={isLoading ? "animate-spin" : ""} />
             {isLoading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
@@ -64,34 +67,23 @@ export function MarketplacePage() {
 
       {plugins.length === 0 ? (
         <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center mb-4 mx-auto">
-            <svg
-              className="w-8 h-8 text-slate-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
+          <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4 mx-auto">
+            <Package size={28} strokeWidth={1.5} className="text-nx-text-ghost" />
           </div>
-          <p className="text-slate-400 text-sm mb-1">
+          <p className="text-nx-text-secondary text-[13px] mb-1">
             {isLoading
               ? "Loading plugins..."
               : "No marketplace plugins available yet."}
           </p>
-          <p className="text-slate-500 text-xs mb-4">
-            You can install a plugin from a local <code className="bg-slate-800 px-1 rounded">plugin.json</code> manifest.
+          <p className="text-nx-text-muted text-[11px] mb-4">
+            You can install a plugin from a local <code className="bg-nx-deep text-nx-text-secondary px-1.5 py-0.5 rounded-[var(--radius-tag)] font-mono">plugin.json</code> manifest.
           </p>
           <button
             onClick={handleLocalInstall}
             disabled={installing}
-            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 mx-auto px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
           >
+            <FolderOpen size={14} strokeWidth={1.5} />
             {installing ? "Installing..." : "Install Local Plugin"}
           </button>
         </div>

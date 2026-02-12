@@ -45,4 +45,15 @@ export interface RegistryEntry {
   manifest_url: string;
   categories: string[];
   downloads: number;
+  source?: string;
+}
+
+export type RegistryKind = "remote" | "local";
+
+export interface RegistrySource {
+  id: string;
+  name: string;
+  kind: RegistryKind;
+  url: string;
+  enabled: boolean;
 }

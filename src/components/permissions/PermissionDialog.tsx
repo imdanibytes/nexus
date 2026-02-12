@@ -1,10 +1,11 @@
 import type { Permission } from "../../types/permissions";
 import { PERMISSION_INFO } from "../../types/permissions";
+import { ShieldCheck, ShieldX } from "lucide-react";
 
 const riskColors = {
-  low: "text-green-400 bg-green-500/10",
-  medium: "text-yellow-400 bg-yellow-500/10",
-  high: "text-red-400 bg-red-500/10",
+  low: "text-nx-success bg-nx-success-muted",
+  medium: "text-nx-warning bg-nx-warning-muted",
+  high: "text-nx-error bg-nx-error-muted",
 };
 
 interface Props {
@@ -27,12 +28,15 @@ export function PermissionDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60" onClick={onDeny} />
-      <div className="relative bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
-        <h3 className="text-lg font-bold text-white mb-1">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onDeny} />
+      <div
+        className="relative bg-nx-surface border border-nx-border rounded-[var(--radius-modal)] shadow-[var(--shadow-modal)] max-w-md w-full mx-4 p-6"
+        style={{ animation: "toast-enter 200ms ease-out" }}
+      >
+        <h3 className="text-[18px] font-bold text-nx-text mb-1">
           Install {pluginName}?
         </h3>
-        <p className="text-sm text-slate-400 mb-4">
+        <p className="text-[13px] text-nx-text-secondary mb-5">
           This plugin requests the following permissions:
         </p>
 
@@ -42,14 +46,14 @@ export function PermissionDialog({
             return (
               <div
                 key={perm}
-                className="flex items-center justify-between p-3 rounded-lg bg-slate-900"
+                className="flex items-center justify-between p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
               >
                 <div>
-                  <p className="text-sm text-slate-200">{perm}</p>
-                  <p className="text-xs text-slate-400">{info.description}</p>
+                  <p className="text-[12px] text-nx-text font-medium font-mono">{perm}</p>
+                  <p className="text-[11px] text-nx-text-muted mt-0.5">{info.description}</p>
                 </div>
                 <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${riskColors[info.risk]}`}
+                  className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-semibold capitalize ${riskColors[info.risk]}`}
                 >
                   {info.risk}
                 </span>
@@ -61,14 +65,16 @@ export function PermissionDialog({
         <div className="flex gap-3 justify-end">
           <button
             onClick={onDeny}
-            className="px-4 py-2 text-sm rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
           >
+            <ShieldX size={14} strokeWidth={1.5} />
             Deny
           </button>
           <button
             onClick={() => onApprove(perms)}
-            className="px-4 py-2 text-sm rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
           >
+            <ShieldCheck size={14} strokeWidth={1.5} />
             Approve & Install
           </button>
         </div>

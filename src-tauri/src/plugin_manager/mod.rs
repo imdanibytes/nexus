@@ -15,7 +15,8 @@ use std::path::PathBuf;
 pub struct PluginManager {
     pub storage: PluginStorage,
     pub permissions: PermissionStore,
-    pub registry_cache: Option<registry::Registry>,
+    pub registry_store: registry::RegistryStore,
+    pub registry_cache: Vec<registry::RegistryEntry>,
     data_dir: PathBuf,
 }
 
@@ -23,11 +24,13 @@ impl PluginManager {
     pub fn new(data_dir: PathBuf) -> Self {
         let storage = PluginStorage::load(&data_dir).unwrap_or_default();
         let permissions = PermissionStore::load(&data_dir).unwrap_or_default();
+        let registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
 
         PluginManager {
             storage,
             permissions,
-            registry_cache: None,
+            registry_store,
+            registry_cache: Vec::new(),
             data_dir,
         }
     }
@@ -174,15 +177,11 @@ impl PluginManager {
     }
 
     pub async fn refresh_registry(&mut self) -> NexusResult<()> {
-        let registry = registry::fetch_registry(None).await?;
-        self.registry_cache = Some(registry);
+        self.registry_cache = registry::fetch_all(&self.registry_store).await;
         Ok(())
     }
 
     pub fn search_marketplace(&self, query: &str) -> Vec<registry::RegistryEntry> {
-        match &self.registry_cache {
-            Some(registry) => registry::search_registry(registry, query),
-            None => Vec::new(),
-        }
+        registry::search_entries(&self.registry_cache, query)
     }
 }

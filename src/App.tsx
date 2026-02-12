@@ -9,6 +9,7 @@ import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { checkDocker } from "./lib/tauri";
 import type { Permission } from "./types/permissions";
+import { Package } from "lucide-react";
 
 function PluginsView() {
   const { plugins, selectedPlugin, start, stop, remove, getLogs } =
@@ -19,25 +20,13 @@ function PluginsView() {
   if (!selectedPlugin) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-6">
-        <div className="w-20 h-20 rounded-2xl bg-slate-800 flex items-center justify-center mb-4">
-          <svg
-            className="w-10 h-10 text-slate-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-            />
-          </svg>
+        <div className="w-20 h-20 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4">
+          <Package size={36} strokeWidth={1.5} className="text-nx-text-ghost" />
         </div>
-        <h3 className="text-lg font-semibold text-slate-300 mb-1">
+        <h3 className="text-[16px] font-semibold text-nx-text-secondary mb-1">
           {plugins.length === 0 ? "No plugins installed" : "Select a plugin"}
         </h3>
-        <p className="text-sm text-slate-500 max-w-sm mb-4">
+        <p className="text-[13px] text-nx-text-muted max-w-sm mb-4">
           {plugins.length === 0
             ? "Get started by adding a plugin from the marketplace or a local manifest."
             : "Click on a plugin in the sidebar to view it here."}
@@ -45,7 +34,7 @@ function PluginsView() {
         {plugins.length === 0 && (
           <button
             onClick={() => setView("marketplace")}
-            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition-colors"
+            className="px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
           >
             Add Plugins
           </button>

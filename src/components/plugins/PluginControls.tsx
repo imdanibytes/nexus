@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { PluginStatus } from "../../types/plugin";
+import { Play, Square, Trash2, ScrollText } from "lucide-react";
 
 interface Props {
   status: PluginStatus;
@@ -22,24 +23,27 @@ export function PluginControls({
     <div className="flex items-center gap-2">
       <button
         onClick={onShowLogs}
-        className="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
         title="View logs"
       >
+        <ScrollText size={12} strokeWidth={1.5} />
         Logs
       </button>
 
       {status === "running" ? (
         <button
           onClick={onStop}
-          className="px-3 py-1.5 text-xs rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-warning-muted hover:bg-nx-warning/20 text-nx-warning transition-all duration-150"
         >
+          <Square size={12} strokeWidth={1.5} />
           Stop
         </button>
       ) : (
         <button
           onClick={onStart}
-          className="px-3 py-1.5 text-xs rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-success-muted hover:bg-nx-success/20 text-nx-success transition-all duration-150"
         >
+          <Play size={12} strokeWidth={1.5} />
           Start
         </button>
       )}
@@ -51,13 +55,13 @@ export function PluginControls({
               onRemove();
               setShowConfirm(false);
             }}
-            className="px-3 py-1.5 text-xs rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
+            className="px-2.5 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error hover:bg-nx-error/80 text-white transition-all duration-150"
           >
             Confirm
           </button>
           <button
             onClick={() => setShowConfirm(false)}
-            className="px-3 py-1.5 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+            className="px-2.5 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
           >
             Cancel
           </button>
@@ -65,8 +69,9 @@ export function PluginControls({
       ) : (
         <button
           onClick={() => setShowConfirm(true)}
-          className="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted hover:bg-nx-error/20 text-nx-error transition-all duration-150"
         >
+          <Trash2 size={12} strokeWidth={1.5} />
           Remove
         </button>
       )}

@@ -88,6 +88,19 @@ function App() {
         }
       })
       .catch(() => {});
+
+    // Background update check — non-blocking, just notifies
+    import("@tauri-apps/plugin-updater")
+      .then(({ check }) => check())
+      .then((update) => {
+        if (update) {
+          addNotification(
+            `Update available: v${update.version}. Go to Settings to install.`,
+            "info"
+          );
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));

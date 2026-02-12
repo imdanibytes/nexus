@@ -43,8 +43,10 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
-      "endpoints": []
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExRTA3OTAwNjczQzkxMTgKUldRWWtUeG5BSG5nb1ljTE9XOVFHbkJBOWVMYlBFdnR2NDF3UHhVU3kwU2puOGl6aHA5dktTQTgK",
+      "endpoints": [
+        "https://github.com/imdanibytes/nexus/releases/latest/download/latest.json"
+      ]
     }
   }
 }

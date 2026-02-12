@@ -5,7 +5,7 @@
   "description": "A sample Nexus plugin that demonstrates Host API integration",
   "author": "Nexus Team",
   "license": "MIT",
-  "homepage": "https://github.com/nexus-dashboard/nexus",
+  "homepage": "https://github.com/imdanibytes/nexus",
   "image": "nexus-plugin-hello:latest",
   "ui": {
     "port": 80,

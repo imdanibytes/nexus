@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 const DEFAULT_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/nexus-dashboard/registry/main/registry.json";
+    "https://raw.githubusercontent.com/imdanibytes/registry/main/registry.json";
 
 // ---------------------------------------------------------------------------
 // Registry source — where plugins come from

@@ -12,7 +12,7 @@ import type { Permission } from "./types/permissions";
 import { Package } from "lucide-react";
 
 function PluginsView() {
-  const { plugins, selectedPlugin, removingPluginIds, start, stop, remove, getLogs } =
+  const { plugins, selectedPlugin, busyPlugins, start, stop, remove, getLogs } =
     usePlugins();
   const { setView } = useAppStore();
   const [showLogs, setShowLogs] = useState<string | null>(null);
@@ -47,7 +47,7 @@ function PluginsView() {
     <>
       <PluginViewport
         plugin={selectedPlugin}
-        isRemoving={removingPluginIds.includes(selectedPlugin.manifest.id)}
+        busyAction={busyPlugins[selectedPlugin.manifest.id] ?? null}
         onStart={() => start(selectedPlugin.manifest.id)}
         onStop={() => stop(selectedPlugin.manifest.id)}
         onRemove={() => remove(selectedPlugin.manifest.id)}

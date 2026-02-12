@@ -8,11 +8,11 @@ export function usePlugins() {
   const {
     installedPlugins,
     selectedPluginId,
-    removingPluginIds,
+    busyPlugins,
     setPlugins,
     selectPlugin,
     removePlugin: removeFromStore,
-    setRemoving,
+    setBusy,
     addNotification,
   } = useAppStore();
 
@@ -75,33 +75,39 @@ export function usePlugins() {
 
   const start = useCallback(
     async (pluginId: string) => {
+      setBusy(pluginId, "starting");
       try {
         await api.pluginStart(pluginId);
         addNotification("Plugin started", "success");
         await refresh();
       } catch (e) {
         addNotification(`Start failed: ${e}`, "error");
+      } finally {
+        setBusy(pluginId, null);
       }
     },
-    [refresh, addNotification]
+    [refresh, setBusy, addNotification]
   );
 
   const stop = useCallback(
     async (pluginId: string) => {
+      setBusy(pluginId, "stopping");
       try {
         await api.pluginStop(pluginId);
         addNotification("Plugin stopped", "info");
         await refresh();
       } catch (e) {
         addNotification(`Stop failed: ${e}`, "error");
+      } finally {
+        setBusy(pluginId, null);
       }
     },
-    [refresh, addNotification]
+    [refresh, setBusy, addNotification]
   );
 
   const remove = useCallback(
     async (pluginId: string) => {
-      setRemoving(pluginId, true);
+      setBusy(pluginId, "removing");
       try {
         await api.pluginRemove(pluginId);
         removeFromStore(pluginId);
@@ -109,10 +115,10 @@ export function usePlugins() {
       } catch (e) {
         addNotification(`Remove failed: ${e}`, "error");
       } finally {
-        setRemoving(pluginId, false);
+        setBusy(pluginId, null);
       }
     },
-    [removeFromStore, setRemoving, addNotification]
+    [removeFromStore, setBusy, addNotification]
   );
 
   const getLogs = useCallback(
@@ -131,7 +137,7 @@ export function usePlugins() {
     plugins: installedPlugins,
     selectedPlugin,
     selectedPluginId,
-    removingPluginIds,
+    busyPlugins,
     selectPlugin,
     refresh,
     install,

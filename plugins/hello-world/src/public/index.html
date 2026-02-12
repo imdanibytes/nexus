@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hello World - Nexus Plugin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      max-width: 480px;
+      width: 100%;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .card h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 1rem;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #334155;
+      font-size: 0.875rem;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #94a3b8; }
+    .info-value { color: #e2e8f0; font-weight: 500; }
+    .status {
+      text-align: center;
+      padding: 2rem;
+      color: #64748b;
+      font-size: 0.875rem;
+    }
+    .error { color: #f87171; }
+    .loading { animation: pulse 1.5s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Hello World</h1>
+    <p class="subtitle">Nexus Plugin Demo</p>
+
+    <div class="card">
+      <h2>Host System Info</h2>
+      <div id="content">
+        <div class="status loading">Fetching system info from Host API...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function init() {
+      const content = document.getElementById('content');
+
+      try {
+        // Get auth config from our backend
+        const configRes = await fetch('/api/config');
+        const config = await configRes.json();
+
+        // Call the Nexus Host API
+        const res = await fetch(`${config.apiUrl}/api/v1/system/info`, {
+          headers: { 'Authorization': `Bearer ${config.token}` }
+        });
+
+        if (!res.ok) {
+          throw new Error(`API returned ${res.status}: ${res.statusText}`);
+        }
+
+        const info = await res.json();
+
+        content.innerHTML = `
+          <div class="info-row">
+            <span class="info-label">OS</span>
+            <span class="info-value">${info.os} ${info.os_version}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Hostname</span>
+            <span class="info-value">${info.hostname}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Uptime</span>
+            <span class="info-value">${formatUptime(info.uptime)}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">CPUs</span>
+            <span class="info-value">${info.cpu_count}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Memory</span>
+            <span class="info-value">${formatBytes(info.total_memory)}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Nexus Version</span>
+            <span class="info-value">v${info.nexus_version}</span>
+          </div>
+        `;
+      } catch (err) {
+        content.innerHTML = `<div class="status error">Failed to connect: ${err.message}</div>`;
+      }
+    }
+
+    function formatUptime(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+
+    function formatBytes(bytes) {
+      const gb = (bytes / (1024 * 1024 * 1024)).toFixed(1);
+      return `${gb} GB`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

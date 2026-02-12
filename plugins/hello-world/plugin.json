@@ -1,0 +1,23 @@
+{
+  "id": "com.nexus.hello-world",
+  "name": "Hello World",
+  "version": "0.1.0",
+  "description": "A sample Nexus plugin that demonstrates Host API integration",
+  "author": "Nexus Team",
+  "license": "MIT",
+  "homepage": "https://github.com/nexus-dashboard/nexus",
+  "image": "nexus-plugin-hello:latest",
+  "ui": {
+    "port": 80,
+    "path": "/"
+  },
+  "permissions": [
+    "system:info"
+  ],
+  "health": {
+    "endpoint": "/health",
+    "interval_secs": 30
+  },
+  "env": {},
+  "min_nexus_version": "0.1.0"
+}

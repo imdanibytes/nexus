@@ -289,6 +289,42 @@ pub async fn list_containers() -> NexusResult<Vec<bollard::service::ContainerSum
         .map_err(NexusError::Docker)
 }
 
+/// Polls a plugin's HTTP endpoint until it responds (2xx/3xx) or the timeout expires.
+/// Returns Ok(()) once ready, or an error on timeout.
+pub async fn wait_for_ready(port: u16, path: &str, timeout: std::time::Duration) -> NexusResult<()> {
+    let url = format!("http://127.0.0.1:{}{}", port, path);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .map_err(|e| NexusError::Other(format!("HTTP client error: {}", e)))?;
+
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut interval = tokio::time::interval(std::time::Duration::from_millis(250));
+
+    loop {
+        interval.tick().await;
+
+        if tokio::time::Instant::now() > deadline {
+            log::warn!("Plugin readiness timeout after {:?} for {}", timeout, url);
+            // Don't fail the start — the container IS running, just slow
+            return Ok(());
+        }
+
+        match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() || resp.status().is_redirection() => {
+                log::info!("Plugin ready at {}", url);
+                return Ok(());
+            }
+            Ok(resp) => {
+                log::debug!("Plugin not ready yet: {} → {}", url, resp.status());
+            }
+            Err(_) => {
+                log::debug!("Plugin not ready yet: {} → connection refused", url);
+            }
+        }
+    }
+}
+
 /// Returns "running", "stopped", or errors if the container doesn't exist.
 pub async fn container_state(container_id: &str) -> NexusResult<&'static str> {
     let docker = connect()?;

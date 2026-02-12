@@ -107,7 +107,18 @@ impl PluginManager {
             .clone()
             .ok_or_else(|| NexusError::Other("No container ID".to_string()))?;
 
+        let port = plugin.assigned_port;
+        let ready_path = plugin
+            .manifest
+            .health
+            .as_ref()
+            .map(|h| h.endpoint.clone())
+            .unwrap_or_else(|| plugin.manifest.ui.path.clone());
+
         docker::start_container(&container_id).await?;
+
+        // Wait for the plugin's HTTP server to be reachable before reporting success
+        docker::wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;
 
         if let Some(plugin) = self.storage.get_mut(plugin_id) {
             plugin.status = PluginStatus::Running;

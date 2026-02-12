@@ -1,83 +1,60 @@
-import { useEffect, useState } from "react";
-import { useAppStore } from "../../stores/appStore";
-import { appVersion, type AppVersionInfo } from "../../lib/tauri";
-import { PermissionList } from "../permissions/PermissionList";
-import { DockerSettings } from "./DockerSettings";
-import { RegistrySettings } from "./RegistrySettings";
-import { UpdateCheck } from "./UpdateCheck";
-import { Info, Shield } from "lucide-react";
+import { useState } from "react";
+import { GeneralTab } from "./GeneralTab";
+import { RuntimeTab } from "./RuntimeTab";
+import { ResourcesTab } from "./ResourcesTab";
+import { PluginsTab } from "./PluginsTab";
+import { Settings, Container, Gauge, Puzzle } from "lucide-react";
+
+type SettingsTab = "general" | "runtime" | "resources" | "plugins";
+
+const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
+  { id: "general", label: "General", icon: Settings },
+  { id: "runtime", label: "Runtime", icon: Container },
+  { id: "resources", label: "Resources", icon: Gauge },
+  { id: "plugins", label: "Plugins", icon: Puzzle },
+];
 
 export function SettingsPage() {
-  const { installedPlugins } = useAppStore();
-  const [version, setVersion] = useState<AppVersionInfo | null>(null);
-
-  useEffect(() => {
-    appVersion().then(setVersion).catch(() => {});
-  }, []);
+  const [active, setActive] = useState<SettingsTab>("general");
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-[18px] font-bold text-nx-text mb-1">Settings</h2>
-        <p className="text-[13px] text-nx-text-secondary">
-          Manage your Nexus installation
-        </p>
+    <div className="flex h-full">
+      {/* Tab rail */}
+      <nav className="w-44 flex-shrink-0 border-r border-nx-border bg-nx-deep p-3 space-y-1">
+        <div className="mb-4 px-2">
+          <h2 className="text-[15px] font-bold text-nx-text">Settings</h2>
+          <p className="text-[11px] text-nx-text-ghost mt-0.5">
+            Manage your Nexus installation
+          </p>
+        </div>
+
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = active === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActive(tab.id)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
+                isActive
+                  ? "bg-nx-surface text-nx-text shadow-sm border border-nx-border"
+                  : "text-nx-text-muted hover:text-nx-text-secondary hover:bg-nx-wash/40"
+              }`}
+            >
+              <Icon size={15} strokeWidth={1.5} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Content pane */}
+      <div className="flex-1 overflow-y-auto p-6 max-w-2xl">
+        {active === "general" && <GeneralTab />}
+        {active === "runtime" && <RuntimeTab />}
+        {active === "resources" && <ResourcesTab />}
+        {active === "plugins" && <PluginsTab />}
       </div>
-
-      {/* Registries */}
-      <RegistrySettings />
-
-      {/* Docker */}
-      <DockerSettings />
-
-      {/* App info */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Info size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">About</h3>
-        </div>
-        <div className="space-y-2.5">
-          <div className="flex justify-between items-center">
-            <span className="text-[12px] text-nx-text-muted">Version</span>
-            <span className="text-[13px] text-nx-text font-mono">
-              {version?.version ?? "..."}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-[12px] text-nx-text-muted">App</span>
-            <span className="text-[13px] text-nx-text">
-              {version?.name ?? "Nexus"}
-            </span>
-          </div>
-        </div>
-        <div className="mt-4 pt-4 border-t border-nx-border-subtle">
-          <UpdateCheck />
-        </div>
-      </section>
-
-      {/* Plugin permissions */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            Plugin Permissions
-          </h3>
-        </div>
-        {installedPlugins.length === 0 ? (
-          <p className="text-[11px] text-nx-text-ghost">No plugins installed</p>
-        ) : (
-          <div className="space-y-5">
-            {installedPlugins.map((plugin) => (
-              <div key={plugin.manifest.id}>
-                <h4 className="text-[13px] text-nx-text font-medium mb-2">
-                  {plugin.manifest.name}
-                </h4>
-                <PermissionList pluginId={plugin.manifest.id} />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

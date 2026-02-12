@@ -1,9 +1,12 @@
-use serde::Serialize;
+use crate::plugin_manager::docker;
+use crate::AppState;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
 pub struct AppVersionInfo {
     pub version: String,
     pub name: String,
+    pub commit: Option<String>,
 }
 
 #[tauri::command]
@@ -11,6 +14,7 @@ pub async fn app_version() -> AppVersionInfo {
     AppVersionInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         name: "Nexus".to_string(),
+        commit: option_env!("NEXUS_COMMIT").map(|s| s.to_string()),
     }
 }
 
@@ -24,11 +28,10 @@ pub struct DockerStatus {
 
 #[tauri::command]
 pub async fn check_docker() -> DockerStatus {
-    match crate::plugin_manager::docker::connect() {
+    match docker::connect() {
         Ok(docker) => {
             match tokio::time::timeout(std::time::Duration::from_secs(3), docker.ping()).await {
                 Ok(Ok(_)) => {
-                    // Docker is running — try to get version info
                     let version = match docker.version().await {
                         Ok(v) => v.version,
                         Err(_) => None,
@@ -55,7 +58,6 @@ pub async fn check_docker() -> DockerStatus {
             }
         }
         Err(_) => {
-            // Check if the Docker CLI binary exists even if daemon isn't reachable
             let cli_exists = std::process::Command::new("docker")
                 .arg("--version")
                 .output()
@@ -82,4 +84,47 @@ pub async fn open_docker_desktop() -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("Failed to open Docker Desktop: {}", e))?;
     Ok(())
+}
+
+// Resource usage / quotas
+
+#[derive(Serialize)]
+pub struct ResourceUsage {
+    pub cpu_percent: f64,
+    pub memory_mb: f64,
+}
+
+#[tauri::command]
+pub async fn container_resource_usage() -> Result<ResourceUsage, String> {
+    docker::aggregate_stats().await.map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ResourceQuotas {
+    pub cpu_percent: Option<f64>,
+    pub memory_mb: Option<u64>,
+}
+
+#[tauri::command]
+pub async fn get_resource_quotas(
+    state: tauri::State<'_, AppState>,
+) -> Result<ResourceQuotas, String> {
+    let mgr = state.read().await;
+    let settings = &mgr.settings;
+    Ok(ResourceQuotas {
+        cpu_percent: settings.cpu_quota_percent,
+        memory_mb: settings.memory_limit_mb,
+    })
+}
+
+#[tauri::command]
+pub async fn save_resource_quotas(
+    state: tauri::State<'_, AppState>,
+    cpu_percent: Option<f64>,
+    memory_mb: Option<u64>,
+) -> Result<(), String> {
+    let mut mgr = state.write().await;
+    mgr.settings.cpu_quota_percent = cpu_percent;
+    mgr.settings.memory_limit_mb = memory_mb;
+    mgr.settings.save().map_err(|e| e.to_string())
 }

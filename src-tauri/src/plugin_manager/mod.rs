@@ -7,7 +7,7 @@ pub mod storage;
 use crate::error::{NexusError, NexusResult};
 use crate::permissions::PermissionStore;
 use manifest::PluginManifest;
-use storage::{InstalledPlugin, PluginStatus, PluginStorage};
+use storage::{InstalledPlugin, NexusSettings, PluginStatus, PluginStorage};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -17,6 +17,7 @@ pub struct PluginManager {
     pub permissions: PermissionStore,
     pub registry_store: registry::RegistryStore,
     pub registry_cache: Vec<registry::RegistryEntry>,
+    pub settings: NexusSettings,
     data_dir: PathBuf,
 }
 
@@ -25,12 +26,14 @@ impl PluginManager {
         let storage = PluginStorage::load(&data_dir).unwrap_or_default();
         let permissions = PermissionStore::load(&data_dir).unwrap_or_default();
         let registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
+        let settings = NexusSettings::load(&data_dir).unwrap_or_default();
 
         PluginManager {
             storage,
             permissions,
             registry_store,
             registry_cache: Vec::new(),
+            settings,
             data_dir,
         }
     }

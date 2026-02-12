@@ -325,6 +325,62 @@ pub async fn wait_for_ready(port: u16, path: &str, timeout: std::time::Duration)
     }
 }
 
+/// Aggregates CPU and memory usage across all Nexus-managed containers.
+pub async fn aggregate_stats() -> NexusResult<crate::commands::system::ResourceUsage> {
+    let containers = list_containers().await?;
+    let docker = connect()?;
+
+    let mut total_cpu = 0.0_f64;
+    let mut total_memory_bytes = 0_u64;
+
+    for container in &containers {
+        let id = match &container.id {
+            Some(id) => id,
+            None => continue,
+        };
+
+        // Only stats running containers
+        let state = container
+            .state
+            .as_deref()
+            .unwrap_or("unknown");
+        if state != "running" {
+            continue;
+        }
+
+        // Get a single stats snapshot (stream=false gives one result)
+        let opts = bollard::container::StatsOptions {
+            stream: false,
+            one_shot: true,
+        };
+
+        let mut stream = docker.stats(id, Some(opts));
+        if let Some(Ok(stats)) = futures_util::StreamExt::next(&mut stream).await {
+            // CPU percentage calculation
+            let cpu_delta = stats.cpu_stats.cpu_usage.total_usage as f64
+                - stats.precpu_stats.cpu_usage.total_usage as f64;
+            let system_delta = stats.cpu_stats.system_cpu_usage.unwrap_or(0) as f64
+                - stats.precpu_stats.system_cpu_usage.unwrap_or(0) as f64;
+            let num_cpus = stats
+                .cpu_stats
+                .online_cpus
+                .unwrap_or(1) as f64;
+
+            if system_delta > 0.0 {
+                total_cpu += (cpu_delta / system_delta) * num_cpus * 100.0;
+            }
+
+            // Memory usage
+            total_memory_bytes += stats.memory_stats.usage.unwrap_or(0);
+        }
+    }
+
+    Ok(crate::commands::system::ResourceUsage {
+        cpu_percent: (total_cpu * 10.0).round() / 10.0,
+        memory_mb: (total_memory_bytes as f64 / 1_048_576.0 * 10.0).round() / 10.0,
+    })
+}
+
 /// Returns "running", "stopped", or errors if the container doesn't exist.
 pub async fn container_state(container_id: &str) -> NexusResult<&'static str> {
     let docker = connect()?;

@@ -74,6 +74,7 @@ export async function permissionList(
 export interface AppVersionInfo {
   version: string;
   name: string;
+  commit: string | null;
 }
 
 export async function appVersion(): Promise<AppVersionInfo> {
@@ -93,6 +94,36 @@ export async function checkDocker(): Promise<DockerStatus> {
 
 export async function openDockerDesktop(): Promise<void> {
   return invoke("open_docker_desktop");
+}
+
+// Resources
+
+export interface ResourceUsage {
+  cpu_percent: number;
+  memory_mb: number;
+}
+
+export async function containerResourceUsage(): Promise<ResourceUsage> {
+  return invoke("container_resource_usage");
+}
+
+export interface ResourceQuotas {
+  cpu_percent: number | null;
+  memory_mb: number | null;
+}
+
+export async function getResourceQuotas(): Promise<ResourceQuotas> {
+  return invoke("get_resource_quotas");
+}
+
+export async function saveResourceQuotas(
+  cpuPercent: number | null,
+  memoryMb: number | null
+): Promise<void> {
+  return invoke("save_resource_quotas", {
+    cpu_percent: cpuPercent,
+    memory_mb: memoryMb,
+  });
 }
 
 // Registries

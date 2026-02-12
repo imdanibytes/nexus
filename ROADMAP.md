@@ -3,6 +3,9 @@
 ## Platform & Core (Future Phases)
 
 - [ ] Linux + Windows support
+- [ ] Alternative container runtimes (Podman, Finch, nerdctl)
+- [ ] Build metadata in About (commit hash, build date)
+- [ ] Scalable permissions UI (search, filter, bulk operations)
 - [ ] Plugin hot-reload (restart container on image update)
 - [ ] Plugin sandboxing levels (strict/standard/privileged)
 - [ ] Plugin-to-plugin communication bus

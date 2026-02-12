@@ -1,3 +1,13 @@
 fn main() {
-  tauri_build::build()
+    // Capture git commit hash at build time
+    let commit = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "dev".to_string());
+    println!("cargo:rustc-env=NEXUS_COMMIT={}", commit);
+
+    tauri_build::build()
 }

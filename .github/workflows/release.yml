@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Build Tauri app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: cargo tauri build --target ${{ matrix.target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate latest.json updater manifest
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          REPO="imdanibytes/nexus"
+
+          # Read signatures
+          AARCH64_SIG=$(cat artifacts/Nexus.app.tar.gz.sig 2>/dev/null || echo "")
+          # Handle case where both architectures produce same-named files
+          # In practice, artifacts are in separate directories
+
+          # Find the actual files
+          echo "=== Artifact structure ==="
+          find artifacts -type f | sort
+
+          # Find .sig files
+          SIGS=($(find artifacts -name "*.app.tar.gz.sig" -type f))
+          TARBALLS=($(find artifacts -name "*.app.tar.gz" ! -name "*.sig" -type f))
+
+          # Build platforms JSON
+          PLATFORMS="{}"
+          for i in "${!SIGS[@]}"; do
+            SIG_CONTENT=$(cat "${SIGS[$i]}")
+            TARBALL_NAME=$(basename "${TARBALLS[$i]}")
+            URL="https://github.com/${REPO}/releases/download/${TAG}/${TARBALL_NAME}"
+
+            # Determine platform key from artifact directory name
+            DIR=$(dirname "${SIGS[$i]}")
+            if echo "$DIR" | grep -q "aarch64"; then
+              PLATFORM_KEY="darwin-aarch64"
+            else
+              PLATFORM_KEY="darwin-x86_64"
+            fi
+
+            PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "$PLATFORM_KEY" \
+              --arg url "$URL" --arg sig "$SIG_CONTENT" \
+              '. + {($key): {"url": $url, "signature": $sig}}')
+          done
+
+          # Write latest.json
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "Release ${TAG}" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson platforms "$PLATFORMS" \
+            '{version: $version, notes: $notes, pub_date: $date, platforms: $platforms}' \
+            > artifacts/latest.json
+
+          echo "=== latest.json ==="
+          cat artifacts/latest.json
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+
+          # Collect all release files
+          FILES=($(find artifacts -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -type f))
+          FILES+=("artifacts/latest.json")
+
+          gh release create "$TAG" \
+            --title "Nexus ${TAG}" \
+            --generate-notes \
+            "${FILES[@]}"

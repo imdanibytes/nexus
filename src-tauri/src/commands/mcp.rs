@@ -44,6 +44,7 @@ pub async fn mcp_set_enabled(
             .or_insert_with(|| McpPluginSettings {
                 enabled: true,
                 disabled_tools: vec![],
+                approved_tools: vec![],
             })
             .enabled = enabled;
     } else if let Some(rest) = scope.strip_prefix("tool:") {
@@ -68,6 +69,7 @@ pub async fn mcp_set_enabled(
                         .or_insert_with(|| McpPluginSettings {
                             enabled: true,
                             disabled_tools: vec![],
+                            approved_tools: vec![],
                         });
                     if enabled {
                         plugin_settings

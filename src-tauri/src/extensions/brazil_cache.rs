@@ -15,6 +15,32 @@ impl BrazilCacheExtension {
         Self
     }
 
+    /// Validate that a package name contains only safe characters
+    /// (alphanumeric, hyphens, underscores, dots) and no path traversal.
+    fn validate_package_name(name: &str) -> Result<(), ExtensionError> {
+        if name.is_empty() {
+            return Err(ExtensionError::InvalidInput(
+                "Package name must not be empty".into(),
+            ));
+        }
+        if name.contains("..") || name.contains('/') || name.contains('\\') {
+            return Err(ExtensionError::InvalidInput(format!(
+                "Package name '{}' contains invalid characters",
+                name
+            )));
+        }
+        if !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
+            return Err(ExtensionError::InvalidInput(format!(
+                "Package name '{}' contains invalid characters (allowed: alphanumeric, -, _, .)",
+                name
+            )));
+        }
+        Ok(())
+    }
+
     fn cache_root() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
@@ -324,6 +350,8 @@ impl BrazilCacheExtension {
             .as_str()
             .ok_or_else(|| ExtensionError::InvalidInput("Missing required field: package".into()))?;
 
+        Self::validate_package_name(package)?;
+
         let pkg_dir = Self::packages_dir().join(package);
         if !pkg_dir.exists() {
             return Err(ExtensionError::ExecutionFailed(format!(
@@ -450,6 +478,10 @@ impl BrazilCacheExtension {
             .iter()
             .filter_map(|v| v.as_str())
             .collect();
+
+        for name in &pkg_list {
+            Self::validate_package_name(name)?;
+        }
 
         if pkg_list.is_empty() {
             return Err(ExtensionError::InvalidInput(

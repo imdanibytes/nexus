@@ -178,6 +178,11 @@ pub struct McpPluginSettings {
     pub enabled: bool,
     #[serde(default)]
     pub disabled_tools: Vec<String>,
+    /// Tools the user has permanently approved (skips `requires_approval` prompts).
+    /// Populated when the user clicks "Approve" (vs "Approve Once") in the
+    /// runtime approval dialog for an MCP tool.
+    #[serde(default)]
+    pub approved_tools: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

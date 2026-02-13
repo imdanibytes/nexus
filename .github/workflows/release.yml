@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch: # temporary: for testing CI changes
 
 permissions:
   contents: write

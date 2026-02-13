@@ -41,11 +41,7 @@ pub fn run() {
                 .expect("failed to get app data dir");
             std::fs::create_dir_all(&data_dir).ok();
 
-            let mut mgr = PluginManager::new(data_dir.clone());
-
-            // Register host extensions
-            mgr.extensions.register(Box::new(extensions::ada::AdaExtension::new()));
-            mgr.extensions.register(Box::new(extensions::brazil_cache::BrazilCacheExtension::new()));
+            let mgr = PluginManager::new(data_dir.clone());
 
             let state = Arc::new(RwLock::new(mgr));
             app.manage(state.clone());

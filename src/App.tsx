@@ -9,6 +9,7 @@ import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { checkDocker } from "./lib/tauri";
 import { Package } from "lucide-react";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function PluginsView() {
   const { plugins, selectedPlugin, busyPlugins, start, stop, remove, getLogs } =
@@ -44,14 +45,16 @@ function PluginsView() {
 
   return (
     <>
-      <PluginViewport
-        plugin={selectedPlugin}
-        busyAction={busyPlugins[selectedPlugin.manifest.id] ?? null}
-        onStart={() => start(selectedPlugin.manifest.id)}
-        onStop={() => stop(selectedPlugin.manifest.id)}
-        onRemove={() => remove(selectedPlugin.manifest.id)}
-        onShowLogs={() => setShowLogs(selectedPlugin.manifest.id)}
-      />
+      <ErrorBoundary label={selectedPlugin.manifest.name}>
+        <PluginViewport
+          plugin={selectedPlugin}
+          busyAction={busyPlugins[selectedPlugin.manifest.id] ?? null}
+          onStart={() => start(selectedPlugin.manifest.id)}
+          onStop={() => stop(selectedPlugin.manifest.id)}
+          onRemove={() => remove(selectedPlugin.manifest.id)}
+          onShowLogs={() => setShowLogs(selectedPlugin.manifest.id)}
+        />
+      </ErrorBoundary>
       {showLogs && (
         <PluginLogs
           pluginId={showLogs}
@@ -106,18 +109,32 @@ function App() {
 
   return (
     <Shell>
-      {currentView === "plugins" && <PluginsView />}
-      {currentView === "marketplace" && <MarketplacePage />}
-      {currentView === "settings" && <SettingsPage />}
+      {currentView === "plugins" && (
+        <ErrorBoundary label="Plugins">
+          <PluginsView />
+        </ErrorBoundary>
+      )}
+      {currentView === "marketplace" && (
+        <ErrorBoundary label="Marketplace">
+          <MarketplacePage />
+        </ErrorBoundary>
+      )}
+      {currentView === "settings" && (
+        <ErrorBoundary label="Settings">
+          <SettingsPage />
+        </ErrorBoundary>
+      )}
       {currentView === "plugin-detail" && selectedRegistryEntry && (
-        <PluginDetail
-          entry={selectedRegistryEntry}
-          isInstalled={installedIds.has(selectedRegistryEntry.id)}
-          onBack={() => {
-            selectRegistryEntry(null);
-            setView("marketplace");
-          }}
-        />
+        <ErrorBoundary label="Plugin Detail">
+          <PluginDetail
+            entry={selectedRegistryEntry}
+            isInstalled={installedIds.has(selectedRegistryEntry.id)}
+            onBack={() => {
+              selectRegistryEntry(null);
+              setView("marketplace");
+            }}
+          />
+        </ErrorBoundary>
       )}
     </Shell>
   );

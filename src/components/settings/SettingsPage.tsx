@@ -5,6 +5,7 @@ import { ResourcesTab } from "./ResourcesTab";
 import { PluginsTab } from "./PluginsTab";
 import { PermissionsTab } from "./PermissionsTab";
 import { Settings, Container, Gauge, Puzzle, Shield } from "lucide-react";
+import { ErrorBoundary } from "../ErrorBoundary";
 
 type SettingsTab = "general" | "runtime" | "resources" | "plugins" | "permissions";
 
@@ -52,11 +53,13 @@ export function SettingsPage() {
 
       {/* Content pane */}
       <div className="flex-1 overflow-y-auto p-6 max-w-2xl">
-        {active === "general" && <GeneralTab />}
-        {active === "runtime" && <RuntimeTab />}
-        {active === "resources" && <ResourcesTab />}
-        {active === "plugins" && <PluginsTab />}
-        {active === "permissions" && <PermissionsTab />}
+        <ErrorBoundary label={TABS.find((t) => t.id === active)?.label}>
+          {active === "general" && <GeneralTab />}
+          {active === "runtime" && <RuntimeTab />}
+          {active === "resources" && <ResourcesTab />}
+          {active === "plugins" && <PluginsTab />}
+          {active === "permissions" && <PermissionsTab />}
+        </ErrorBoundary>
       </div>
     </div>
   );

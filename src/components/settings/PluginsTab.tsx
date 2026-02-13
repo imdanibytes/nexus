@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useAppStore } from "../../stores/appStore";
+import { usePlugins } from "../../hooks/usePlugins";
 import { pluginGetSettings, pluginSaveSettings } from "../../lib/tauri";
 import type { InstalledPlugin, SettingDef } from "../../types/plugin";
-import { Puzzle, Save, Check } from "lucide-react";
+import { Puzzle, Save, Check, Square, Trash2 } from "lucide-react";
+import { ErrorBoundary } from "../ErrorBoundary";
 
 function SettingField({
   def,
@@ -97,7 +98,17 @@ function SettingField({
   }
 }
 
-function PluginSettingsCard({ plugin }: { plugin: InstalledPlugin }) {
+function PluginSettingsCard({
+  plugin,
+  busy,
+  onStop,
+  onRemove,
+}: {
+  plugin: InstalledPlugin;
+  busy: string | null;
+  onStop: () => void;
+  onRemove: () => void;
+}) {
   const defs = plugin.manifest.settings ?? [];
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
@@ -129,6 +140,29 @@ function PluginSettingsCard({ plugin }: { plugin: InstalledPlugin }) {
     }
   }
 
+  const actionButtons = (
+    <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+      {plugin.status === "running" && (
+        <button
+          onClick={onStop}
+          disabled={busy !== null}
+          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-warning-muted text-nx-warning hover:bg-nx-warning/20 transition-colors duration-150 disabled:opacity-50"
+        >
+          <Square size={10} strokeWidth={2} />
+          {busy === "stopping" ? "Stopping..." : "Stop"}
+        </button>
+      )}
+      <button
+        onClick={onRemove}
+        disabled={busy !== null}
+        className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-error-muted text-nx-error hover:bg-nx-error/20 transition-colors duration-150 disabled:opacity-50"
+      >
+        <Trash2 size={10} strokeWidth={2} />
+        {busy === "removing" ? "Removing..." : "Remove"}
+      </button>
+    </div>
+  );
+
   if (defs.length === 0) {
     return (
       <div className="rounded-[var(--radius-card)] border border-nx-border-subtle bg-nx-deep p-4">
@@ -139,6 +173,16 @@ function PluginSettingsCard({ plugin }: { plugin: InstalledPlugin }) {
           <span className="text-[11px] text-nx-text-ghost font-mono">
             v{plugin.manifest.version}
           </span>
+          <span
+            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[var(--radius-tag)] flex-shrink-0 ${
+              plugin.status === "running"
+                ? "bg-nx-success-muted text-nx-success"
+                : "bg-nx-overlay text-nx-text-ghost"
+            }`}
+          >
+            {plugin.status.toUpperCase()}
+          </span>
+          {actionButtons}
         </div>
         <p className="text-[11px] text-nx-text-ghost">
           No configurable settings
@@ -165,6 +209,7 @@ function PluginSettingsCard({ plugin }: { plugin: InstalledPlugin }) {
         >
           {plugin.status.toUpperCase()}
         </span>
+        {actionButtons}
       </div>
 
       <div className="space-y-4">
@@ -201,7 +246,7 @@ function PluginSettingsCard({ plugin }: { plugin: InstalledPlugin }) {
 }
 
 export function PluginsTab() {
-  const { installedPlugins } = useAppStore();
+  const { plugins, busyPlugins, stop, remove } = usePlugins();
 
   return (
     <div className="space-y-6">
@@ -213,17 +258,21 @@ export function PluginsTab() {
           </h3>
         </div>
 
-        {installedPlugins.length === 0 ? (
+        {plugins.length === 0 ? (
           <p className="text-[11px] text-nx-text-ghost">
             No plugins installed
           </p>
         ) : (
           <div className="space-y-3">
-            {installedPlugins.map((plugin) => (
-              <PluginSettingsCard
-                key={plugin.manifest.id}
-                plugin={plugin}
-              />
+            {plugins.map((plugin) => (
+              <ErrorBoundary key={plugin.manifest.id} inline label={plugin.manifest.name}>
+                <PluginSettingsCard
+                  plugin={plugin}
+                  busy={busyPlugins[plugin.manifest.id] ?? null}
+                  onStop={() => stop(plugin.manifest.id)}
+                  onRemove={() => remove(plugin.manifest.id)}
+                />
+              </ErrorBoundary>
             ))}
           </div>
         )}

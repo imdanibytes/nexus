@@ -26,6 +26,8 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:* https://raw.githubusercontent.com; frame-src http://localhost:*"
     },
     "trayIcon": {
+      "title": "Nexus",
+      "tooltip": "Nexus",
       "iconPath": "icons/32x32.png",
       "iconAsTemplate": true
     }

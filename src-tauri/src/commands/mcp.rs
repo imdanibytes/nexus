@@ -16,6 +16,7 @@ pub struct McpToolStatus {
     pub tool_enabled: bool,
     pub required_permissions: Vec<String>,
     pub permissions_granted: bool,
+    pub requires_approval: bool,
 }
 
 #[tauri::command]
@@ -43,6 +44,7 @@ pub async fn mcp_set_enabled(
             .or_insert_with(|| McpPluginSettings {
                 enabled: true,
                 disabled_tools: vec![],
+                approved_tools: vec![],
             })
             .enabled = enabled;
     } else if let Some(rest) = scope.strip_prefix("tool:") {
@@ -67,6 +69,7 @@ pub async fn mcp_set_enabled(
                         .or_insert_with(|| McpPluginSettings {
                             enabled: true,
                             disabled_tools: vec![],
+                            approved_tools: vec![],
                         });
                     if enabled {
                         plugin_settings
@@ -138,6 +141,7 @@ pub async fn mcp_list_tools(
                 tool_enabled: !tool_disabled,
                 required_permissions: tool.permissions.clone(),
                 permissions_granted: all_perms_granted,
+                requires_approval: tool.requires_approval,
             });
         }
     }

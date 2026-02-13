@@ -7,15 +7,18 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
         Response,
     },
-    Json,
+    Extension, Json,
 };
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
+use std::sync::Arc;
 
 use crate::permissions::Permission;
 use crate::plugin_manager::storage::PluginStatus;
 use crate::AppState;
+
+use super::approval::ApprovalBridge;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +34,7 @@ pub struct McpToolEntry {
     pub required_permissions: Vec<String>,
     pub permissions_granted: bool,
     pub enabled: bool,
+    pub requires_approval: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,6 +130,7 @@ pub async fn list_tools(State(state): State<AppState>) -> Json<Vec<McpToolEntry>
                 required_permissions: tool.permissions.clone(),
                 permissions_granted: all_perms_granted,
                 enabled: plugin_enabled && !tool_disabled && all_perms_granted,
+                requires_approval: tool.requires_approval,
             });
         }
     }
@@ -136,6 +141,7 @@ pub async fn list_tools(State(state): State<AppState>) -> Json<Vec<McpToolEntry>
 /// Call an MCP tool by its namespaced name.
 pub async fn call_tool(
     State(state): State<AppState>,
+    Extension(bridge): Extension<Arc<ApprovalBridge>>,
     Json(req): Json<McpCallRequest>,
 ) -> Result<Json<McpCallResponse>, StatusCode> {
     let mgr = state.read().await;
@@ -207,8 +213,97 @@ pub async fn call_tool(
         }
     }
 
+    let requires_approval = tool_def.requires_approval;
+    let plugin_name = plugin.manifest.name.clone();
+    let tool_description = tool_def.description.clone();
     let port = plugin.assigned_port;
+
+    // Check if the user has permanently approved this tool (via prior "Approve" click)
+    let already_approved = requires_approval
+        && mgr
+            .mcp_settings
+            .plugins
+            .get(&plugin_id)
+            .is_some_and(|s| s.approved_tools.contains(&local_name));
+
     drop(mgr);
+
+    // Runtime approval for tools that require it (unless permanently approved)
+    if requires_approval && !already_approved {
+        let mut context = std::collections::HashMap::new();
+        context.insert("tool_name".to_string(), local_name.clone());
+        context.insert("plugin_name".to_string(), plugin_name.clone());
+        context.insert("description".to_string(), tool_description);
+        // Include argument summary so the user can see what the AI is requesting
+        if let serde_json::Value::Object(map) = &req.arguments {
+            for (k, v) in map {
+                let display = match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                context.insert(format!("arg.{}", k), display);
+            }
+        }
+
+        let approval_req = super::approval::ApprovalRequest {
+            id: uuid::Uuid::new_v4().to_string(),
+            plugin_id: plugin_id.clone(),
+            plugin_name: plugin_name.clone(),
+            category: "mcp_tool".to_string(),
+            permission: format!("mcp:{}:{}", plugin_id, local_name),
+            context,
+        };
+
+        let decision = bridge.request_approval(approval_req).await;
+
+        match decision {
+            super::approval::ApprovalDecision::Approve => {
+                // Persist: future calls to this tool skip approval
+                let mut mgr = state.write().await;
+                let plugin_settings = mgr
+                    .mcp_settings
+                    .plugins
+                    .entry(plugin_id.clone())
+                    .or_insert_with(|| crate::plugin_manager::storage::McpPluginSettings {
+                        enabled: true,
+                        disabled_tools: vec![],
+                        approved_tools: vec![],
+                    });
+                if !plugin_settings.approved_tools.contains(&local_name) {
+                    plugin_settings.approved_tools.push(local_name.clone());
+                }
+                let _ = mgr.mcp_settings.save();
+                drop(mgr);
+
+                log::info!(
+                    "AUDIT MCP tool permanently approved: plugin={} tool={}",
+                    plugin_id, local_name
+                );
+            }
+            super::approval::ApprovalDecision::ApproveOnce => {
+                log::info!(
+                    "AUDIT MCP tool approved once: plugin={} tool={}",
+                    plugin_id, local_name
+                );
+            }
+            super::approval::ApprovalDecision::Deny => {
+                log::warn!(
+                    "AUDIT MCP tool denied: plugin={} tool={}",
+                    plugin_id, local_name
+                );
+                return Ok(Json(McpCallResponse {
+                    content: vec![McpContent {
+                        content_type: "text".to_string(),
+                        text: format!(
+                            "[Nexus] Tool '{}' was denied by the user.",
+                            local_name
+                        ),
+                    }],
+                    is_error: true,
+                }));
+            }
+        }
+    }
 
     // Forward to plugin container
     let client = reqwest::Client::new();

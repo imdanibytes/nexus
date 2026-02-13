@@ -1,73 +1,155 @@
-# React + TypeScript + Vite
+# Nexus
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A plugin-based desktop dashboard for macOS. Plugins are Docker containers that serve their own UI, communicate with the host through a REST API, and expose tools to AI assistants via the Model Context Protocol (MCP).
 
-Currently, two official plugins are available:
+## How It Works
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Nexus is a Tauri 2 app with a React frontend and a Rust backend. Plugins are Docker images that get pulled, started, and managed by the host. Each plugin container:
 
-## React Compiler
+- Serves a web UI on an assigned port (rendered in the Nexus shell)
+- Authenticates to the Host API with a per-plugin bearer token
+- Declares permissions for what it can access (filesystem, network, processes, etc.)
+- Optionally exposes MCP tools that AI assistants like Claude can call
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+A bundled MCP sidecar (`nexus-mcp`) bridges plugin tools to any MCP-compatible client. When plugins start or stop, tool availability updates automatically via SSE.
 
-## Expanding the ESLint configuration
+## Architecture
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+Claude Desktop / AI Client
+        |
+        | MCP (stdio)
+        v
+   nexus-mcp sidecar
+        |
+        | HTTP (localhost:9600)
+        v
+   Nexus Host API (Axum)
+        |
+        | Docker API
+        v
+  Plugin Containers
+  [hello-world] [permission-tester] [your-plugin]
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+**Frontend:** React 19, TypeScript, Tailwind CSS, Zustand
+**Backend:** Rust, Tauri 2, Axum, Bollard (Docker)
+**MCP Gateway:** Rust, rmcp
+**Plugin SDK:** Auto-generated TypeScript client from OpenAPI spec
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Getting Started
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Prerequisites
+
+- macOS (Apple Silicon or Intel)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) running
+- [Rust](https://rustup.rs/) (stable)
+- [Node.js](https://nodejs.org/) 22+ with [pnpm](https://pnpm.io/)
+
+### Development
+
+```bash
+# Install frontend dependencies
+pnpm install
+
+# Run in development mode (starts Vite + Tauri)
+cargo tauri dev
 ```
+
+The sidecar is built automatically via `beforeBuildCommand`. To build it manually:
+
+```bash
+pnpm sidecar
+```
+
+### Production Build
+
+```bash
+cargo tauri build
+```
+
+This produces a signed `.dmg` and `.app` bundle in `src-tauri/target/release/bundle/`.
+
+## Writing a Plugin
+
+Plugins are Docker containers with a `plugin.json` manifest. See `plugins/hello-world/` for a complete example.
+
+### Manifest (`plugin.json`)
+
+```json
+{
+  "id": "com.yourname.my-plugin",
+  "name": "My Plugin",
+  "version": "0.1.0",
+  "description": "What it does",
+  "image": "my-plugin:latest",
+  "ui": { "port": 80, "path": "/" },
+  "permissions": ["system:info"],
+  "health": { "endpoint": "/health", "interval_secs": 30 },
+  "mcp": {
+    "tools": [
+      {
+        "name": "do_something",
+        "description": "Does something useful",
+        "permissions": ["system:info"],
+        "input_schema": { "type": "object", "properties": {} }
+      }
+    ]
+  }
+}
+```
+
+### Host API
+
+Plugins authenticate with a bearer token (injected as `NEXUS_TOKEN`) and call the Host API at `http://host.docker.internal:9600`:
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/system/info` | Host OS, hostname, uptime, CPU, memory |
+| `GET /api/v1/fs/read?path=...` | Read a file |
+| `GET /api/v1/fs/list?path=...` | List a directory |
+| `POST /api/v1/fs/write` | Write a file |
+| `GET /api/v1/process/list` | Running processes |
+| `GET /api/v1/docker/containers` | Docker containers |
+| `POST /api/v1/network/proxy` | Proxy an HTTP request |
+| `GET /api/v1/settings` | Plugin-scoped settings |
+| `PUT /api/v1/settings` | Update settings |
+
+Full OpenAPI spec available at `GET /api/openapi.json` when the app is running.
+
+### Plugin SDK
+
+An auto-generated TypeScript client is published to GitHub Packages:
+
+```bash
+npm install @imdanibytes/plugin-sdk --registry=https://npm.pkg.github.com
+```
+
+## Project Structure
+
+```
+src/                    React frontend
+src-tauri/              Rust backend (Tauri shell, Host API, plugin manager)
+src-mcp/                MCP gateway sidecar
+packages/plugin-sdk/    Auto-generated TypeScript SDK
+plugins/                Example plugins
+scripts/                Build scripts
+```
+
+## Permissions
+
+Plugins declare required permissions in their manifest. Users approve permissions at install time. Available scopes:
+
+`system:info` `filesystem:read` `filesystem:write` `process:list` `network:proxy` `docker:read`
+
+Runtime approval dialogs appear when a plugin accesses a resource for the first time.
+
+## Release
+
+Releases are automated via GitHub Actions. Pushing a `v*` tag triggers:
+
+1. **build** - Compiles the app for both `aarch64-apple-darwin` and `x86_64-apple-darwin`
+2. **build-sdk** - Validates the plugin SDK compiles
+3. **publish** - Creates a GitHub Release with signed DMGs and publishes the SDK to GitHub Packages
+
+The app includes an auto-updater that checks for new releases on startup.

@@ -46,10 +46,16 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
 
+      - name: Build MCP sidecar
+        run: bash scripts/build-mcp-sidecar.sh
+        env:
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
+
       - name: Build Tauri app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
         run: cargo tauri build --target ${{ matrix.target }}
 
       - name: Upload artifacts
@@ -139,3 +145,27 @@ jobs:
             --title "Nexus ${TAG}" \
             --generate-notes \
             "${FILES[@]}"
+
+  publish-sdk:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+
+      - name: Build and publish SDK
+        run: |
+          cd packages/plugin-sdk
+          npm install
+          npm run generate
+          npm run build
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -98,6 +98,14 @@ export async function permissionList(
   return invoke("permission_list", { pluginId });
 }
 
+export async function permissionRemovePath(
+  pluginId: string,
+  permission: Permission,
+  path: string
+): Promise<void> {
+  return invoke("permission_remove_path", { pluginId, permission, path });
+}
+
 export async function runtimeApprovalRespond(
   requestId: string,
   decision: ApprovalDecision,

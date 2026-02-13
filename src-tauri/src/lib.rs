@@ -75,6 +75,7 @@ pub fn run() {
             commands::permissions::permission_grant,
             commands::permissions::permission_revoke,
             commands::permissions::permission_list,
+            commands::permissions::permission_remove_path,
             commands::system::app_version,
             commands::system::check_docker,
             commands::system::open_docker_desktop,

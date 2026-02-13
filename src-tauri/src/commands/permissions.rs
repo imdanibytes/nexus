@@ -43,6 +43,19 @@ pub async fn permission_list(
     Ok(mgr.permissions.get_grants(&plugin_id))
 }
 
+#[tauri::command]
+pub async fn permission_remove_path(
+    state: tauri::State<'_, AppState>,
+    plugin_id: String,
+    permission: Permission,
+    path: String,
+) -> Result<(), String> {
+    let mut mgr = state.write().await;
+    mgr.permissions
+        .remove_approved_path(&plugin_id, &permission, &path)
+        .map_err(|e| e.to_string())
+}
+
 /// Called by the frontend approval dialog when the user makes a decision.
 ///
 /// For `Approve` (persist): writes the approved path to `PermissionStore`

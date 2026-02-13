@@ -108,4 +108,22 @@ impl PermissionStore {
         }
         Ok(())
     }
+
+    /// Remove a path from the approved_paths list for a specific permission grant.
+    pub fn remove_approved_path(
+        &mut self,
+        plugin_id: &str,
+        permission: &Permission,
+        path: &str,
+    ) -> NexusResult<()> {
+        if let Some(grants) = self.grants.get_mut(plugin_id) {
+            if let Some(grant) = grants.iter_mut().find(|g| &g.permission == permission) {
+                if let Some(ref mut paths) = grant.approved_paths {
+                    paths.retain(|p| p != path);
+                    self.save()?;
+                }
+            }
+        }
+        Ok(())
+    }
 }

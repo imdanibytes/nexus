@@ -47,5 +47,18 @@ export function usePermissions() {
     [loadGrants, addNotification]
   );
 
-  return { grants, loadGrants, grant, revoke };
+  const removePath = useCallback(
+    async (pluginId: string, permission: Permission, path: string) => {
+      try {
+        await api.permissionRemovePath(pluginId, permission, path);
+        addNotification(`Revoked access to ${path}`, "info");
+        await loadGrants(pluginId);
+      } catch (e) {
+        addNotification(`Failed to remove path: ${e}`, "error");
+      }
+    },
+    [loadGrants, addNotification]
+  );
+
+  return { grants, loadGrants, grant, revoke, removePath };
 }

@@ -5,6 +5,7 @@ pub mod registry;
 pub mod storage;
 
 use crate::error::{NexusError, NexusResult};
+use crate::extensions::registry::ExtensionRegistry;
 use crate::permissions::PermissionStore;
 use manifest::PluginManifest;
 use storage::{
@@ -19,6 +20,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub struct PluginManager {
     pub storage: PluginStorage,
     pub permissions: PermissionStore,
+    pub extensions: ExtensionRegistry,
     pub registry_store: registry::RegistryStore,
     pub registry_cache: Vec<registry::RegistryEntry>,
     pub settings: NexusSettings,
@@ -61,6 +63,7 @@ impl PluginManager {
         PluginManager {
             storage,
             permissions,
+            extensions: ExtensionRegistry::new(),
             registry_store,
             registry_cache: Vec::new(),
             settings,
@@ -116,9 +119,9 @@ impl PluginManager {
             .collect();
         env_vars.push(format!("NEXUS_TOKEN={}", token));
         // Browser-accessible URL — the iframe JS runs in the host browser, not inside the container
-        env_vars.push(format!("NEXUS_API_URL=http://localhost:9600"));
+        env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         // Container-internal URL — for server-side code (MCP handlers etc.) that runs inside Docker
-        env_vars.push(format!("NEXUS_HOST_URL=http://host.docker.internal:9600"));
+        env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
 
         // Labels for tracking
         let mut labels = HashMap::new();

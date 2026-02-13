@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Permission } from "../../types/permissions";
 import type { PluginManifest } from "../../types/plugin";
-import { PERMISSION_INFO } from "../../types/permissions";
+import { getPermissionInfo, allPermissions } from "../../types/permissions";
 import { ShieldCheck, ShieldX, ArrowLeft, ArrowRight, Package, ExternalLink, Cpu, Wrench } from "lucide-react";
 
 const riskColors = {
@@ -19,7 +19,7 @@ interface Props {
 }
 
 export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
-  const requestedPermissions = (manifest.permissions ?? []) as Permission[];
+  const requestedPermissions = allPermissions(manifest) as Permission[];
   const hasPermissions = requestedPermissions.length > 0;
   const mcpTools = manifest.mcp?.tools ?? [];
   const hasMcpTools = mcpTools.length > 0;
@@ -103,7 +103,6 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
           {step === "mcp_tools" && (
             <McpToolsStep
               manifest={manifest}
-              permissions={requestedPermissions}
               onApprove={() => onApprove(requestedPermissions)}
               onDeny={onDeny}
               onBack={() => setStep(hasPermissions ? "permissions" : "info")}
@@ -218,6 +217,24 @@ function PermissionsStep({
   onDeny: () => void;
   onBack: () => void;
 }) {
+  const [hasSeenAll, setHasSeenAll] = useState(false);
+
+  const listRef = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    // No overflow — everything is visible already
+    if (el.scrollHeight <= el.clientHeight) {
+      setHasSeenAll(true);
+    }
+  }, []);
+
+  function handleScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    // Scrolled to bottom (4px tolerance for subpixel rounding)
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
+      setHasSeenAll(true);
+    }
+  }
+
   return (
     <>
       <h3 className="text-[16px] font-bold text-nx-text mb-1">
@@ -227,10 +244,13 @@ function PermissionsStep({
         This plugin requests the following permissions:
       </p>
 
-      <div className="space-y-2 mb-6">
+      <div
+        ref={listRef}
+        onScroll={handleScroll}
+        className="space-y-2 mb-6 max-h-64 overflow-y-auto"
+      >
         {permissions.map((perm) => {
-          const info = PERMISSION_INFO[perm];
-          if (!info) return null;
+          const info = getPermissionInfo(perm);
           return (
             <div
               key={perm}
@@ -254,6 +274,12 @@ function PermissionsStep({
         })}
       </div>
 
+      {!hasSeenAll && (
+        <p className="text-[11px] text-nx-text-ghost text-center mb-3">
+          Scroll to review all permissions before continuing
+        </p>
+      )}
+
       <div className="flex justify-between">
         <button
           onClick={onBack}
@@ -272,16 +298,26 @@ function PermissionsStep({
           </button>
           {hasMcpTools ? (
             <button
+              disabled={!hasSeenAll}
               onClick={() => onNext(permissions)}
-              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
+              className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
+                hasSeenAll
+                  ? "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
+                  : "bg-nx-overlay text-nx-text-ghost cursor-not-allowed"
+              }`}
             >
               Review MCP Tools
               <ArrowRight size={14} strokeWidth={1.5} />
             </button>
           ) : (
             <button
+              disabled={!hasSeenAll}
               onClick={() => onApprove(permissions)}
-              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
+              className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
+                hasSeenAll
+                  ? "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
+                  : "bg-nx-overlay text-nx-text-ghost cursor-not-allowed"
+              }`}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               Approve & Install
@@ -295,13 +331,11 @@ function PermissionsStep({
 
 function McpToolsStep({
   manifest,
-  permissions: _permissions,
   onApprove,
   onDeny,
   onBack,
 }: {
   manifest: PluginManifest;
-  permissions: Permission[];
   onApprove: () => void;
   onDeny: () => void;
   onBack: () => void;
@@ -339,13 +373,11 @@ function McpToolsStep({
             {tool.permissions.length > 0 && (
               <div className="flex flex-wrap gap-1 ml-[19px]">
                 {tool.permissions.map((perm) => {
-                  const info = PERMISSION_INFO[perm as Permission];
+                  const info = getPermissionInfo(perm);
                   return (
                     <span
                       key={perm}
-                      className={`text-[9px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] ${
-                        info ? riskColors[info.risk] : "bg-nx-overlay text-nx-text-ghost"
-                      }`}
+                      className={`text-[9px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] ${riskColors[info.risk]}`}
                     >
                       {perm}
                     </span>

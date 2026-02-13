@@ -61,8 +61,7 @@ impl RegistryStore {
             store.path = path;
             Ok(store)
         } else {
-            let mut store = RegistryStore::default();
-            store.path = path;
+            let store = RegistryStore { path, ..Default::default() };
             store.save()?;
             Ok(store)
         }

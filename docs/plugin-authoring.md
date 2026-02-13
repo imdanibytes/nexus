@@ -528,7 +528,7 @@ Network requests to the Host API are visible in the Network tab.
 (plugin detail view > Logs tab) or via the Tauri command `plugin_logs`.
 
 **Test permissions**: Install the `permission-tester` plugin
-(`plugins/permission-tester/`) to exercise all Host API endpoints and verify
+(`examples/plugins/permission-tester/`) to exercise all Host API endpoints and verify
 security boundaries.
 
 **OpenAPI**: Hit `http://localhost:9600/api/openapi.json` for the full API spec.

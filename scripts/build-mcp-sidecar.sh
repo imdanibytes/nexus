@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SRC_MCP="$PROJECT_ROOT/src-mcp"
+SRC_MCP="$PROJECT_ROOT/crates/mcp-sidecar"
 BINARIES_DIR="$PROJECT_ROOT/src-tauri/binaries"
 
 # Determine target triple

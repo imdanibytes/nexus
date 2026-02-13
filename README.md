@@ -72,7 +72,7 @@ This produces a signed `.dmg` and `.app` bundle in `src-tauri/target/release/bun
 
 ## Writing a Plugin
 
-Plugins are Docker containers with a `plugin.json` manifest. See `plugins/hello-world/` for a complete example.
+Plugins are Docker containers with a `plugin.json` manifest. See `examples/plugins/hello-world/` for a complete example.
 
 ### Manifest (`plugin.json`)
 
@@ -130,10 +130,12 @@ npm install @imdanibytes/plugin-sdk --registry=https://npm.pkg.github.com
 ```
 src/                    React frontend
 src-tauri/              Rust backend (Tauri shell, Host API, plugin manager)
-src-mcp/                MCP gateway sidecar
+crates/mcp-sidecar/     MCP gateway sidecar
 packages/plugin-sdk/    Auto-generated TypeScript SDK
-plugins/                Example plugins
-scripts/                Build scripts
+examples/plugins/       Example plugins (hello-world, permission-tester)
+examples/extensions/    Test extension binaries
+scripts/                Build & release scripts
+docs/                   Architecture docs, roadmap, release checklist
 ```
 
 ## Permissions

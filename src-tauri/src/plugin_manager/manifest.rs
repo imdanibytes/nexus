@@ -20,6 +20,10 @@ pub struct McpToolDef {
     #[serde(default)]
     pub permissions: Vec<String>,
     pub input_schema: serde_json::Value,
+    /// When true, every MCP invocation of this tool requires user approval
+    /// before being forwarded to the plugin (similar to filesystem read approval).
+    #[serde(default)]
+    pub requires_approval: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

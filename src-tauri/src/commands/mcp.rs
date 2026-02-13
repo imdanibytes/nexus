@@ -16,6 +16,7 @@ pub struct McpToolStatus {
     pub tool_enabled: bool,
     pub required_permissions: Vec<String>,
     pub permissions_granted: bool,
+    pub requires_approval: bool,
 }
 
 #[tauri::command]
@@ -138,6 +139,7 @@ pub async fn mcp_list_tools(
                 tool_enabled: !tool_disabled,
                 required_permissions: tool.permissions.clone(),
                 permissions_granted: all_perms_granted,
+                requires_approval: tool.requires_approval,
             });
         }
     }

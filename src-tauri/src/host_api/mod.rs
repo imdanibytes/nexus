@@ -1,5 +1,6 @@
 pub mod approval;
 pub mod docker;
+pub mod extensions;
 pub mod filesystem;
 pub mod mcp;
 mod middleware;
@@ -104,6 +105,15 @@ pub async fn start_server(
         )
         // Network
         .route("/v1/network/proxy", routing::post(network::proxy_request))
+        // Extensions
+        .route(
+            "/v1/extensions",
+            routing::get(extensions::list_extensions),
+        )
+        .route(
+            "/v1/extensions/{ext_id}/{operation}",
+            routing::post(extensions::call_extension),
+        )
         // Plugin settings (scoped to authenticated plugin)
         .route(
             "/v1/settings",

@@ -105,12 +105,12 @@ pub async fn list_tools(State(state): State<AppState>) -> Json<Vec<McpToolEntry>
 
         for tool in &mcp_config.tools {
             let tool_disabled = plugin_mcp
-                .map_or(false, |s| s.disabled_tools.contains(&tool.name));
+                .is_some_and(|s| s.disabled_tools.contains(&tool.name));
 
             // Check permissions
             let all_perms_granted = tool.permissions.iter().all(|perm_str| {
                 serde_json::from_value::<Permission>(serde_json::Value::String(perm_str.clone()))
-                    .map_or(false, |perm| {
+                    .is_ok_and(|perm| {
                         mgr.permissions.has_permission(&plugin.manifest.id, &perm)
                     })
             });
@@ -191,7 +191,7 @@ pub async fn call_tool(
     }
 
     // Check tool not disabled
-    let tool_disabled = plugin_mcp.map_or(false, |s| s.disabled_tools.contains(&local_name));
+    let tool_disabled = plugin_mcp.is_some_and(|s| s.disabled_tools.contains(&local_name));
     if tool_disabled {
         return Err(StatusCode::FORBIDDEN);
     }

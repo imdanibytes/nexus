@@ -5,10 +5,11 @@ import { ResourcesTab } from "./ResourcesTab";
 import { PluginsTab } from "./PluginsTab";
 import { PermissionsTab } from "./PermissionsTab";
 import { McpTab } from "./McpTab";
-import { Settings, Container, Gauge, Puzzle, Shield, Cpu } from "lucide-react";
+import { ExtensionsTab } from "./ExtensionsTab";
+import { Settings, Container, Gauge, Puzzle, Shield, Cpu, Blocks } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 
-type SettingsTab = "general" | "runtime" | "resources" | "plugins" | "permissions" | "mcp";
+type SettingsTab = "general" | "runtime" | "resources" | "plugins" | "permissions" | "mcp" | "extensions";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
@@ -17,6 +18,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "plugins", label: "Plugins", icon: Puzzle },
   { id: "permissions", label: "Permissions", icon: Shield },
   { id: "mcp", label: "MCP", icon: Cpu },
+  { id: "extensions", label: "Extensions", icon: Blocks },
 ];
 
 export function SettingsPage() {
@@ -62,6 +64,7 @@ export function SettingsPage() {
           {active === "plugins" && <PluginsTab />}
           {active === "permissions" && <PermissionsTab />}
           {active === "mcp" && <McpTab />}
+          {active === "extensions" && <ExtensionsTab />}
         </ErrorBoundary>
       </div>
     </div>

@@ -202,6 +202,14 @@ export async function registryToggle(
   return invoke("registry_toggle", { id, enabled });
 }
 
+// Extensions
+
+import type { ExtensionStatus } from "../types/extension";
+
+export async function extensionList(): Promise<ExtensionStatus[]> {
+  return invoke("extension_list");
+}
+
 // MCP Gateway
 
 export async function mcpGetSettings(): Promise<McpSettings> {

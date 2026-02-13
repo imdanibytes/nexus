@@ -32,6 +32,7 @@ impl ServerHandler for NexusServer {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
+                .enable_tool_list_changed()
                 .build(),
             server_info: Implementation {
                 name: "nexus".into(),

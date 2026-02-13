@@ -16,6 +16,7 @@ pub async fn permission_grant(
             .grant(&plugin_id, perm, None)
             .map_err(|e| e.to_string())?;
     }
+    mgr.notify_tools_changed();
     Ok(())
 }
 
@@ -31,6 +32,7 @@ pub async fn permission_revoke(
             .revoke(&plugin_id, perm)
             .map_err(|e| e.to_string())?;
     }
+    mgr.notify_tools_changed();
     Ok(())
 }
 

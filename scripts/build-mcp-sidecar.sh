@@ -32,6 +32,13 @@ case "$TARGET" in
 esac
 
 mkdir -p "$BINARIES_DIR"
-cp "$BINARY" "$BINARIES_DIR/nexus-mcp-${TARGET}${EXT}"
+DEST="$BINARIES_DIR/nexus-mcp-${TARGET}${EXT}"
+cp "$BINARY" "$DEST"
 
-echo "Sidecar placed at: $BINARIES_DIR/nexus-mcp-${TARGET}${EXT}"
+# macOS: re-sign after copy so the binary isn't killed by code signature checks.
+# Cargo produces ad-hoc linker-signed binaries; copying can invalidate the signature.
+case "$TARGET" in
+    *apple*) codesign --force --sign - "$DEST" ;;
+esac
+
+echo "Sidecar placed at: $DEST"

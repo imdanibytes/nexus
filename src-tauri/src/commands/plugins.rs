@@ -108,7 +108,9 @@ pub async fn plugin_start(
     plugin_id: String,
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
-    mgr.start(&plugin_id).await.map_err(|e| e.to_string())
+    mgr.start(&plugin_id).await.map_err(|e| e.to_string())?;
+    mgr.notify_tools_changed();
+    Ok(())
 }
 
 #[tauri::command]
@@ -117,7 +119,9 @@ pub async fn plugin_stop(
     plugin_id: String,
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
-    mgr.stop(&plugin_id).await.map_err(|e| e.to_string())
+    mgr.stop(&plugin_id).await.map_err(|e| e.to_string())?;
+    mgr.notify_tools_changed();
+    Ok(())
 }
 
 #[tauri::command]
@@ -126,7 +130,9 @@ pub async fn plugin_remove(
     plugin_id: String,
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
-    mgr.remove(&plugin_id).await.map_err(|e| e.to_string())
+    mgr.remove(&plugin_id).await.map_err(|e| e.to_string())?;
+    mgr.notify_tools_changed();
+    Ok(())
 }
 
 #[tauri::command]

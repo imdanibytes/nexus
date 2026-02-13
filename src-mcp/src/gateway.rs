@@ -56,6 +56,14 @@ impl NexusGateway {
         }
     }
 
+    pub fn events_url(&self) -> String {
+        format!("{}/api/v1/mcp/events", self.base_url)
+    }
+
+    pub fn token(&self) -> &str {
+        &self.token
+    }
+
     /// Fetch the merged tool list from Nexus host.
     pub async fn fetch_tools(&self) -> anyhow::Result<Vec<HostToolEntry>> {
         let resp = self

@@ -14,6 +14,7 @@ use storage::{
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct PluginManager {
     pub storage: PluginStorage,
@@ -25,6 +26,9 @@ pub struct PluginManager {
     pub mcp_settings: McpSettings,
     pub gateway_token_hash: String,
     pub data_dir: PathBuf,
+    tool_version: AtomicU64,
+    tool_version_tx: tokio::sync::watch::Sender<u64>,
+    pub tool_version_rx: tokio::sync::watch::Receiver<u64>,
 }
 
 impl PluginManager {
@@ -52,6 +56,8 @@ impl PluginManager {
         };
         let gateway_token_hash = hash_token(raw_token.trim());
 
+        let (tool_version_tx, tool_version_rx) = tokio::sync::watch::channel(0u64);
+
         PluginManager {
             storage,
             permissions,
@@ -62,12 +68,23 @@ impl PluginManager {
             mcp_settings,
             gateway_token_hash,
             data_dir,
+            tool_version: AtomicU64::new(0),
+            tool_version_tx,
+            tool_version_rx,
         }
     }
 
     /// Verify a raw gateway token against the stored hash.
     pub fn verify_gateway_token(&self, raw: &str) -> bool {
         hash_token(raw) == self.gateway_token_hash
+    }
+
+    /// Bump the tool version counter and notify SSE subscribers.
+    /// Call this after any change that affects the MCP tool list.
+    pub fn notify_tools_changed(&self) {
+        let v = self.tool_version.fetch_add(1, Ordering::Relaxed) + 1;
+        let _ = self.tool_version_tx.send(v);
+        log::debug!("Tool list changed (version {})", v);
     }
 
     pub async fn install(

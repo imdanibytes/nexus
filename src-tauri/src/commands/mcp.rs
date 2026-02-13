@@ -90,7 +90,9 @@ pub async fn mcp_set_enabled(
         return Err(format!("Invalid scope: {}. Expected 'global', 'plugin:{{id}}', or 'tool:{{plugin_id}}.{{tool_name}}'", scope));
     }
 
-    mgr.mcp_settings.save().map_err(|e| e.to_string())
+    mgr.mcp_settings.save().map_err(|e| e.to_string())?;
+    mgr.notify_tools_changed();
+    Ok(())
 }
 
 #[tauri::command]

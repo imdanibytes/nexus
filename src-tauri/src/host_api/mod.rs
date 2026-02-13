@@ -121,6 +121,7 @@ pub async fn start_server(
     let mcp_routes = Router::new()
         .route("/v1/mcp/tools", routing::get(mcp::list_tools))
         .route("/v1/mcp/call", routing::post(mcp::call_tool))
+        .route("/v1/mcp/events", routing::get(mcp::tool_events))
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),
             mcp::gateway_auth_middleware,

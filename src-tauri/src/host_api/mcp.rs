@@ -3,10 +3,15 @@ use axum::{
     extract::State,
     http::{Request, StatusCode},
     middleware::Next,
-    response::Response,
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        Response,
+    },
     Json,
 };
+use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 
 use crate::permissions::Permission;
 use crate::plugin_manager::storage::PluginStatus;
@@ -295,4 +300,30 @@ pub async fn call_tool(
     }
 
     Ok(Json(call_resp))
+}
+
+/// SSE endpoint that emits a `tools_changed` event whenever the MCP tool list
+/// is modified (enable/disable, plugin start/stop/remove, permission changes).
+pub async fn tool_events(
+    State(state): State<AppState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let mut rx = {
+        let mgr = state.read().await;
+        mgr.tool_version_rx.clone()
+    };
+
+    let stream = async_stream::stream! {
+        loop {
+            if rx.changed().await.is_err() {
+                // Sender dropped — host is shutting down
+                break;
+            }
+            let version = *rx.borrow_and_update();
+            yield Ok(Event::default()
+                .event("tools_changed")
+                .data(version.to_string()));
+        }
+    };
+
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }

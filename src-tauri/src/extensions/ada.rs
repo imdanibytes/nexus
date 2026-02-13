@@ -12,6 +12,7 @@ use super::{Extension, ExtensionError, OperationDef, OperationResult, RiskLevel}
 ///
 /// Provides operations to list, refresh, and manage AWS credentials
 /// via the `ada` CLI tool and the associated credential/profile files.
+#[derive(Default)]
 pub struct AdaExtension;
 
 impl AdaExtension {

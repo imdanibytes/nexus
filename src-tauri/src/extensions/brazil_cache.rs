@@ -7,6 +7,7 @@ use tokio::process::Command;
 use super::{Extension, ExtensionError, OperationDef, OperationResult, RiskLevel};
 
 /// Extension for managing the Brazil package cache daemon and cached packages.
+#[derive(Default)]
 pub struct BrazilCacheExtension;
 
 impl BrazilCacheExtension {

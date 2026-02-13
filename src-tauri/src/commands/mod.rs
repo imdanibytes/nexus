@@ -1,3 +1,4 @@
+pub mod extensions;
 pub mod marketplace;
 pub mod mcp;
 pub mod permissions;

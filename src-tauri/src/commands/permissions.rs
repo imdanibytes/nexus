@@ -74,21 +74,18 @@ pub async fn runtime_approval_respond(
     context: std::collections::HashMap<String, String>,
 ) -> Result<(), String> {
     // Persist the approved path before unblocking the handler
-    if decision == ApprovalDecision::Approve {
-        if category == "filesystem" {
-            if let Some(parent_dir) = context.get("parent_dir") {
-                let permission_str = context.get("permission").cloned().unwrap_or_default();
-                let permission: Permission =
-                    serde_json::from_value(serde_json::Value::String(permission_str))
-                        .map_err(|e| format!("invalid permission: {}", e))?;
+    if decision == ApprovalDecision::Approve && category == "filesystem" {
+        if let Some(parent_dir) = context.get("parent_dir") {
+            let permission_str = context.get("permission").cloned().unwrap_or_default();
+            let permission: Permission =
+                serde_json::from_value(serde_json::Value::String(permission_str))
+                    .map_err(|e| format!("invalid permission: {}", e))?;
 
-                let mut mgr = state.write().await;
-                mgr.permissions
-                    .add_approved_path(&plugin_id, &permission, parent_dir.clone())
-                    .map_err(|e| e.to_string())?;
-            }
+            let mut mgr = state.write().await;
+            mgr.permissions
+                .add_approved_path(&plugin_id, &permission, parent_dir.clone())
+                .map_err(|e| e.to_string())?;
         }
-        // Future categories (e.g. "network") persist their own data here
     }
 
     bridge.respond(&request_id, decision);

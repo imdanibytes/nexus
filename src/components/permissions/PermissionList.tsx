@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { usePermissions } from "../../hooks/usePermissions";
-import { PERMISSION_INFO } from "../../types/permissions";
+import { getPermissionInfo } from "../../types/permissions";
 import type { Permission } from "../../types/permissions";
 import { ChevronDown, FolderOpen, X } from "lucide-react";
 
@@ -36,7 +36,7 @@ export function PermissionList({ pluginId }: Props) {
   return (
     <div className="space-y-1.5">
       {grants.map((grant) => {
-        const info = PERMISSION_INFO[grant.permission as Permission];
+        const info = getPermissionInfo(grant.permission);
         const isFs = FS_PERMISSIONS.includes(grant.permission);
         const hasPaths =
           isFs &&

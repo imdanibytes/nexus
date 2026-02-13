@@ -1,5 +1,6 @@
 mod commands;
 mod error;
+pub mod extensions;
 pub mod host_api;
 mod permissions;
 mod plugin_manager;
@@ -91,6 +92,7 @@ pub fn run() {
             commands::mcp::mcp_set_enabled,
             commands::mcp::mcp_list_tools,
             commands::mcp::mcp_config_snippet,
+            commands::extensions::extension_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

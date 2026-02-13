@@ -49,6 +49,10 @@ pub struct PluginManifest {
     pub settings: Vec<SettingDef>,
     #[serde(default)]
     pub mcp: Option<McpConfig>,
+    /// Extension dependencies: maps extension ID to list of operations the plugin uses.
+    /// Example: { "weather": ["get_forecast", "list_alerts"] }
+    #[serde(default)]
+    pub extensions: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,6 +87,22 @@ fn strip_bidi_overrides(s: &str) -> bool {
 }
 
 impl PluginManifest {
+    /// Returns all permissions this plugin needs, including both declared
+    /// permissions and generated extension permissions.
+    ///
+    /// Extension permissions are generated from the `extensions` map as
+    /// `Permission::Extension("ext:{ext_id}:{operation}")` for each entry.
+    pub fn all_permissions(&self) -> Vec<Permission> {
+        let mut perms = self.permissions.clone();
+        for (ext_id, operations) in &self.extensions {
+            for op in operations {
+                let perm_str = format!("ext:{}:{}", ext_id, op);
+                perms.push(Permission::Extension(perm_str));
+            }
+        }
+        perms
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         // Required fields
         if self.id.is_empty() {
@@ -182,6 +202,45 @@ impl PluginManifest {
                             tool.name, perm_str
                         ));
                     }
+                }
+            }
+        }
+
+        // Extension dependency validation
+        for (ext_id, operations) in &self.extensions {
+            if ext_id.is_empty() || ext_id.len() > 100 {
+                return Err(format!(
+                    "Extension ID '{}' must be 1-100 characters",
+                    ext_id
+                ));
+            }
+            if !ext_id
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            {
+                return Err(format!(
+                    "Extension ID '{}' must match [a-z0-9_]",
+                    ext_id
+                ));
+            }
+            if operations.is_empty() {
+                return Err(format!(
+                    "Extension '{}' must declare at least one operation",
+                    ext_id
+                ));
+            }
+            for op in operations {
+                if op.is_empty() || op.len() > 100 {
+                    return Err(format!(
+                        "Extension '{}' operation '{}' must be 1-100 characters",
+                        ext_id, op
+                    ));
+                }
+                if !op.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_') {
+                    return Err(format!(
+                        "Extension '{}' operation '{}' must match [a-z0-9_]",
+                        ext_id, op
+                    ));
                 }
             }
         }

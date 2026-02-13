@@ -1,6 +1,7 @@
 use super::types::Permission;
 use super::store::PermissionStore;
 
+#[allow(dead_code)]
 pub fn check_permission(
     store: &PermissionStore,
     plugin_id: &str,
@@ -27,6 +28,8 @@ pub fn required_permission_for_endpoint(path: &str) -> Option<Permission> {
         p if p.starts_with("/v1/network/") => None,
         // Settings require auth (via middleware token check) but no specific permission
         p if p.starts_with("/v1/settings") => None,
+        // Extension permissions are checked in the handler (dynamic based on path params)
+        p if p.starts_with("/v1/extensions") => None,
         _ => None,
     }
 }

@@ -9,6 +9,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { runtimeApprovalRespond } from "../../lib/tauri";
+import { useOsNotification } from "../../hooks/useOsNotification";
 import type {
   ApprovalDecision,
   RuntimeApprovalRequest,
@@ -101,18 +102,30 @@ function cooldownFor(riskLevel: string | undefined): number {
 export function RuntimeApprovalDialog() {
   const [queue, setQueue] = useState<RuntimeApprovalRequest[]>([]);
   const [cooldown, setCooldown] = useState(0);
+  const { notify } = useOsNotification();
 
   useEffect(() => {
     const unlisten = listen<RuntimeApprovalRequest>(
       "nexus://runtime-approval",
       (event) => {
-        setQueue((prev) => [...prev, event.payload]);
+        setQueue((prev) => {
+          const next = [...prev, event.payload];
+          const header = resolveHeader(event.payload);
+          const pending =
+            next.length > 1 ? ` (+${next.length - 1} pending)` : "";
+          notify(
+            "Nexus — Approval Required",
+            header.subtitle + pending,
+            next.length
+          );
+          return next;
+        });
       }
     );
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, []);
+  }, [notify]);
 
   const current = queue.length > 0 ? queue[0] : null;
 

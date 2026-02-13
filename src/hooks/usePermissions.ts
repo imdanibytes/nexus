@@ -47,6 +47,19 @@ export function usePermissions() {
     [loadGrants, addNotification]
   );
 
+  const unrevoke = useCallback(
+    async (pluginId: string, permissions: Permission[]) => {
+      try {
+        await api.permissionUnrevoke(pluginId, permissions);
+        addNotification("Permission restored", "success");
+        await loadGrants(pluginId);
+      } catch (e) {
+        addNotification(`Failed to restore permission: ${e}`, "error");
+      }
+    },
+    [loadGrants, addNotification]
+  );
+
   const removePath = useCallback(
     async (pluginId: string, permission: Permission, path: string) => {
       try {
@@ -60,5 +73,5 @@ export function usePermissions() {
     [loadGrants, addNotification]
   );
 
-  return { grants, loadGrants, grant, revoke, removePath };
+  return { grants, loadGrants, grant, revoke, unrevoke, removePath };
 }

@@ -93,6 +93,13 @@ export async function permissionRevoke(
   return invoke("permission_revoke", { pluginId, permissions });
 }
 
+export async function permissionUnrevoke(
+  pluginId: string,
+  permissions: Permission[]
+): Promise<void> {
+  return invoke("permission_unrevoke", { pluginId, permissions });
+}
+
 export async function permissionList(
   pluginId: string
 ): Promise<GrantedPermission[]> {

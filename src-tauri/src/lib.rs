@@ -2,6 +2,7 @@ mod commands;
 mod error;
 pub mod extensions;
 pub mod host_api;
+mod notification;
 mod permissions;
 mod plugin_manager;
 
@@ -41,6 +42,9 @@ pub fn run() {
                     let _ = window.set_title("Nexus (dev)");
                 }
             }
+
+            // Request OS notification permission (macOS shows a system dialog on first launch)
+            notification::init();
 
             let app_handle = app.handle().clone();
             let data_dir = app_handle
@@ -90,6 +94,7 @@ pub fn run() {
             commands::marketplace::marketplace_refresh,
             commands::permissions::permission_grant,
             commands::permissions::permission_revoke,
+            commands::permissions::permission_unrevoke,
             commands::permissions::permission_list,
             commands::permissions::permission_remove_path,
             commands::system::app_version,
@@ -116,6 +121,7 @@ pub fn run() {
             commands::extensions::extension_preview,
             commands::extensions::extension_marketplace_search,
             commands::permissions::permission_remove_scope,
+            notification::send_notification,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -329,7 +329,7 @@ pub async fn fetch_extension_manifest(url: &str) -> NexusResult<crate::extension
 
         manifest
             .validate()
-            .map_err(|e| NexusError::InvalidManifest(e))?;
+            .map_err(NexusError::InvalidManifest)?;
         Ok(manifest)
     } else {
         Err(NexusError::Other(format!(

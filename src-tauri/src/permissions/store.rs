@@ -40,22 +40,44 @@ impl PermissionStore {
     ) -> NexusResult<()> {
         let entry = self.grants.entry(plugin_id.to_string()).or_default();
 
-        if !entry.iter().any(|g| g.permission == permission) {
+        if let Some(existing) = entry.iter_mut().find(|g| g.permission == permission) {
+            // If it was revoked, restore it instead of creating a duplicate
+            if existing.revoked_at.is_some() {
+                existing.revoked_at = None;
+                self.save()?;
+            }
+        } else {
             entry.push(GrantedPermission {
                 plugin_id: plugin_id.to_string(),
                 permission,
                 granted_at: chrono::Utc::now(),
                 approved_scopes,
+                revoked_at: None,
             });
             self.save()?;
         }
         Ok(())
     }
 
+    /// Soft-revoke: marks the permission as revoked but preserves the grant
+    /// (including approved scopes) so it can be restored later.
     pub fn revoke(&mut self, plugin_id: &str, permission: &Permission) -> NexusResult<()> {
         if let Some(entry) = self.grants.get_mut(plugin_id) {
-            entry.retain(|g| &g.permission != permission);
-            self.save()?;
+            if let Some(grant) = entry.iter_mut().find(|g| &g.permission == permission) {
+                grant.revoked_at = Some(chrono::Utc::now());
+                self.save()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Restore a previously revoked permission.
+    pub fn unrevoke(&mut self, plugin_id: &str, permission: &Permission) -> NexusResult<()> {
+        if let Some(entry) = self.grants.get_mut(plugin_id) {
+            if let Some(grant) = entry.iter_mut().find(|g| &g.permission == permission) {
+                grant.revoked_at = None;
+                self.save()?;
+            }
         }
         Ok(())
     }
@@ -66,12 +88,16 @@ impl PermissionStore {
         Ok(())
     }
 
+    /// Returns true only for active (non-revoked) permissions.
     pub fn has_permission(&self, plugin_id: &str, permission: &Permission) -> bool {
         self.grants
             .get(plugin_id)
-            .is_some_and(|grants| grants.iter().any(|g| &g.permission == permission))
+            .is_some_and(|grants| {
+                grants.iter().any(|g| &g.permission == permission && g.revoked_at.is_none())
+            })
     }
 
+    /// Returns all grants (both active and revoked).
     pub fn get_grants(&self, plugin_id: &str) -> Vec<GrantedPermission> {
         self.grants.get(plugin_id).cloned().unwrap_or_default()
     }

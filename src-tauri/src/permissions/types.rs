@@ -248,4 +248,9 @@ pub struct GrantedPermission {
     /// operation-specific resource identifiers (e.g. repo paths, domains).
     #[serde(alias = "approved_paths")]
     pub approved_scopes: Option<Vec<String>>,
+    /// When set, this permission is revoked. The grant is preserved so it can
+    /// be restored without re-approving scopes. `has_permission()` returns false
+    /// for revoked grants.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
 }

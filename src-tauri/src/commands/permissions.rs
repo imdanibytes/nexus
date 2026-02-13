@@ -37,6 +37,22 @@ pub async fn permission_revoke(
 }
 
 #[tauri::command]
+pub async fn permission_unrevoke(
+    state: tauri::State<'_, AppState>,
+    plugin_id: String,
+    permissions: Vec<Permission>,
+) -> Result<(), String> {
+    let mut mgr = state.write().await;
+    for perm in &permissions {
+        mgr.permissions
+            .unrevoke(&plugin_id, perm)
+            .map_err(|e| e.to_string())?;
+    }
+    mgr.notify_tools_changed();
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn permission_list(
     state: tauri::State<'_, AppState>,
     plugin_id: String,

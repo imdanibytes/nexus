@@ -18,6 +18,8 @@ export interface GrantedPermission {
   granted_at: string;
   /** Generalized scope whitelist (renamed from approved_paths). */
   approved_scopes: string[] | null;
+  /** When set, this permission is soft-revoked but preserved for restoration. */
+  revoked_at: string | null;
 }
 
 export type ApprovalDecision = "approve" | "approve_once" | "deny";

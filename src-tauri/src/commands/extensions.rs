@@ -87,7 +87,7 @@ pub async fn extension_list(
             capabilities: ext_info.capabilities,
             consumers,
             installed: installed_ext.is_some(),
-            enabled: installed_ext.map_or(false, |e| e.enabled),
+            enabled: installed_ext.is_some_and(|e| e.enabled),
         });
     }
 

@@ -299,6 +299,7 @@ pub async fn call_extension(
 }
 
 /// Execute the extension operation, handling high-risk runtime approval.
+#[allow(clippy::too_many_arguments)]
 async fn execute_and_respond(
     ext: &dyn crate::extensions::Extension,
     ext_id: &str,

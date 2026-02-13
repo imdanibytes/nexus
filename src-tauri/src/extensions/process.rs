@@ -283,11 +283,11 @@ fn send_request(writer: &mut BufWriter<ChildStdin>, request: &JsonRpcRequest) ->
 
     writer
         .write_all(json.as_bytes())
-        .map_err(|e| ExtensionError::Io(e))?;
+        .map_err(ExtensionError::Io)?;
     writer
         .write_all(b"\n")
-        .map_err(|e| ExtensionError::Io(e))?;
-    writer.flush().map_err(|e| ExtensionError::Io(e))?;
+        .map_err(ExtensionError::Io)?;
+    writer.flush().map_err(ExtensionError::Io)?;
 
     Ok(())
 }
@@ -297,7 +297,7 @@ fn read_response(reader: &mut BufReader<ChildStdout>) -> Result<JsonRpcResponse,
     let mut line = String::new();
     reader
         .read_line(&mut line)
-        .map_err(|e| ExtensionError::Io(e))?;
+        .map_err(ExtensionError::Io)?;
 
     if line.is_empty() {
         return Err(ExtensionError::Protocol(

@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { usePermissions } from "../../hooks/usePermissions";
 import { getPermissionInfo } from "../../types/permissions";
 import type { Permission } from "../../types/permissions";
-import { ChevronDown, FolderOpen, X } from "lucide-react";
+import { ChevronDown, FolderOpen, RotateCcw, X } from "lucide-react";
 
 interface Props {
   pluginId: string;
 }
 
 export function PermissionList({ pluginId }: Props) {
-  const { grants, loadGrants, revoke, removePath } = usePermissions();
+  const { grants, loadGrants, revoke, unrevoke, removePath } = usePermissions();
   const [expandedPerms, setExpandedPerms] = useState<Set<string>>(new Set());
+  const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
 
   useEffect(() => {
     loadGrants(pluginId);
@@ -31,11 +32,15 @@ export function PermissionList({ pluginId }: Props) {
     );
   }
 
+  const activeGrants = grants.filter((g) => !g.revoked_at);
+  const revokedGrants = grants.filter((g) => !!g.revoked_at);
+
   const FS_PERMISSIONS = ["filesystem:read", "filesystem:write"];
 
   return (
     <div className="space-y-1.5">
-      {grants.map((grant) => {
+      {/* Active permissions */}
+      {activeGrants.map((grant) => {
         const info = getPermissionInfo(grant.permission);
         const isFs = FS_PERMISSIONS.includes(grant.permission);
         const hasPaths =
@@ -146,6 +151,95 @@ export function PermissionList({ pluginId }: Props) {
           </div>
         );
       })}
+
+      {/* Revoked permissions */}
+      {revokedGrants.length > 0 && (
+        <>
+          {activeGrants.length > 0 && (
+            <div className="flex items-center gap-2 pt-2 pb-0.5">
+              <div className="flex-1 h-px bg-nx-border-subtle" />
+              <span className="text-[10px] text-nx-text-ghost font-medium uppercase tracking-wide">
+                Revoked
+              </span>
+              <div className="flex-1 h-px bg-nx-border-subtle" />
+            </div>
+          )}
+
+          {revokedGrants.map((grant) => {
+            const info = getPermissionInfo(grant.permission);
+            const scopeCount = grant.approved_scopes?.length ?? 0;
+
+            return (
+              <div
+                key={`revoked-${grant.permission}`}
+                className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden opacity-60"
+              >
+                <div className="flex items-center justify-between p-2.5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[12px] text-nx-text-muted font-medium font-mono line-through">
+                        {grant.permission}
+                      </p>
+                      <span className="text-[10px] text-nx-error font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-error-muted flex-shrink-0">
+                        REVOKED
+                      </span>
+                      {scopeCount > 0 && (
+                        <span className="text-[10px] text-nx-text-ghost font-mono flex-shrink-0">
+                          {scopeCount} saved scope{scopeCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-nx-text-ghost mt-0.5">
+                      {info?.description ?? "Unknown permission"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setConfirmRestore(grant.permission)}
+                    className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[var(--radius-tag)] bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20 transition-colors duration-150 flex-shrink-0 ml-2"
+                  >
+                    <RotateCcw size={11} strokeWidth={1.5} />
+                    Restore
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {/* Confirm restore modal */}
+      {confirmRestore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-nx-surface border border-nx-border rounded-[var(--radius-card)] p-5 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-[14px] font-semibold text-nx-text mb-2">
+              Restore Permission
+            </h3>
+            <p className="text-[12px] text-nx-text-muted mb-1">
+              Restore <span className="font-mono font-medium text-nx-text">{confirmRestore}</span> for this plugin?
+            </p>
+            <p className="text-[11px] text-nx-text-ghost mb-4">
+              Previously approved scopes will be preserved. The plugin will regain access immediately.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmRestore(null)}
+                className="px-3 py-1.5 text-[12px] font-medium text-nx-text-muted bg-nx-wash border border-nx-border-subtle rounded-[var(--radius-button)] hover:bg-nx-base transition-colors duration-150"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  unrevoke(pluginId, [confirmRestore as Permission]);
+                  setConfirmRestore(null);
+                }}
+                className="px-3 py-1.5 text-[12px] font-medium text-nx-text bg-nx-accent-muted border border-nx-accent/30 rounded-[var(--radius-button)] hover:bg-nx-accent/20 transition-colors duration-150"
+              >
+                Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

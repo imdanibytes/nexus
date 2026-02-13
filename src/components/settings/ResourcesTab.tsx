@@ -17,7 +17,7 @@ export function ResourcesTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const savedTimer = useRef<ReturnType<typeof setTimeout>>();
+  const savedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const refreshUsage = useCallback(async () => {
     try {

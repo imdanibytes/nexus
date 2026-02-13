@@ -295,7 +295,7 @@ function PermissionsStep({
 
 function McpToolsStep({
   manifest,
-  permissions,
+  permissions: _permissions,
   onApprove,
   onDeny,
   onBack,

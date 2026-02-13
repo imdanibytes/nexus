@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
+import { RuntimeApprovalDialog } from "../permissions/RuntimeApprovalDialog";
 import { useAppStore } from "../../stores/appStore";
 import { X } from "lucide-react";
 
@@ -22,6 +23,8 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="flex h-screen bg-nx-deep">
       <Sidebar />
       <main className="flex-1 overflow-y-auto bg-nx-base">{children}</main>
+
+      <RuntimeApprovalDialog />
 
       {/* Toast notifications */}
       <div className="fixed bottom-4 right-4 space-y-2 z-50 max-w-sm">

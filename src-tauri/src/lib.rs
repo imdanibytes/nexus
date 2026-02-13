@@ -1,9 +1,10 @@
 mod commands;
 mod error;
-mod host_api;
+pub mod host_api;
 mod permissions;
 mod plugin_manager;
 
+use host_api::approval::ApprovalBridge;
 use plugin_manager::PluginManager;
 use std::sync::Arc;
 use tauri::Manager;
@@ -37,6 +38,9 @@ pub fn run() {
             let state = Arc::new(RwLock::new(PluginManager::new(data_dir.clone())));
             app.manage(state.clone());
 
+            let approval_bridge = Arc::new(ApprovalBridge::new(app_handle.clone()));
+            app.manage(approval_bridge.clone());
+
             // Spawn Host API server and Docker network setup
             let state_clone = state.clone();
             tauri::async_runtime::spawn(async move {
@@ -46,7 +50,7 @@ pub fn run() {
                 }
 
                 // Start the Host API server
-                if let Err(e) = host_api::start_server(state_clone).await {
+                if let Err(e) = host_api::start_server(state_clone, approval_bridge).await {
                     log::error!("Host API server failed: {}", e);
                 }
             });
@@ -55,6 +59,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::plugins::plugin_list,
+            commands::plugins::plugin_preview_remote,
+            commands::plugins::plugin_preview_local,
             commands::plugins::plugin_install,
             commands::plugins::plugin_install_local,
             commands::plugins::plugin_start,
@@ -62,6 +68,8 @@ pub fn run() {
             commands::plugins::plugin_remove,
             commands::plugins::plugin_sync_status,
             commands::plugins::plugin_logs,
+            commands::plugins::plugin_get_settings,
+            commands::plugins::plugin_save_settings,
             commands::marketplace::marketplace_search,
             commands::marketplace::marketplace_refresh,
             commands::permissions::permission_grant,
@@ -73,6 +81,7 @@ pub fn run() {
             commands::system::container_resource_usage,
             commands::system::get_resource_quotas,
             commands::system::save_resource_quotas,
+            commands::permissions::runtime_approval_respond,
             commands::registries::registry_list,
             commands::registries::registry_add,
             commands::registries::registry_remove,

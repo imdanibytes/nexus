@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sdk:spec": "cd src-tauri && cargo test export_openapi_spec -- --nocapture",
+    "sdk:generate": "cd packages/plugin-sdk && npx openapi-ts",
+    "sdk:build": "cd packages/plugin-sdk && npx tsc",
+    "sdk": "npm run sdk:spec && npm run sdk:generate && npm run sdk:build"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",

@@ -3,15 +3,17 @@ import { GeneralTab } from "./GeneralTab";
 import { RuntimeTab } from "./RuntimeTab";
 import { ResourcesTab } from "./ResourcesTab";
 import { PluginsTab } from "./PluginsTab";
-import { Settings, Container, Gauge, Puzzle } from "lucide-react";
+import { PermissionsTab } from "./PermissionsTab";
+import { Settings, Container, Gauge, Puzzle, Shield } from "lucide-react";
 
-type SettingsTab = "general" | "runtime" | "resources" | "plugins";
+type SettingsTab = "general" | "runtime" | "resources" | "plugins" | "permissions";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "runtime", label: "Runtime", icon: Container },
   { id: "resources", label: "Resources", icon: Gauge },
   { id: "plugins", label: "Plugins", icon: Puzzle },
+  { id: "permissions", label: "Permissions", icon: Shield },
 ];
 
 export function SettingsPage() {
@@ -54,6 +56,7 @@ export function SettingsPage() {
         {active === "runtime" && <RuntimeTab />}
         {active === "resources" && <ResourcesTab />}
         {active === "plugins" && <PluginsTab />}
+        {active === "permissions" && <PermissionsTab />}
       </div>
     </div>
   );

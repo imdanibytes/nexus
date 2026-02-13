@@ -8,7 +8,6 @@ import { SettingsPage } from "./components/settings/SettingsPage";
 import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { checkDocker } from "./lib/tauri";
-import type { Permission } from "./types/permissions";
 import { Package } from "lucide-react";
 
 function PluginsView() {
@@ -72,7 +71,7 @@ function App() {
     setView,
     selectRegistryEntry,
   } = useAppStore();
-  const { refresh, install } = usePlugins();
+  const { refresh } = usePlugins();
   const { addNotification } = useAppStore();
 
   useEffect(() => {
@@ -105,11 +104,6 @@ function App() {
 
   const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));
 
-  function handleInstall(manifestUrl: string, _permissions: Permission[]) {
-    install(manifestUrl);
-    setView("plugins");
-  }
-
   return (
     <Shell>
       {currentView === "plugins" && <PluginsView />}
@@ -119,7 +113,6 @@ function App() {
         <PluginDetail
           entry={selectedRegistryEntry}
           isInstalled={installedIds.has(selectedRegistryEntry.id)}
-          onInstall={handleInstall}
           onBack={() => {
             selectRegistryEntry(null);
             setView("marketplace");

@@ -1,8 +1,16 @@
 use super::manifest::PluginManifest;
 use crate::error::NexusResult;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+/// SHA-256 hash a raw token and return the hex digest.
+pub fn hash_token(raw_token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(raw_token.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -41,6 +49,21 @@ impl PluginStorage {
             if storage.next_port == 0 {
                 storage.next_port = 9700;
             }
+
+            // Migrate any raw (unhashed) tokens to SHA-256 hashes.
+            // Raw UUID tokens are 36 chars; SHA-256 hex digests are 64 chars.
+            let mut migrated = false;
+            for plugin in storage.plugins.values_mut() {
+                if plugin.auth_token.len() != 64 {
+                    plugin.auth_token = hash_token(&plugin.auth_token);
+                    migrated = true;
+                }
+            }
+            if migrated {
+                storage.save()?;
+                log::info!("Migrated plugin auth tokens to SHA-256 hashes");
+            }
+
             Ok(storage)
         } else {
             Ok(PluginStorage {
@@ -86,8 +109,58 @@ impl PluginStorage {
         port
     }
 
-    pub fn find_by_token(&self, token: &str) -> Option<&InstalledPlugin> {
-        self.plugins.values().find(|p| p.auth_token == token)
+    /// Look up a plugin by its raw bearer token.
+    /// The stored value is a SHA-256 hash, so the input is hashed before comparison.
+    pub fn find_by_token(&self, raw_token: &str) -> Option<&InstalledPlugin> {
+        let hashed = hash_token(raw_token);
+        self.plugins.values().find(|p| p.auth_token == hashed)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Per-plugin settings storage
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct PluginSettingsStore {
+    settings: HashMap<String, HashMap<String, serde_json::Value>>,
+    #[serde(skip)]
+    path: PathBuf,
+}
+
+impl PluginSettingsStore {
+    pub fn load(data_dir: &std::path::Path) -> NexusResult<Self> {
+        let path = data_dir.join("plugin_settings.json");
+        if path.exists() {
+            let data = std::fs::read_to_string(&path)?;
+            let mut store: PluginSettingsStore = serde_json::from_str(&data)?;
+            store.path = path;
+            Ok(store)
+        } else {
+            Ok(PluginSettingsStore {
+                settings: HashMap::new(),
+                path,
+            })
+        }
+    }
+
+    pub fn save(&self) -> NexusResult<()> {
+        let data = serde_json::to_string_pretty(self)?;
+        std::fs::write(&self.path, data)?;
+        Ok(())
+    }
+
+    pub fn get(&self, plugin_id: &str) -> HashMap<String, serde_json::Value> {
+        self.settings.get(plugin_id).cloned().unwrap_or_default()
+    }
+
+    pub fn set(
+        &mut self,
+        plugin_id: &str,
+        values: HashMap<String, serde_json::Value>,
+    ) -> NexusResult<()> {
+        self.settings.insert(plugin_id.to_string(), values);
+        self.save()
     }
 }
 

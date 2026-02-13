@@ -39,17 +39,31 @@ pub async fn auth_middleware(
 
     let plugin_id = plugin.manifest.id.clone();
     let path = req.uri().path().to_string();
+    let method = req.method().clone();
 
     // Check permission for this endpoint
     if let Some(required_perm) = required_permission_for_endpoint(&path) {
         if !mgr.permissions.has_permission(&plugin_id, &required_perm) {
+            log::warn!(
+                "AUDIT DENIED plugin={} method={} path={} reason=missing_permission",
+                plugin_id, method, path
+            );
             return Err(StatusCode::FORBIDDEN);
         }
     }
 
     req.extensions_mut()
-        .insert(AuthenticatedPlugin { plugin_id });
+        .insert(AuthenticatedPlugin { plugin_id: plugin_id.clone() });
 
     drop(mgr);
-    Ok(next.run(req).await)
+
+    let response = next.run(req).await;
+    let status = response.status();
+
+    log::info!(
+        "AUDIT plugin={} method={} path={} status={}",
+        plugin_id, method, path, status.as_u16()
+    );
+
+    Ok(response)
 }

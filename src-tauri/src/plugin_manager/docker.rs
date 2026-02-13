@@ -133,6 +133,15 @@ pub async fn build_image(context_dir: &Path, tag: &str) -> NexusResult<()> {
     Ok(())
 }
 
+/// Resource limits applied to plugin containers.
+#[derive(Debug, Clone, Default)]
+pub struct ResourceLimits {
+    /// CPU limit in nanoseconds (1e9 = 1 full CPU core).
+    pub nano_cpus: Option<i64>,
+    /// Memory limit in bytes.
+    pub memory_bytes: Option<i64>,
+}
+
 pub async fn create_container(
     name: &str,
     image: &str,
@@ -140,6 +149,7 @@ pub async fn create_container(
     container_port: u16,
     env_vars: Vec<String>,
     labels: HashMap<String, String>,
+    limits: ResourceLimits,
 ) -> NexusResult<String> {
     let docker = connect()?;
 
@@ -160,6 +170,15 @@ pub async fn create_container(
         port_bindings: Some(port_bindings),
         network_mode: Some(NETWORK_NAME.to_string()),
         extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+        // Security hardening
+        cap_drop: Some(vec!["ALL".to_string()]),
+        cap_add: Some(vec!["NET_BIND_SERVICE".to_string()]),
+        security_opt: Some(vec!["no-new-privileges:true".to_string()]),
+        binds: Some(vec![]),
+        mounts: Some(vec![]),
+        // Resource limits
+        nano_cpus: limits.nano_cpus,
+        memory: limits.memory_bytes,
         ..Default::default()
     };
 

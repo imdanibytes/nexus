@@ -1,21 +1,35 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { InstalledPlugin, RegistryEntry, RegistrySource } from "../types/plugin";
-import type { GrantedPermission, Permission } from "../types/permissions";
+import type { InstalledPlugin, PluginManifest, RegistryEntry, RegistrySource } from "../types/plugin";
+import type { ApprovalDecision, GrantedPermission, Permission } from "../types/permissions";
 
 export async function pluginList(): Promise<InstalledPlugin[]> {
   return invoke("plugin_list");
 }
 
-export async function pluginInstall(
+export async function pluginPreviewRemote(
   manifestUrl: string
+): Promise<PluginManifest> {
+  return invoke("plugin_preview_remote", { manifestUrl });
+}
+
+export async function pluginPreviewLocal(
+  manifestPath: string
+): Promise<PluginManifest> {
+  return invoke("plugin_preview_local", { manifestPath });
+}
+
+export async function pluginInstall(
+  manifestUrl: string,
+  approvedPermissions: string[]
 ): Promise<InstalledPlugin> {
-  return invoke("plugin_install", { manifestUrl });
+  return invoke("plugin_install", { manifestUrl, approvedPermissions });
 }
 
 export async function pluginInstallLocal(
-  manifestPath: string
+  manifestPath: string,
+  approvedPermissions: string[]
 ): Promise<InstalledPlugin> {
-  return invoke("plugin_install_local", { manifestPath });
+  return invoke("plugin_install_local", { manifestPath, approvedPermissions });
 }
 
 export async function pluginStart(pluginId: string): Promise<void> {
@@ -39,6 +53,19 @@ export async function pluginLogs(
   tail?: number
 ): Promise<string[]> {
   return invoke("plugin_logs", { pluginId, tail });
+}
+
+export async function pluginGetSettings(
+  pluginId: string
+): Promise<Record<string, unknown>> {
+  return invoke("plugin_get_settings", { pluginId });
+}
+
+export async function pluginSaveSettings(
+  pluginId: string,
+  values: Record<string, unknown>
+): Promise<void> {
+  return invoke("plugin_save_settings", { pluginId, values });
 }
 
 export async function marketplaceSearch(
@@ -69,6 +96,22 @@ export async function permissionList(
   pluginId: string
 ): Promise<GrantedPermission[]> {
   return invoke("permission_list", { pluginId });
+}
+
+export async function runtimeApprovalRespond(
+  requestId: string,
+  decision: ApprovalDecision,
+  pluginId: string,
+  category: string,
+  context: Record<string, string>
+): Promise<void> {
+  return invoke("runtime_approval_respond", {
+    requestId,
+    decision,
+    pluginId,
+    category,
+    context,
+  });
 }
 
 export interface AppVersionInfo {

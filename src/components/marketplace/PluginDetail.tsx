@@ -1,23 +1,35 @@
 import { useState } from "react";
-import type { RegistryEntry } from "../../types/plugin";
+import type { RegistryEntry, PluginManifest } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
 import { PermissionDialog } from "../permissions/PermissionDialog";
-import { ArrowLeft, Download, Check } from "lucide-react";
+import { usePlugins } from "../../hooks/usePlugins";
+import { ArrowLeft, Download, Check, Loader2 } from "lucide-react";
 
 interface Props {
   entry: RegistryEntry;
   isInstalled: boolean;
-  onInstall: (manifestUrl: string, permissions: Permission[]) => void;
   onBack: () => void;
 }
 
-export function PluginDetail({
-  entry,
-  isInstalled,
-  onInstall,
-  onBack,
-}: Props) {
-  const [showPermissions, setShowPermissions] = useState(false);
+export function PluginDetail({ entry, isInstalled, onBack }: Props) {
+  const { previewRemote, install } = usePlugins();
+  const [loading, setLoading] = useState(false);
+  const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
+
+  async function handleInstallClick() {
+    setLoading(true);
+    const manifest = await previewRemote(entry.manifest_url);
+    setLoading(false);
+    if (manifest) {
+      setPendingManifest(manifest);
+    }
+  }
+
+  async function handleApprove(approvedPermissions: Permission[]) {
+    setPendingManifest(null);
+    await install(entry.manifest_url, approvedPermissions);
+    onBack();
+  }
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -44,11 +56,16 @@ export function PluginDetail({
             </span>
           ) : (
             <button
-              onClick={() => setShowPermissions(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
+              onClick={handleInstallClick}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-60 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
             >
-              <Download size={14} strokeWidth={1.5} />
-              Install
+              {loading ? (
+                <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+              ) : (
+                <Download size={14} strokeWidth={1.5} />
+              )}
+              {loading ? "Loading..." : "Install"}
             </button>
           )}
         </div>
@@ -85,15 +102,11 @@ export function PluginDetail({
         </div>
       </div>
 
-      {showPermissions && (
+      {pendingManifest && (
         <PermissionDialog
-          pluginName={entry.name}
-          requestedPermissions={[]}
-          onApprove={(perms) => {
-            onInstall(entry.manifest_url, perms);
-            setShowPermissions(false);
-          }}
-          onDeny={() => setShowPermissions(false)}
+          manifest={pendingManifest}
+          onApprove={handleApprove}
+          onDeny={() => setPendingManifest(null)}
         />
       )}
     </div>

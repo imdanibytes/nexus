@@ -84,4 +84,28 @@ impl PermissionStore {
                 .and_then(|g| g.approved_paths.clone())
         })
     }
+
+    /// Add a path to the approved_paths list for a specific permission grant.
+    ///
+    /// No-op when the grant has `approved_paths: None` (unrestricted) — adding
+    /// a path to an unrestricted grant would accidentally restrict it.
+    pub fn add_approved_path(
+        &mut self,
+        plugin_id: &str,
+        permission: &Permission,
+        path: String,
+    ) -> NexusResult<()> {
+        if let Some(grants) = self.grants.get_mut(plugin_id) {
+            if let Some(grant) = grants.iter_mut().find(|g| &g.permission == permission) {
+                if let Some(ref mut paths) = grant.approved_paths {
+                    if !paths.contains(&path) {
+                        paths.push(path);
+                        self.save()?;
+                    }
+                }
+                // None = unrestricted — don't touch it
+            }
+        }
+        Ok(())
+    }
 }

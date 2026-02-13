@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
+import type { Permission } from "../types/permissions";
+import type { PluginManifest } from "../types/plugin";
 import * as api from "../lib/tauri";
 
 const SYNC_INTERVAL_MS = 5000;
@@ -47,10 +49,36 @@ export function usePlugins() {
     }
   }, [setPlugins, addNotification]);
 
-  const install = useCallback(
-    async (manifestUrl: string) => {
+  // Step 1: Preview a manifest (local or remote) before installing
+  const previewLocal = useCallback(
+    async (manifestPath: string): Promise<PluginManifest | null> => {
       try {
-        await api.pluginInstall(manifestUrl);
+        return await api.pluginPreviewLocal(manifestPath);
+      } catch (e) {
+        addNotification(`Failed to read manifest: ${e}`, "error");
+        return null;
+      }
+    },
+    [addNotification]
+  );
+
+  const previewRemote = useCallback(
+    async (manifestUrl: string): Promise<PluginManifest | null> => {
+      try {
+        return await api.pluginPreviewRemote(manifestUrl);
+      } catch (e) {
+        addNotification(`Failed to fetch manifest: ${e}`, "error");
+        return null;
+      }
+    },
+    [addNotification]
+  );
+
+  // Step 2: Install with user-approved permissions
+  const install = useCallback(
+    async (manifestUrl: string, approvedPermissions: Permission[]) => {
+      try {
+        await api.pluginInstall(manifestUrl, approvedPermissions);
         addNotification("Plugin installed", "success");
         await refresh();
       } catch (e) {
@@ -61,9 +89,9 @@ export function usePlugins() {
   );
 
   const installLocal = useCallback(
-    async (manifestPath: string) => {
+    async (manifestPath: string, approvedPermissions: Permission[]) => {
       try {
-        await api.pluginInstallLocal(manifestPath);
+        await api.pluginInstallLocal(manifestPath, approvedPermissions);
         addNotification("Plugin installed from local manifest", "success");
         await refresh();
       } catch (e) {
@@ -140,6 +168,8 @@ export function usePlugins() {
     busyPlugins,
     selectPlugin,
     refresh,
+    previewLocal,
+    previewRemote,
     install,
     installLocal,
     start,

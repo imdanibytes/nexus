@@ -145,6 +145,35 @@ pub struct RegistryEntry {
 // Fetching
 // ---------------------------------------------------------------------------
 
+/// Maximum response body size for registry/manifest fetches (10 MB).
+const MAX_FETCH_BYTES: usize = 10 * 1024 * 1024;
+
+/// Build a hardened HTTP client for registry operations.
+fn http_client() -> NexusResult<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|e| NexusError::Other(format!("HTTP client error: {}", e)))
+}
+
+/// Fetch a response body as text with a size limit.
+async fn fetch_text(response: reqwest::Response) -> NexusResult<String> {
+    if let Some(len) = response.content_length() {
+        if len > MAX_FETCH_BYTES as u64 {
+            return Err(NexusError::Other("Response too large".to_string()));
+        }
+    }
+
+    let bytes = response.bytes().await.map_err(NexusError::Http)?;
+    if bytes.len() > MAX_FETCH_BYTES {
+        return Err(NexusError::Other("Response too large".to_string()));
+    }
+
+    String::from_utf8(bytes.to_vec())
+        .map_err(|_| NexusError::Other("Response is not valid UTF-8".to_string()))
+}
+
 /// Fetch a registry from any source type.
 pub async fn fetch_from_source(source: &RegistrySource) -> NexusResult<Registry> {
     match source.kind {
@@ -154,7 +183,8 @@ pub async fn fetch_from_source(source: &RegistrySource) -> NexusResult<Registry>
 }
 
 async fn fetch_remote(url: &str) -> NexusResult<Registry> {
-    let response = reqwest::get(url).await.map_err(NexusError::Http)?;
+    let client = http_client()?;
+    let response = client.get(url).send().await.map_err(NexusError::Http)?;
 
     if !response.status().is_success() {
         return Err(NexusError::Other(format!(
@@ -163,7 +193,8 @@ async fn fetch_remote(url: &str) -> NexusResult<Registry> {
         )));
     }
 
-    response.json::<Registry>().await.map_err(NexusError::Http)
+    let text = fetch_text(response).await?;
+    serde_json::from_str(&text).map_err(|e| NexusError::Other(format!("Invalid registry JSON: {}", e)))
 }
 
 fn fetch_local(path_str: &str) -> NexusResult<Registry> {
@@ -213,14 +244,18 @@ pub async fn fetch_all(store: &RegistryStore) -> Vec<RegistryEntry> {
 }
 
 /// Fetch a manifest from a URL or file:// path.
+///
+/// `file://` is only accepted for local registry sources. Remote manifests
+/// must use `http://` or `https://`.
 pub async fn fetch_manifest(url: &str) -> NexusResult<super::manifest::PluginManifest> {
     if let Some(file_path) = url.strip_prefix("file://") {
         let data = std::fs::read_to_string(file_path)?;
         let manifest: super::manifest::PluginManifest = serde_json::from_str(&data)?;
         manifest.validate().map_err(NexusError::InvalidManifest)?;
         Ok(manifest)
-    } else {
-        let response = reqwest::get(url).await.map_err(NexusError::Http)?;
+    } else if url.starts_with("http://") || url.starts_with("https://") {
+        let client = http_client()?;
+        let response = client.get(url).send().await.map_err(NexusError::Http)?;
 
         if !response.status().is_success() {
             return Err(NexusError::Other(format!(
@@ -229,12 +264,17 @@ pub async fn fetch_manifest(url: &str) -> NexusResult<super::manifest::PluginMan
             )));
         }
 
-        let manifest: super::manifest::PluginManifest =
-            response.json().await.map_err(NexusError::Http)?;
+        let text = fetch_text(response).await?;
+        let manifest: super::manifest::PluginManifest = serde_json::from_str(&text)
+            .map_err(|e| NexusError::Other(format!("Invalid manifest JSON: {}", e)))?;
 
         manifest.validate().map_err(NexusError::InvalidManifest)?;
-
         Ok(manifest)
+    } else {
+        Err(NexusError::Other(format!(
+            "Unsupported URL scheme: {}",
+            url.split(':').next().unwrap_or("unknown")
+        )))
     }
 }
 

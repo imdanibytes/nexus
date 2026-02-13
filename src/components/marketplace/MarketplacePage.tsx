@@ -5,13 +5,20 @@ import { usePlugins } from "../../hooks/usePlugins";
 import { useAppStore } from "../../stores/appStore";
 import { RegistryPluginCard } from "../plugins/PluginCard";
 import { SearchBar } from "./SearchBar";
+import { PermissionDialog } from "../permissions/PermissionDialog";
+import type { PluginManifest } from "../../types/plugin";
+import type { Permission } from "../../types/permissions";
 import { FolderOpen, RefreshCw, Package } from "lucide-react";
 
 export function MarketplacePage() {
   const { plugins, isLoading, refresh, search } = useMarketplace();
-  const { installLocal } = usePlugins();
+  const { previewLocal, installLocal } = usePlugins();
   const { installedPlugins, selectRegistryEntry, setView } = useAppStore();
   const [installing, setInstalling] = useState(false);
+
+  // Two-step local install state
+  const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));
 
@@ -24,12 +31,31 @@ export function MarketplacePage() {
       multiple: false,
       filters: [{ name: "Plugin Manifest", extensions: ["json"] }],
     });
-    if (selected) {
-      setInstalling(true);
-      await installLocal(selected);
-      setInstalling(false);
-      setView("plugins");
-    }
+    if (!selected) return;
+
+    // Step 1: Preview the manifest
+    const manifest = await previewLocal(selected);
+    if (!manifest) return;
+
+    // Show the install dialog
+    setPendingPath(selected);
+    setPendingManifest(manifest);
+  }
+
+  async function handleApprove(approvedPermissions: Permission[]) {
+    if (!pendingPath) return;
+
+    setPendingManifest(null);
+    setInstalling(true);
+    await installLocal(pendingPath, approvedPermissions);
+    setPendingPath(null);
+    setInstalling(false);
+    setView("plugins");
+  }
+
+  function handleDeny() {
+    setPendingManifest(null);
+    setPendingPath(null);
   }
 
   return (
@@ -101,6 +127,14 @@ export function MarketplacePage() {
             />
           ))}
         </div>
+      )}
+
+      {pendingManifest && (
+        <PermissionDialog
+          manifest={pendingManifest}
+          onApprove={handleApprove}
+          onDeny={handleDeny}
+        />
       )}
     </div>
   );

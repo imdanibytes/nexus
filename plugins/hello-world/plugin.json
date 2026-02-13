@@ -19,5 +19,21 @@
     "interval_secs": 30
   },
   "env": {},
-  "min_nexus_version": "0.1.0"
+  "min_nexus_version": "0.1.0",
+  "settings": [
+    {
+      "key": "greeting_text",
+      "type": "string",
+      "label": "Greeting Text",
+      "description": "Custom greeting shown in the header",
+      "default": "Hello"
+    },
+    {
+      "key": "show_clock",
+      "type": "boolean",
+      "label": "Show Clock",
+      "description": "Display a live clock below the system info",
+      "default": true
+    }
+  ]
 }

@@ -15,6 +15,17 @@ export interface GrantedPermission {
   approved_paths: string[] | null;
 }
 
+export type ApprovalDecision = "approve" | "approve_once" | "deny";
+
+export interface RuntimeApprovalRequest {
+  id: string;
+  plugin_id: string;
+  plugin_name: string;
+  category: string;
+  permission: string;
+  context: Record<string, string>;
+}
+
 export const PERMISSION_INFO: Record<
   Permission,
   { description: string; risk: "low" | "medium" | "high" }

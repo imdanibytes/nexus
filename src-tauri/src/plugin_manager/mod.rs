@@ -7,7 +7,7 @@ pub mod storage;
 use crate::error::{NexusError, NexusResult};
 use crate::permissions::PermissionStore;
 use manifest::PluginManifest;
-use storage::{InstalledPlugin, NexusSettings, PluginStatus, PluginStorage};
+use storage::{InstalledPlugin, NexusSettings, PluginSettingsStore, PluginStatus, PluginStorage};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -18,7 +18,8 @@ pub struct PluginManager {
     pub registry_store: registry::RegistryStore,
     pub registry_cache: Vec<registry::RegistryEntry>,
     pub settings: NexusSettings,
-    data_dir: PathBuf,
+    pub plugin_settings: PluginSettingsStore,
+    pub data_dir: PathBuf,
 }
 
 impl PluginManager {
@@ -27,6 +28,7 @@ impl PluginManager {
         let permissions = PermissionStore::load(&data_dir).unwrap_or_default();
         let registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
         let settings = NexusSettings::load(&data_dir).unwrap_or_default();
+        let plugin_settings = PluginSettingsStore::load(&data_dir).unwrap_or_default();
 
         PluginManager {
             storage,
@@ -34,11 +36,16 @@ impl PluginManager {
             registry_store,
             registry_cache: Vec::new(),
             settings,
+            plugin_settings,
             data_dir,
         }
     }
 
-    pub async fn install(&mut self, manifest: PluginManifest) -> NexusResult<InstalledPlugin> {
+    pub async fn install(
+        &mut self,
+        manifest: PluginManifest,
+        approved_permissions: Vec<crate::permissions::Permission>,
+    ) -> NexusResult<InstalledPlugin> {
         manifest
             .validate()
             .map_err(NexusError::InvalidManifest)?;
@@ -53,6 +60,7 @@ impl PluginManager {
 
         let port = self.storage.allocate_port();
         let token = uuid::Uuid::new_v4().to_string();
+        let token_hash = storage::hash_token(&token);
 
         // Build environment variables
         let mut env_vars: Vec<String> = manifest
@@ -71,6 +79,17 @@ impl PluginManager {
 
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
 
+        let limits = docker::ResourceLimits {
+            nano_cpus: self
+                .settings
+                .cpu_quota_percent
+                .map(|pct| (pct / 100.0 * 1e9) as i64),
+            memory_bytes: self
+                .settings
+                .memory_limit_mb
+                .map(|mb| (mb * 1_048_576) as i64),
+        };
+
         let container_id = docker::create_container(
             &container_name,
             &manifest.image,
@@ -78,6 +97,7 @@ impl PluginManager {
             manifest.ui.port,
             env_vars,
             labels,
+            limits,
         )
         .await?;
 
@@ -86,13 +106,23 @@ impl PluginManager {
             container_id: Some(container_id),
             status: PluginStatus::Stopped,
             assigned_port: port,
-            auth_token: token,
+            auth_token: token_hash,
             installed_at: chrono::Utc::now(),
         };
 
-        // Auto-grant permissions declared in the manifest
-        for perm in &plugin.manifest.permissions {
-            let _ = self.permissions.grant(&plugin.manifest.id, perm.clone(), None);
+        // Grant only user-approved permissions.
+        // Filesystem permissions default to an empty approved_paths list so that
+        // every path access triggers a runtime approval prompt. Existing plugins
+        // with `None` (unrestricted) are unaffected — this only applies at install time.
+        for perm in &approved_permissions {
+            let approved_paths = match perm {
+                crate::permissions::Permission::FilesystemRead
+                | crate::permissions::Permission::FilesystemWrite => Some(vec![]),
+                _ => None,
+            };
+            let _ = self
+                .permissions
+                .grant(&plugin.manifest.id, perm.clone(), approved_paths);
         }
 
         self.storage.add(plugin.clone())?;

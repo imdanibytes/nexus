@@ -78,6 +78,14 @@
       background: var(--color-nx-accent);
       flex-shrink: 0;
     }
+    .clock {
+      margin-top: 1rem;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      color: var(--color-nx-accent);
+      font-weight: 600;
+    }
     .loading-state {
       text-align: center;
       padding: 2rem;
@@ -102,7 +110,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>Hello <span class="accent">World</span></h1>
+    <h1><span id="greeting">Hello</span> <span class="accent">World</span></h1>
     <p class="subtitle">Nexus Plugin Demo — using the shared design system</p>
 
     <div class="card">
@@ -111,6 +119,7 @@
         <div class="loading-state">Fetching system info from Host API...</div>
       </div>
     </div>
+    <div id="clock-container"></div>
     <div id="status"></div>
   </div>
 
@@ -118,10 +127,39 @@
     async function init() {
       const content = document.getElementById('content');
       const status = document.getElementById('status');
+      const greetingEl = document.getElementById('greeting');
+      const clockContainer = document.getElementById('clock-container');
 
       try {
         const configRes = await fetch('/api/config');
         const config = await configRes.json();
+
+        // Fetch plugin settings from Host API
+        let settings = {};
+        try {
+          const settingsRes = await fetch(`${config.apiUrl}/api/v1/settings`, {
+            headers: { 'Authorization': `Bearer ${config.token}` }
+          });
+          if (settingsRes.ok) {
+            settings = await settingsRes.json();
+          }
+        } catch (_) {}
+
+        // Apply greeting text
+        if (settings.greeting_text) {
+          greetingEl.textContent = settings.greeting_text;
+        }
+
+        // Show clock if enabled
+        if (settings.show_clock !== false) {
+          clockContainer.innerHTML = '<div class="clock" id="clock"></div>';
+          function updateClock() {
+            document.getElementById('clock').textContent =
+              new Date().toLocaleTimeString();
+          }
+          updateClock();
+          setInterval(updateClock, 1000);
+        }
 
         const res = await fetch(`${config.apiUrl}/api/v1/system/info`, {
           headers: { 'Authorization': `Bearer ${config.token}` }

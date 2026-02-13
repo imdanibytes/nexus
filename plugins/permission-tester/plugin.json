@@ -1,0 +1,29 @@
+{
+  "id": "com.nexus.permission-tester",
+  "name": "Permission Tester",
+  "version": "0.1.0",
+  "description": "Developer tool for testing Nexus Host API permissions and runtime approval prompts",
+  "author": "Nexus Team",
+  "license": "MIT",
+  "homepage": "https://github.com/imdanibytes/nexus",
+  "image": "nexus-plugin-permission-tester:latest",
+  "ui": {
+    "port": 80,
+    "path": "/"
+  },
+  "permissions": [
+    "system:info",
+    "filesystem:read",
+    "filesystem:write",
+    "process:list",
+    "network:local",
+    "network:internet"
+  ],
+  "health": {
+    "endpoint": "/health",
+    "interval_secs": 30
+  },
+  "env": {},
+  "min_nexus_version": "0.1.0",
+  "settings": []
+}

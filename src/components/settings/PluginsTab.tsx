@@ -1,37 +1,215 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "../../stores/appStore";
-import { PermissionList } from "../permissions/PermissionList";
-import { Search, ChevronDown, Shield } from "lucide-react";
+import { pluginGetSettings, pluginSaveSettings } from "../../lib/tauri";
+import type { InstalledPlugin, SettingDef } from "../../types/plugin";
+import { Puzzle, Save, Check } from "lucide-react";
+
+function SettingField({
+  def,
+  value,
+  onChange,
+}: {
+  def: SettingDef;
+  value: unknown;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const baseInput =
+    "w-full px-3 py-2 text-[13px] bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150";
+
+  switch (def.type) {
+    case "boolean":
+      return (
+        <label className="flex items-center gap-3 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!value}
+            onClick={() => onChange(def.key, !value)}
+            className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${
+              value ? "bg-nx-accent" : "bg-nx-border-strong"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
+                value ? "translate-x-4" : "translate-x-0"
+              }`}
+            />
+          </button>
+          <span className="text-[13px] text-nx-text">{def.label}</span>
+        </label>
+      );
+
+    case "number":
+      return (
+        <div>
+          <label className="block text-[12px] text-nx-text-muted mb-1.5">
+            {def.label}
+          </label>
+          <input
+            type="number"
+            value={value as number ?? ""}
+            onChange={(e) =>
+              onChange(
+                def.key,
+                e.target.value === "" ? null : Number(e.target.value)
+              )
+            }
+            className={baseInput}
+          />
+        </div>
+      );
+
+    case "select":
+      return (
+        <div>
+          <label className="block text-[12px] text-nx-text-muted mb-1.5">
+            {def.label}
+          </label>
+          <select
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(def.key, e.target.value)}
+            className={baseInput + " appearance-none"}
+          >
+            {def.options?.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+
+    // string and fallback
+    default:
+      return (
+        <div>
+          <label className="block text-[12px] text-nx-text-muted mb-1.5">
+            {def.label}
+          </label>
+          <input
+            type="text"
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(def.key, e.target.value)}
+            className={baseInput}
+          />
+        </div>
+      );
+  }
+}
+
+function PluginSettingsCard({ plugin }: { plugin: InstalledPlugin }) {
+  const defs = plugin.manifest.settings ?? [];
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    pluginGetSettings(plugin.manifest.id)
+      .then(setValues)
+      .catch(() => {});
+  }, [plugin.manifest.id]);
+
+  function handleChange(key: string, value: unknown) {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    setSaved(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await pluginSaveSettings(plugin.manifest.id, values);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (defs.length === 0) {
+    return (
+      <div className="rounded-[var(--radius-card)] border border-nx-border-subtle bg-nx-deep p-4">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-[13px] text-nx-text font-medium">
+            {plugin.manifest.name}
+          </span>
+          <span className="text-[11px] text-nx-text-ghost font-mono">
+            v{plugin.manifest.version}
+          </span>
+        </div>
+        <p className="text-[11px] text-nx-text-ghost">
+          No configurable settings
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[var(--radius-card)] border border-nx-border-subtle bg-nx-deep p-4">
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-[13px] text-nx-text font-medium">
+          {plugin.manifest.name}
+        </span>
+        <span className="text-[11px] text-nx-text-ghost font-mono">
+          v{plugin.manifest.version}
+        </span>
+        <span
+          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[var(--radius-tag)] flex-shrink-0 ${
+            plugin.status === "running"
+              ? "bg-nx-success-muted text-nx-success"
+              : "bg-nx-overlay text-nx-text-ghost"
+          }`}
+        >
+          {plugin.status.toUpperCase()}
+        </span>
+      </div>
+
+      <div className="space-y-4">
+        {defs.map((def) => (
+          <SettingField
+            key={def.key}
+            def={def}
+            value={values[def.key] ?? def.default}
+            onChange={handleChange}
+          />
+        ))}
+      </div>
+
+      {error && (
+        <p className="mt-3 text-[11px] text-nx-error">{error}</p>
+      )}
+
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium bg-nx-accent text-white rounded-[var(--radius-button)] hover:opacity-90 transition-opacity duration-150 disabled:opacity-50"
+        >
+          {saved ? (
+            <Check size={13} strokeWidth={2} />
+          ) : (
+            <Save size={13} strokeWidth={1.5} />
+          )}
+          {saving ? "Saving..." : saved ? "Saved" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function PluginsTab() {
   const { installedPlugins } = useAppStore();
-  const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  const filtered = installedPlugins.filter((p) =>
-    p.manifest.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.manifest.id.toLowerCase().includes(search.toLowerCase())
-  );
-
-  function toggle(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }
 
   return (
     <div className="space-y-6">
       <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Shield size={15} strokeWidth={1.5} className="text-nx-text-muted" />
+          <Puzzle size={15} strokeWidth={1.5} className="text-nx-text-muted" />
           <h3 className="text-[14px] font-semibold text-nx-text">
-            Plugin Permissions
+            Plugin Settings
           </h3>
         </div>
 
@@ -40,90 +218,14 @@ export function PluginsTab() {
             No plugins installed
           </p>
         ) : (
-          <>
-            {/* Search */}
-            <div className="relative mb-4">
-              <Search
-                size={14}
-                strokeWidth={1.5}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-nx-text-ghost"
+          <div className="space-y-3">
+            {installedPlugins.map((plugin) => (
+              <PluginSettingsCard
+                key={plugin.manifest.id}
+                plugin={plugin}
               />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter plugins..."
-                className="w-full pl-9 pr-3 py-2 text-[13px] bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text placeholder:text-nx-text-muted focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150"
-              />
-            </div>
-
-            {/* Plugin accordion */}
-            <div className="space-y-2">
-              {filtered.length === 0 ? (
-                <p className="text-[11px] text-nx-text-ghost">
-                  No plugins match "{search}"
-                </p>
-              ) : (
-                filtered.map((plugin) => {
-                  const id = plugin.manifest.id;
-                  const isOpen = expanded.has(id);
-                  const permCount = plugin.manifest.permissions.length;
-
-                  return (
-                    <div
-                      key={id}
-                      className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden"
-                    >
-                      {/* Header row */}
-                      <button
-                        onClick={() => toggle(id)}
-                        className="w-full flex items-center justify-between p-3 hover:bg-nx-wash/30 transition-colors duration-150"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-[13px] text-nx-text font-medium truncate">
-                            {plugin.manifest.name}
-                          </span>
-                          <span className="text-[11px] text-nx-text-ghost font-mono flex-shrink-0">
-                            v{plugin.manifest.version}
-                          </span>
-                          <span
-                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[var(--radius-tag)] flex-shrink-0 ${
-                              plugin.status === "running"
-                                ? "bg-nx-success-muted text-nx-success"
-                                : "bg-nx-overlay text-nx-text-ghost"
-                            }`}
-                          >
-                            {plugin.status.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                          <span className="text-[11px] text-nx-text-ghost">
-                            {permCount} perm{permCount !== 1 ? "s" : ""}
-                          </span>
-                          <ChevronDown
-                            size={14}
-                            strokeWidth={1.5}
-                            className={`text-nx-text-ghost transition-transform duration-200 ${
-                              isOpen ? "rotate-180" : ""
-                            }`}
-                          />
-                        </div>
-                      </button>
-
-                      {/* Expanded content */}
-                      {isOpen && (
-                        <div className="px-3 pb-3 border-t border-nx-border-subtle">
-                          <div className="pt-3">
-                            <PermissionList pluginId={id} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </>
+            ))}
+          </div>
         )}
       </section>
     </div>

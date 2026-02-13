@@ -1,8 +1,9 @@
 use axum::Json;
 use serde::Serialize;
 use sysinfo::System;
+use utoipa::ToSchema;
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct SystemInfo {
     pub os: String,
     pub os_version: String,
@@ -13,6 +14,16 @@ pub struct SystemInfo {
     pub nexus_version: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/system/info",
+    tag = "system",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Host system information", body = SystemInfo),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn system_info() -> Json<SystemInfo> {
     let sys = System::new_all();
 

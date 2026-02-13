@@ -10,6 +10,15 @@ export interface HealthConfig {
   interval_secs: number;
 }
 
+export interface SettingDef {
+  key: string;
+  type: "string" | "number" | "boolean" | "select";
+  label: string;
+  description?: string;
+  default?: unknown;
+  options?: string[];
+}
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -25,6 +34,7 @@ export interface PluginManifest {
   health?: HealthConfig;
   env: Record<string, string>;
   min_nexus_version?: string;
+  settings?: SettingDef[];
 }
 
 export interface InstalledPlugin {

@@ -39,3 +39,5 @@ dirs = "6"
 sysinfo = "0.33"
 futures-util = "0.3"
 tar = "0.4"
+utoipa = { version = "5", features = ["axum_extras"] }
+sha2 = "0.10"

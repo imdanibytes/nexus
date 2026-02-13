@@ -27,6 +27,11 @@ pub fn run() {
                         .level(log::LevelFilter::Info)
                         .build(),
                 )?;
+
+                // Tag window title so dev builds are visually distinct
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_title("Nexus (dev)");
+                }
             }
 
             let app_handle = app.handle().clone();

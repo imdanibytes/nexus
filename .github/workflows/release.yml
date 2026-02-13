@@ -10,121 +10,15 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-
-    runs-on: ${{ matrix.platform }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install frontend dependencies
-        run: pnpm install
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
-
-      - name: Import Apple Developer Certificate
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-
-      - name: Resolve signing identity
-        run: |
-          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
-          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
-          echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> $GITHUB_ENV
-          echo "Signing identity: $CERT_ID"
-
-      - name: Build MCP sidecar
-        run: bash scripts/build-mcp-sidecar.sh
-        env:
-          CARGO_BUILD_TARGET: ${{ matrix.target }}
-
-      - name: Build Tauri app
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          CARGO_BUILD_TARGET: ${{ matrix.target }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: cargo tauri build --target ${{ matrix.target }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: nexus-${{ matrix.target }}
-          path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+  build-app:
+    uses: ./.github/workflows/_build-app.yml
+    secrets: inherit
 
   build-sdk:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Build SDK
-        run: |
-          cd packages/plugin-sdk
-          npm install
-          npm run generate
-          npm run build
-
-      - name: Upload SDK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: plugin-sdk
-          path: packages/plugin-sdk/dist/
+    uses: ./.github/workflows/_build-sdk.yml
 
   publish:
-    needs: [build, build-sdk]
+    needs: [build-app, build-sdk]
     runs-on: ubuntu-latest
 
     steps:
@@ -144,13 +38,15 @@ jobs:
           echo "=== Artifact structure ==="
           find artifacts -type f | sort
 
-          # Prepare a flat release directory
           mkdir -p release
 
-          # Copy DMGs (filenames already include arch)
+          # Copy installers (user-facing downloads)
           find artifacts -name "*.dmg" -type f -exec cp {} release/ \;
+          find artifacts -name "*.deb" -type f -exec cp {} release/ \;
+          find artifacts -name "*.AppImage" -type f ! -name "*.tar.gz" -exec cp {} release/ \;
+          find artifacts -name "*.exe" -type f -exec cp {} release/ \;
 
-          # Load release notes (shown in the in-app "What's New" panel)
+          # Load release notes
           NOTES_FILE="docs/release-notes/${TAG}.md"
           if [ -f "$NOTES_FILE" ]; then
             NOTES=$(cat "$NOTES_FILE")
@@ -160,21 +56,18 @@ jobs:
             echo "No release notes file found — using default"
           fi
 
-          # Process per-architecture updater bundles
+          # Build updater platform entries
           PLATFORMS="{}"
-          for arch_dir in artifacts/nexus-*; do
+
+          # --- macOS ---
+          for arch_dir in artifacts/nexus-*-apple-darwin; do
             [ -d "$arch_dir" ] || continue
             arch=$(basename "$arch_dir")
 
             tarball=$(find "$arch_dir" -name "*.app.tar.gz" ! -name "*.sig" -type f | head -1)
             sig=$(find "$arch_dir" -name "*.app.tar.gz.sig" -type f | head -1)
+            [ -z "$tarball" ] || [ -z "$sig" ] && continue
 
-            if [ -z "$tarball" ] || [ -z "$sig" ]; then
-              echo "Warning: Missing updater bundle for $arch"
-              continue
-            fi
-
-            # Determine platform key and create arch-specific filename
             if echo "$arch" | grep -q "aarch64"; then
               PLATFORM_KEY="darwin-aarch64"
               RENAMED="Nexus_aarch64.app.tar.gz"
@@ -186,13 +79,43 @@ jobs:
             cp "$tarball" "release/$RENAMED"
             SIG_CONTENT=$(cat "$sig")
             URL="https://github.com/${REPO}/releases/download/${TAG}/${RENAMED}"
-
             PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "$PLATFORM_KEY" \
               --arg url "$URL" --arg sig "$SIG_CONTENT" \
               '. + {($key): {"url": $url, "signature": $sig}}')
           done
 
-          # Write latest.json
+          # --- Linux ---
+          LINUX_DIR="artifacts/nexus-x86_64-unknown-linux-gnu"
+          if [ -d "$LINUX_DIR" ]; then
+            tarball=$(find "$LINUX_DIR" -name "*.AppImage.tar.gz" ! -name "*.sig" -type f | head -1)
+            sig=$(find "$LINUX_DIR" -name "*.AppImage.tar.gz.sig" -type f | head -1)
+            if [ -n "$tarball" ] && [ -n "$sig" ]; then
+              RENAMED="Nexus_x86_64.AppImage.tar.gz"
+              cp "$tarball" "release/$RENAMED"
+              SIG_CONTENT=$(cat "$sig")
+              URL="https://github.com/${REPO}/releases/download/${TAG}/${RENAMED}"
+              PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "linux-x86_64" \
+                --arg url "$URL" --arg sig "$SIG_CONTENT" \
+                '. + {($key): {"url": $url, "signature": $sig}}')
+            fi
+          fi
+
+          # --- Windows ---
+          WINDOWS_DIR="artifacts/nexus-x86_64-pc-windows-msvc"
+          if [ -d "$WINDOWS_DIR" ]; then
+            nsis_zip=$(find "$WINDOWS_DIR" -name "*.nsis.zip" ! -name "*.sig" -type f | head -1)
+            sig=$(find "$WINDOWS_DIR" -name "*.nsis.zip.sig" -type f | head -1)
+            if [ -n "$nsis_zip" ] && [ -n "$sig" ]; then
+              RENAMED="Nexus_x86_64-setup.nsis.zip"
+              cp "$nsis_zip" "release/$RENAMED"
+              SIG_CONTENT=$(cat "$sig")
+              URL="https://github.com/${REPO}/releases/download/${TAG}/${RENAMED}"
+              PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "windows-x86_64" \
+                --arg url "$URL" --arg sig "$SIG_CONTENT" \
+                '. + {($key): {"url": $url, "signature": $sig}}')
+            fi
+          fi
+
           jq -n \
             --arg version "$VERSION" \
             --arg notes "$NOTES" \

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde::Serialize;
-use super::{Extension, OperationDef};
+use super::{Capability, Extension, OperationDef};
 
 /// Stores all registered extensions, built at startup.
 pub struct ExtensionRegistry {
@@ -14,6 +14,7 @@ pub struct ExtensionInfo {
     pub display_name: String,
     pub description: String,
     pub operations: Vec<OperationDef>,
+    pub capabilities: Vec<Capability>,
 }
 
 impl ExtensionRegistry {
@@ -33,6 +34,11 @@ impl ExtensionRegistry {
         self.extensions.insert(id, ext);
     }
 
+    /// Unregister an extension by ID. Returns true if it was removed.
+    pub fn unregister(&mut self, id: &str) -> bool {
+        self.extensions.remove(id).is_some()
+    }
+
     /// Look up an extension by ID.
     pub fn get(&self, id: &str) -> Option<&dyn Extension> {
         self.extensions.get(id).map(|b| b.as_ref())
@@ -45,6 +51,7 @@ impl ExtensionRegistry {
             display_name: ext.display_name().to_string(),
             description: ext.description().to_string(),
             operations: ext.operations(),
+            capabilities: ext.capabilities(),
         }).collect();
         result.sort_by(|a, b| a.id.cmp(&b.id));
         result
@@ -59,9 +66,9 @@ impl ExtensionRegistry {
     /// Get all permission strings for all operations across all extensions.
     pub fn all_permission_strings(&self) -> Vec<String> {
         self.extensions.values().flat_map(|ext| {
-            let id = ext.id();
+            let id = ext.id().to_string();
             ext.operations().into_iter().map(move |op| {
-                Self::permission_string(id, &op.name)
+                Self::permission_string(&id, &op.name)
             })
         }).collect()
     }

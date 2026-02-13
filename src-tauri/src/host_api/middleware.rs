@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     body::Body,
     extract::State,
@@ -8,6 +10,8 @@ use axum::{
 
 use crate::permissions::checker::required_permission_for_endpoint;
 use crate::AppState;
+
+use super::auth::SessionStore;
 
 #[derive(Clone, Debug)]
 pub struct AuthenticatedPlugin {
@@ -30,18 +34,20 @@ pub async fn auth_middleware(
         None => return Err(StatusCode::UNAUTHORIZED),
     };
 
-    let mgr = state.read().await;
+    // Validate against the session store (short-lived access tokens)
+    let sessions = req
+        .extensions()
+        .get::<Arc<SessionStore>>()
+        .cloned()
+        .expect("SessionStore must be in request extensions");
 
-    let plugin = mgr
-        .storage
-        .find_by_token(&token)
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let plugin_id = sessions.validate(&token).ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let plugin_id = plugin.manifest.id.clone();
     let path = req.uri().path().to_string();
     let method = req.method().clone();
 
     // Check permission for this endpoint
+    let mgr = state.read().await;
     if let Some(required_perm) = required_permission_for_endpoint(&path) {
         if !mgr.permissions.has_permission(&plugin_id, &required_perm) {
             log::warn!(
@@ -51,11 +57,10 @@ pub async fn auth_middleware(
             return Err(StatusCode::FORBIDDEN);
         }
     }
+    drop(mgr);
 
     req.extensions_mut()
         .insert(AuthenticatedPlugin { plugin_id: plugin_id.clone() });
-
-    drop(mgr);
 
     let response = next.run(req).await;
     let status = response.status();

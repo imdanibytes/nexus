@@ -51,16 +51,28 @@ interface PluginConfig {
 }
 
 /**
- * Convenience wrapper that auto-discovers NEXUS_TOKEN and NEXUS_API_URL
- * by calling the plugin's own `/api/config` endpoint, then configures
- * the underlying HTTP client.
+ * Convenience wrapper that fetches a short-lived access token from the
+ * plugin's `/api/config` endpoint and configures the HTTP client.
+ *
+ * The plugin server handles the secret-to-token exchange. The browser
+ * only ever sees the short-lived access token.
+ *
+ * On 401 (token expired), call `refreshToken()` to re-fetch from
+ * the plugin server, which will exchange the secret for a new token.
  */
 export class NexusPlugin {
-  private constructor(public readonly config: PluginConfig) {}
+  private configUrl: string;
+
+  private constructor(
+    public config: PluginConfig,
+    configUrl: string,
+  ) {
+    this.configUrl = configUrl;
+  }
 
   /**
    * Initialize the SDK. Fetches plugin config from the local server and
-   * configures the HTTP client with the correct base URL and auth token.
+   * configures the HTTP client with the correct base URL and access token.
    *
    * @param configUrl - Override the config endpoint (defaults to `/api/config`)
    */
@@ -79,7 +91,7 @@ export class NexusPlugin {
       auth: config.token,
     });
 
-    return new NexusPlugin(config);
+    return new NexusPlugin(config, configUrl);
   }
 
   /**
@@ -87,7 +99,32 @@ export class NexusPlugin {
    */
   static configure(apiUrl: string, token: string): NexusPlugin {
     client.setConfig({ baseUrl: apiUrl, auth: token });
-    return new NexusPlugin({ token, apiUrl });
+    return new NexusPlugin({ token, apiUrl }, "");
+  }
+
+  /**
+   * Re-fetch the access token from the plugin server. Call this on 401
+   * responses — the server will exchange the secret for a fresh token.
+   */
+  async refreshToken(): Promise<string> {
+    if (!this.configUrl) {
+      throw new Error("Cannot refresh token in manual configuration mode");
+    }
+
+    const res = await fetch(this.configUrl);
+    if (!res.ok) {
+      throw new Error(`Failed to refresh token: ${res.status}`);
+    }
+
+    const config: PluginConfig = await res.json();
+    this.config = config;
+
+    client.setConfig({
+      baseUrl: config.apiUrl,
+      auth: config.token,
+    });
+
+    return config.token;
   }
 
   // ── System ──────────────────────────────────────────────

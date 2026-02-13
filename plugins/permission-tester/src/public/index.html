@@ -276,6 +276,26 @@
       <div id="process-result" class="result result-empty">Click to test process:list</div>
     </div>
 
+    <!-- Host Extensions -->
+    <div class="card full-width">
+      <h2>Host Extensions <span class="badge badge-low">system-info</span></h2>
+      <p style="font-size: 0.75rem; color: var(--color-nx-text-secondary); margin: 0 0 1rem;">
+        Tests the three-layer security model: permission check, scope approval (for <code>read_env</code>), and high-risk runtime approval (for <code>shutdown_host</code>).
+      </p>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+        <button class="btn-primary" onclick="testExtGetInfo()">get_info</button>
+        <button class="btn-primary" onclick="testExtReadEnv('HOME')">read_env (HOME)</button>
+        <button class="btn-primary" onclick="testExtReadEnv('PATH')">read_env (PATH)</button>
+        <button class="btn-primary" onclick="testExtReadEnv('USER')">read_env (USER)</button>
+        <button class="btn-danger" onclick="testExtShutdown()">shutdown_host</button>
+      </div>
+      <div class="input-group">
+        <input type="text" id="ext-env-var" placeholder="Custom env var name..." />
+        <button class="btn-primary" onclick="testExtReadEnv(document.getElementById('ext-env-var').value)">Read Env</button>
+      </div>
+      <div id="ext-result" class="result result-empty">Click a button to test host extension operations</div>
+    </div>
+
     <!-- Security Tests -->
     <div class="card full-width">
       <h2>Security Tests <span class="badge badge-high">adversarial</span></h2>
@@ -499,6 +519,37 @@
         setResult('raw-result', res.ok ? 'success' : 'error', `${header}\n${'─'.repeat(40)}\n${formatted}`);
       } catch (e) {
         setResult('raw-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testExtGetInfo() {
+      setResult('ext-result', 'pending', 'Calling system-info > get_info...');
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/system-info/get_info', { input: {} });
+        setResult('ext-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ext-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testExtReadEnv(varName) {
+      if (!varName) return;
+      setResult('ext-result', 'pending', `Calling system-info > read_env (${varName})...\nScope approval dialog may appear.`);
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/system-info/read_env', { input: { var_name: varName } });
+        setResult('ext-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ext-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testExtShutdown() {
+      setResult('ext-result', 'pending', 'Calling system-info > shutdown_host...\nHigh-risk approval dialog MUST appear.');
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/system-info/shutdown_host', { input: {} });
+        setResult('ext-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ext-result', 'error', `Network error: ${e.message}`);
       }
     }
 

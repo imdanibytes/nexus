@@ -54,14 +54,28 @@ pub async fn permission_remove_path(
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
     mgr.permissions
-        .remove_approved_path(&plugin_id, &permission, &path)
+        .remove_approved_scope(&plugin_id, &permission, &path)
+        .map_err(|e| e.to_string())
+}
+
+/// Remove a scope value from an extension permission's approved_scopes.
+#[tauri::command]
+pub async fn permission_remove_scope(
+    state: tauri::State<'_, AppState>,
+    plugin_id: String,
+    permission: Permission,
+    scope: String,
+) -> Result<(), String> {
+    let mut mgr = state.write().await;
+    mgr.permissions
+        .remove_approved_scope(&plugin_id, &permission, &scope)
         .map_err(|e| e.to_string())
 }
 
 /// Called by the frontend approval dialog when the user makes a decision.
 ///
-/// For `Approve` (persist): writes the approved path to `PermissionStore`
-/// BEFORE sending the decision on the channel, guaranteeing the path is
+/// For `Approve` (persist): writes the approved scope to `PermissionStore`
+/// BEFORE sending the decision on the channel, guaranteeing the scope is
 /// persisted by the time the HTTP handler resumes.
 #[tauri::command]
 pub async fn runtime_approval_respond(
@@ -73,18 +87,33 @@ pub async fn runtime_approval_respond(
     category: String,
     context: std::collections::HashMap<String, String>,
 ) -> Result<(), String> {
-    // Persist the approved path before unblocking the handler
-    if decision == ApprovalDecision::Approve && category == "filesystem" {
-        if let Some(parent_dir) = context.get("parent_dir") {
-            let permission_str = context.get("permission").cloned().unwrap_or_default();
-            let permission: Permission =
-                serde_json::from_value(serde_json::Value::String(permission_str))
-                    .map_err(|e| format!("invalid permission: {}", e))?;
+    if decision == ApprovalDecision::Approve {
+        if category == "filesystem" {
+            // Filesystem scope: persist the parent directory
+            if let Some(parent_dir) = context.get("parent_dir") {
+                let permission_str = context.get("permission").cloned().unwrap_or_default();
+                let permission: Permission =
+                    serde_json::from_value(serde_json::Value::String(permission_str))
+                        .map_err(|e| format!("invalid permission: {}", e))?;
 
-            let mut mgr = state.write().await;
-            mgr.permissions
-                .add_approved_path(&plugin_id, &permission, parent_dir.clone())
-                .map_err(|e| e.to_string())?;
+                let mut mgr = state.write().await;
+                mgr.permissions
+                    .add_approved_scope(&plugin_id, &permission, parent_dir.clone())
+                    .map_err(|e| e.to_string())?;
+            }
+        } else if category.starts_with("extension_scope:") {
+            // Extension scope: persist the scope value
+            if let Some(scope_value) = context.get("scope_value") {
+                let permission_str = context.get("permission").cloned().unwrap_or_default();
+                let permission: Permission =
+                    serde_json::from_value(serde_json::Value::String(permission_str))
+                        .map_err(|e| format!("invalid permission: {}", e))?;
+
+                let mut mgr = state.write().await;
+                mgr.permissions
+                    .add_approved_scope(&plugin_id, &permission, scope_value.clone())
+                    .map_err(|e| e.to_string())?;
+            }
         }
     }
 

@@ -121,6 +121,25 @@ pub struct Registry {
     pub version: u32,
     pub updated_at: String,
     pub plugins: Vec<RegistryEntry>,
+    /// Host extensions available in this registry (optional — old registries don't have this).
+    #[serde(default)]
+    pub extensions: Vec<ExtensionRegistryEntry>,
+}
+
+/// A host extension listed in a registry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionRegistryEntry {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub manifest_url: String,
+    #[serde(default)]
+    pub categories: Vec<String>,
+    #[serde(default)]
+    pub downloads: u64,
+    #[serde(default)]
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,16 +240,27 @@ fn fetch_local(path_str: &str) -> NexusResult<Registry> {
     Ok(registry)
 }
 
-/// Fetch all enabled registries and return a merged list of entries.
-pub async fn fetch_all(store: &RegistryStore) -> Vec<RegistryEntry> {
-    let mut all_entries = Vec::new();
+/// Result of fetching all registries — both plugin and extension entries.
+pub struct FetchAllResult {
+    pub plugins: Vec<RegistryEntry>,
+    pub extensions: Vec<ExtensionRegistryEntry>,
+}
+
+/// Fetch all enabled registries and return merged plugin + extension entries.
+pub async fn fetch_all(store: &RegistryStore) -> FetchAllResult {
+    let mut all_plugins = Vec::new();
+    let mut all_extensions = Vec::new();
 
     for source in store.enabled_sources() {
         match fetch_from_source(source).await {
             Ok(registry) => {
                 for mut entry in registry.plugins {
                     entry.source = source.name.clone();
-                    all_entries.push(entry);
+                    all_plugins.push(entry);
+                }
+                for mut entry in registry.extensions {
+                    entry.source = source.name.clone();
+                    all_extensions.push(entry);
                 }
             }
             Err(e) => {
@@ -239,7 +269,10 @@ pub async fn fetch_all(store: &RegistryStore) -> Vec<RegistryEntry> {
         }
     }
 
-    all_entries
+    FetchAllResult {
+        plugins: all_plugins,
+        extensions: all_extensions,
+    }
 }
 
 /// Fetch a manifest from a URL or file:// path.
@@ -277,6 +310,35 @@ pub async fn fetch_manifest(url: &str) -> NexusResult<super::manifest::PluginMan
     }
 }
 
+/// Fetch an extension manifest from a URL.
+pub async fn fetch_extension_manifest(url: &str) -> NexusResult<crate::extensions::manifest::ExtensionManifest> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        let client = http_client()?;
+        let response = client.get(url).send().await.map_err(NexusError::Http)?;
+
+        if !response.status().is_success() {
+            return Err(NexusError::Other(format!(
+                "Extension manifest fetch returned status {}",
+                response.status()
+            )));
+        }
+
+        let text = fetch_text(response).await?;
+        let manifest: crate::extensions::manifest::ExtensionManifest = serde_json::from_str(&text)
+            .map_err(|e| NexusError::Other(format!("Invalid extension manifest JSON: {}", e)))?;
+
+        manifest
+            .validate()
+            .map_err(|e| NexusError::InvalidManifest(e))?;
+        Ok(manifest)
+    } else {
+        Err(NexusError::Other(format!(
+            "Unsupported URL scheme for extension manifest: {}",
+            url.split(':').next().unwrap_or("unknown")
+        )))
+    }
+}
+
 pub fn search_entries(entries: &[RegistryEntry], query: &str) -> Vec<RegistryEntry> {
     if query.is_empty() {
         return entries.to_vec();
@@ -292,6 +354,26 @@ pub fn search_entries(entries: &[RegistryEntry], query: &str) -> Vec<RegistryEnt
                     .iter()
                     .any(|c| c.to_lowercase().contains(&query_lower))
                 || p.source.to_lowercase().contains(&query_lower)
+        })
+        .cloned()
+        .collect()
+}
+
+pub fn search_extension_entries(entries: &[ExtensionRegistryEntry], query: &str) -> Vec<ExtensionRegistryEntry> {
+    if query.is_empty() {
+        return entries.to_vec();
+    }
+
+    let query_lower = query.to_lowercase();
+    entries
+        .iter()
+        .filter(|e| {
+            e.name.to_lowercase().contains(&query_lower)
+                || e.description.to_lowercase().contains(&query_lower)
+                || e.categories
+                    .iter()
+                    .any(|c| c.to_lowercase().contains(&query_lower))
+                || e.source.to_lowercase().contains(&query_lower)
         })
         .cloned()
         .collect()

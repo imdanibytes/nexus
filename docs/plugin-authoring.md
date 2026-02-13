@@ -69,12 +69,14 @@ listening on the port declared in `ui.port`.
 
 ### 3. Implement the Server
 
-Your server needs three things:
+Your server needs four things:
 
 1. **Health endpoint** — returns 2xx when ready
-2. **Config endpoint** — serves `NEXUS_TOKEN` and `NEXUS_API_URL` to your
-   frontend
-3. **Static file serving** — serves your UI
+2. **Token exchange** — exchanges `NEXUS_PLUGIN_SECRET` for a short-lived access
+   token via `POST /api/v1/auth/token`
+3. **Config endpoint** — serves the access token (not the secret) and
+   `NEXUS_API_URL` to your frontend
+4. **Static file serving** — serves your UI
 
 ```javascript
 const http = require("http");
@@ -82,9 +84,39 @@ const fs = require("fs");
 const path = require("path");
 
 const PORT = 80;
-const NEXUS_TOKEN = process.env.NEXUS_TOKEN || "";
+const NEXUS_PLUGIN_SECRET = process.env.NEXUS_PLUGIN_SECRET || "";
 const NEXUS_API_URL =
   process.env.NEXUS_API_URL || "http://host.docker.internal:9600";
+const NEXUS_HOST_URL =
+  process.env.NEXUS_HOST_URL || "http://host.docker.internal:9600";
+
+// ── Token Management ───────────────────────────────────────────
+// Exchange the plugin secret for a short-lived access token.
+// The secret never leaves server-side code.
+
+let cachedAccessToken = null;
+let tokenExpiresAt = 0;
+
+async function getAccessToken() {
+  if (cachedAccessToken && Date.now() < tokenExpiresAt - 30000) {
+    return cachedAccessToken;
+  }
+
+  const res = await fetch(`${NEXUS_HOST_URL}/api/v1/auth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ secret: NEXUS_PLUGIN_SECRET }),
+  });
+
+  if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
+
+  const data = await res.json();
+  cachedAccessToken = data.access_token;
+  tokenExpiresAt = Date.now() + data.expires_in * 1000;
+  return cachedAccessToken;
+}
+
+// ── Server ─────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
   // Health check
@@ -93,10 +125,22 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ status: "ok" }));
   }
 
-  // Config endpoint — frontend retrieves auth credentials here
+  // Config endpoint — frontend retrieves access token here.
+  // The plugin secret is NEVER exposed to the browser.
   if (req.url === "/api/config") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ token: NEXUS_TOKEN, apiUrl: NEXUS_API_URL }));
+    getAccessToken()
+      .then((token) => {
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.end(JSON.stringify({ token, apiUrl: NEXUS_API_URL }));
+      })
+      .catch((err) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      });
+    return;
   }
 
   // Serve index.html with API URL templated in (for theme CSS link)
@@ -142,7 +186,7 @@ design system for visual consistency:
   <div id="app"></div>
   <script>
     async function init() {
-      // Get auth credentials from your server
+      // Get access token from your server (NOT the secret)
       const { token, apiUrl } = await fetch('/api/config').then(r => r.json());
 
       // Call the Host API
@@ -176,20 +220,69 @@ No need to manually `docker build` during development.
 
 ---
 
+## Authentication
+
+Nexus uses a **two-tier auth model** inspired by AWS temporary credentials:
+
+1. **Plugin Secret** (`NEXUS_PLUGIN_SECRET`) — a long-lived UUID injected as an
+   environment variable. Rotated on every container start. Stays server-side.
+2. **Access Token** — a short-lived token (15 min TTL) obtained by exchanging
+   the secret via `POST /api/v1/auth/token`.
+
+### Token Exchange
+
+```
+POST /api/v1/auth/token
+Content-Type: application/json
+
+{ "secret": "<NEXUS_PLUGIN_SECRET>" }
+```
+
+Response:
+```json
+{
+  "access_token": "uuid-short-lived-token",
+  "expires_in": 900,
+  "plugin_id": "com.example.my-plugin"
+}
+```
+
+### Auth Flow
+
+```
+Container start → NEXUS_PLUGIN_SECRET injected as env var
+
+Plugin server:
+  1. Calls POST /api/v1/auth/token with the secret
+  2. Caches the access token (refreshes 30s before expiry)
+  3. Serves the access token to the frontend via /api/config
+
+Frontend (iframe):
+  1. Fetches /api/config → gets { token, apiUrl }
+  2. Uses access token for all Host API calls
+  3. On 401 → re-fetches /api/config (server refreshes automatically)
+```
+
+**The plugin secret never reaches the browser.** Only short-lived access tokens
+are exposed to frontend code. If a token leaks via browser devtools, it expires
+in 15 minutes.
+
+---
+
 ## Environment Variables
 
 Nexus injects these into every plugin container:
 
 | Variable | Description |
 |----------|-------------|
-| `NEXUS_TOKEN` | Bearer token for Host API authentication |
-| `NEXUS_API_URL` | Host API base URL (usually `http://localhost:9600`) |
+| `NEXUS_PLUGIN_SECRET` | Plugin secret for token exchange (server-side only) |
+| `NEXUS_API_URL` | Host API base URL for browser JS (`http://localhost:9600`) |
+| `NEXUS_HOST_URL` | Host API base URL for server-side code (`http://host.docker.internal:9600`) |
 
 Plus any custom variables declared in `manifest.env`.
 
-**Never expose `NEXUS_TOKEN` in client-facing responses** other than through
-your own authenticated config endpoint. The token grants access to everything
-the user approved for your plugin.
+**Never expose `NEXUS_PLUGIN_SECRET` to the browser.** Use the token exchange
+to get a short-lived access token and serve that to the frontend.
 
 ---
 
@@ -234,12 +327,20 @@ directories at runtime.
 ## Host API Reference
 
 Base URL: `http://localhost:9600` (from inside the container, use the
-`NEXUS_API_URL` environment variable).
+`NEXUS_HOST_URL` environment variable).
 
 All authenticated endpoints require:
 ```
-Authorization: Bearer <NEXUS_TOKEN>
+Authorization: Bearer <access_token>
 ```
+
+### Token Exchange (Public)
+
+```
+POST /api/v1/auth/token
+```
+Body: `{ "secret": "<NEXUS_PLUGIN_SECRET>" }`
+Returns: `{ access_token, expires_in, plugin_id }`
 
 ### System
 
@@ -403,6 +504,8 @@ Plugins run in sandboxed Docker containers with:
 - **Bridge network** — containers communicate with the host via
   `host.docker.internal`, not direct network access
 - **Resource limits** — CPU and memory quotas configurable by the user
+- **Ephemeral tokens** — auth secrets rotate on every container start; access
+  tokens expire after 15 minutes
 
 Your plugin cannot:
 - Access the host filesystem directly

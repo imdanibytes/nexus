@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import type { InstalledPlugin, RegistryEntry } from "../types/plugin";
+import type { ExtensionRegistryEntry } from "../types/extension";
 
-type View = "plugins" | "marketplace" | "settings" | "plugin-detail";
+type View = "plugins" | "marketplace" | "settings" | "plugin-detail" | "extension-marketplace" | "extension-detail";
 export type PluginAction = "starting" | "stopping" | "removing";
 
 interface Notification {
@@ -20,6 +21,8 @@ interface AppState {
   searchQuery: string;
   isLoading: boolean;
   notifications: Notification[];
+  extensionMarketplaceEntries: ExtensionRegistryEntry[];
+  selectedExtensionEntry: ExtensionRegistryEntry | null;
 
   setView: (view: View) => void;
   setPlugins: (plugins: InstalledPlugin[]) => void;
@@ -33,6 +36,8 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   addNotification: (message: string, type: Notification["type"]) => void;
   removeNotification: (id: string) => void;
+  setExtensionMarketplace: (entries: ExtensionRegistryEntry[]) => void;
+  selectExtensionEntry: (entry: ExtensionRegistryEntry | null) => void;
 }
 
 let notifCounter = 0;
@@ -47,6 +52,8 @@ export const useAppStore = create<AppState>((set) => ({
   searchQuery: "",
   isLoading: false,
   notifications: [],
+  extensionMarketplaceEntries: [],
+  selectedExtensionEntry: null,
 
   setView: (view) => set({ currentView: view }),
   setPlugins: (plugins) => set({ installedPlugins: plugins }),
@@ -77,6 +84,8 @@ export const useAppStore = create<AppState>((set) => ({
     }),
   setMarketplace: (plugins) => set({ marketplacePlugins: plugins }),
   selectRegistryEntry: (entry) => set({ selectedRegistryEntry: entry }),
+  setExtensionMarketplace: (entries) => set({ extensionMarketplaceEntries: entries }),
+  selectExtensionEntry: (entry) => set({ selectedExtensionEntry: entry }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setLoading: (loading) => set({ isLoading: loading }),
   addNotification: (message, type) => {

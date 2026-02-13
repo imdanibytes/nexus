@@ -101,7 +101,7 @@ Plugins are Docker containers with a `plugin.json` manifest. See `plugins/hello-
 
 ### Host API
 
-Plugins authenticate with a bearer token (injected as `NEXUS_TOKEN`) and call the Host API at `http://host.docker.internal:9600`:
+Plugins exchange their secret (`NEXUS_PLUGIN_SECRET`) for a short-lived access token via `POST /api/v1/auth/token`, then use it as a Bearer token to call the Host API:
 
 | Endpoint | Description |
 |---|---|

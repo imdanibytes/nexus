@@ -42,6 +42,11 @@ pub struct PluginManifest {
     pub homepage: Option<String>,
     pub icon: Option<String>,
     pub image: String,
+    /// SHA-256 digest of the Docker image (e.g. "sha256:a1b2c3...").
+    /// Required for marketplace installs, optional for local dev.
+    /// Verified after pull to guarantee content integrity.
+    #[serde(default)]
+    pub image_digest: Option<String>,
     pub ui: UiConfig,
     #[serde(default)]
     pub permissions: Vec<Permission>,
@@ -135,6 +140,9 @@ impl PluginManifest {
         if self.version.len() > 50 {
             return Err("Version must be 50 characters or fewer".to_string());
         }
+        if self.description.is_empty() {
+            return Err("Plugin description is required".to_string());
+        }
         if self.description.len() > 2000 {
             return Err("Description must be 2000 characters or fewer".to_string());
         }
@@ -143,6 +151,17 @@ impl PluginManifest {
         }
         if self.image.len() > 200 {
             return Err("Docker image must be 200 characters or fewer".to_string());
+        }
+
+        // Validate image_digest format if present
+        if let Some(ref digest) = self.image_digest {
+            if !digest.starts_with("sha256:") {
+                return Err("image_digest must start with \"sha256:\"".to_string());
+            }
+            let hex_part = &digest[7..];
+            if hex_part.len() != 64 || !hex_part.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err("image_digest must be \"sha256:\" followed by 64 hex characters".to_string());
+            }
         }
 
         // Reject Unicode bidirectional overrides in display fields
@@ -178,6 +197,12 @@ impl PluginManifest {
                 }
                 if !tool_names.insert(&tool.name) {
                     return Err(format!("Duplicate MCP tool name: '{}'", tool.name));
+                }
+                if tool.description.is_empty() {
+                    return Err(format!(
+                        "MCP tool '{}' must have a non-empty description",
+                        tool.name
+                    ));
                 }
                 if tool.description.len() > 2000 {
                     return Err(format!(
@@ -220,10 +245,10 @@ impl PluginManifest {
             }
             if !ext_id
                 .chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
             {
                 return Err(format!(
-                    "Extension ID '{}' must match [a-z0-9_]",
+                    "Extension ID '{}' must match [a-z0-9_-]",
                     ext_id
                 ));
             }
@@ -240,9 +265,9 @@ impl PluginManifest {
                         ext_id, op
                     ));
                 }
-                if !op.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_') {
+                if !op.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-') {
                     return Err(format!(
-                        "Extension '{}' operation '{}' must match [a-z0-9_]",
+                        "Extension '{}' operation '{}' must match [a-z0-9_-]",
                         ext_id, op
                     ));
                 }
@@ -250,5 +275,83 @@ impl PluginManifest {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_manifest() -> PluginManifest {
+        PluginManifest {
+            id: "com.test.plugin".into(),
+            name: "Test Plugin".into(),
+            version: "1.0.0".into(),
+            description: "A test plugin".into(),
+            author: "Test".into(),
+            license: None,
+            homepage: None,
+            icon: None,
+            image: "test:latest".into(),
+            image_digest: None,
+            ui: UiConfig { port: 80, path: "/".into() },
+            permissions: vec![],
+            health: None,
+            env: HashMap::new(),
+            min_nexus_version: None,
+            settings: vec![],
+            mcp: None,
+            extensions: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn valid_manifest_passes() {
+        assert!(valid_manifest().validate().is_ok());
+    }
+
+    #[test]
+    fn valid_digest_accepted() {
+        let mut m = valid_manifest();
+        m.image_digest = Some("sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".into());
+        assert!(m.validate().is_ok());
+    }
+
+    #[test]
+    fn digest_missing_prefix_rejected() {
+        let mut m = valid_manifest();
+        m.image_digest = Some("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2".into());
+        let err = m.validate().unwrap_err();
+        assert!(err.contains("sha256:"), "error was: {}", err);
+    }
+
+    #[test]
+    fn digest_wrong_length_rejected() {
+        let mut m = valid_manifest();
+        m.image_digest = Some("sha256:tooshort".into());
+        let err = m.validate().unwrap_err();
+        assert!(err.contains("64 hex"), "error was: {}", err);
+    }
+
+    #[test]
+    fn digest_non_hex_rejected() {
+        let mut m = valid_manifest();
+        m.image_digest = Some("sha256:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz".into());
+        let err = m.validate().unwrap_err();
+        assert!(err.contains("64 hex"), "error was: {}", err);
+    }
+
+    #[test]
+    fn empty_description_rejected() {
+        let mut m = valid_manifest();
+        m.description = String::new();
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn bidi_override_in_name_rejected() {
+        let mut m = valid_manifest();
+        m.name = "Evil\u{202E}Plugin".into();
+        assert!(m.validate().is_err());
     }
 }

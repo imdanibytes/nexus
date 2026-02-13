@@ -16,7 +16,8 @@ export interface GrantedPermission {
   plugin_id: string;
   permission: Permission;
   granted_at: string;
-  approved_paths: string[] | null;
+  /** Generalized scope whitelist (renamed from approved_paths). */
+  approved_scopes: string[] | null;
 }
 
 export type ApprovalDecision = "approve" | "approve_once" | "deny";

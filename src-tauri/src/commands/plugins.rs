@@ -135,6 +135,7 @@ pub async fn plugin_remove(
     Ok(())
 }
 
+
 #[tauri::command]
 pub async fn plugin_sync_status(
     state: tauri::State<'_, AppState>,

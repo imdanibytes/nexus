@@ -1,4 +1,5 @@
 pub mod approval;
+pub mod auth;
 pub mod docker;
 pub mod extensions;
 pub mod filesystem;
@@ -6,11 +7,13 @@ pub mod mcp;
 mod middleware;
 pub mod network;
 pub mod process;
+mod rate_limit;
 pub mod settings;
 pub mod system;
 mod theme;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{extract::DefaultBodyLimit, middleware as axum_middleware, routing, Extension, Json, Router};
 use tower_http::cors::{Any, CorsLayer};
@@ -19,6 +22,7 @@ use utoipa::{Modify, OpenApi};
 
 use crate::AppState;
 use approval::ApprovalBridge;
+use auth::SessionStore;
 
 struct SecurityAddon;
 
@@ -37,7 +41,7 @@ impl Modify for SecurityAddon {
 #[openapi(
     info(
         title = "Nexus Host API",
-        description = "API available to Nexus plugins for interacting with the host system. All authenticated endpoints require a Bearer token (NEXUS_TOKEN).",
+        description = "API available to Nexus plugins for interacting with the host system. Plugins exchange their secret (NEXUS_PLUGIN_SECRET) for a short-lived access token via POST /v1/auth/token, then use it as a Bearer token.",
         version = "0.1.0",
         license(name = "MIT")
     ),
@@ -85,6 +89,12 @@ pub async fn start_server(
         .allow_methods(Any)
         .allow_headers(Any);
 
+    // 100 requests per second per plugin — generous for normal use, blocks abuse
+    let limiter = rate_limit::RateLimiter::new(100, std::time::Duration::from_secs(1));
+
+    // Session store for short-lived access tokens (15 minute TTL)
+    let sessions = Arc::new(SessionStore::new(Duration::from_secs(15 * 60)));
+
     let authenticated_routes = Router::new()
         // System
         .route("/v1/system/info", routing::get(system::system_info))
@@ -119,10 +129,14 @@ pub async fn start_server(
             "/v1/settings",
             routing::get(settings::get_settings).put(settings::put_settings),
         )
+        // Rate limiting runs after auth (needs plugin identity)
+        .layer(axum_middleware::from_fn(rate_limit::rate_limit_middleware))
+        .layer(Extension(limiter))
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),
             middleware::auth_middleware,
         ))
+        .layer(Extension(sessions.clone()))
         .layer(Extension(approvals.clone()))
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
@@ -138,6 +152,11 @@ pub async fn start_server(
         ))
         .layer(Extension(approvals.clone()));
 
+    // Token exchange route — public, plugins call this with their secret
+    let auth_routes = Router::new()
+        .route("/v1/auth/token", routing::post(auth::create_token))
+        .layer(Extension(sessions.clone()));
+
     let app = Router::new()
         // Public routes (no auth required)
         .route("/api/v1/theme.css", routing::get(theme::theme_css))
@@ -147,9 +166,11 @@ pub async fn start_server(
         )
         // OpenAPI spec
         .route("/api/openapi.json", routing::get(openapi_spec))
+        // Token exchange (public — plugins exchange secret for access token)
+        .nest("/api", auth_routes)
         // MCP gateway routes (gateway token auth)
         .nest("/api", mcp_routes)
-        // Authenticated routes (plugin Bearer token auth)
+        // Authenticated routes (plugin Bearer token auth via session store)
         .nest("/api", authenticated_routes)
         .layer(cors)
         .with_state(state);

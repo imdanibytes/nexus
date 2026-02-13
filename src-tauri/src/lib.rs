@@ -16,6 +16,14 @@ pub type AppState = Arc<RwLock<PluginManager>>;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // Another instance tried to launch — bring the existing window to front
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
@@ -100,6 +108,14 @@ pub fn run() {
             commands::mcp::mcp_list_tools,
             commands::mcp::mcp_config_snippet,
             commands::extensions::extension_list,
+            commands::extensions::extension_install,
+            commands::extensions::extension_install_local,
+            commands::extensions::extension_enable,
+            commands::extensions::extension_disable,
+            commands::extensions::extension_remove,
+            commands::extensions::extension_preview,
+            commands::extensions::extension_marketplace_search,
+            commands::permissions::permission_remove_scope,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,7 +8,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::extensions::registry::ExtensionInfo;
 use crate::extensions::validation::validate_input;
 use crate::extensions::RiskLevel;
 use crate::permissions::Permission;
@@ -17,10 +16,28 @@ use crate::AppState;
 use super::approval::ApprovalBridge;
 use super::middleware::AuthenticatedPlugin;
 
+/// A plugin's view of an extension it declared as a dependency.
+#[derive(Serialize)]
+pub struct PluginExtensionView {
+    pub id: String,
+    pub display_name: Option<String>,
+    pub description: Option<String>,
+    pub available: bool,
+    pub operations: Vec<PluginOperationView>,
+}
+
+/// A plugin's view of an operation on a declared extension.
+#[derive(Serialize)]
+pub struct PluginOperationView {
+    pub name: String,
+    pub permitted: bool,
+    pub available: bool,
+}
+
 /// Response for GET /v1/extensions
 #[derive(Serialize)]
 pub struct ListExtensionsResponse {
-    pub extensions: Vec<ExtensionInfo>,
+    pub extensions: Vec<PluginExtensionView>,
 }
 
 /// Request body for POST /v1/extensions/{ext_id}/{operation}
@@ -61,20 +78,68 @@ fn error_response(status: StatusCode, error: &str, details: Option<String>) -> (
     )
 }
 
-/// GET /v1/extensions — list all registered extensions and their operations.
+/// GET /v1/extensions — list extensions declared by the calling plugin.
+///
+/// Only returns extensions the plugin declared in its manifest `"extensions"` field.
+/// Includes availability status (is it installed and running?) and per-operation
+/// permission status. Plugins cannot see extensions they didn't declare.
 pub async fn list_extensions(
     State(state): State<AppState>,
-    Extension(_auth): Extension<AuthenticatedPlugin>,
+    Extension(auth): Extension<AuthenticatedPlugin>,
 ) -> Json<ListExtensionsResponse> {
     let mgr = state.read().await;
-    let extensions = mgr.extensions.list();
-    Json(ListExtensionsResponse { extensions })
+
+    // Get the calling plugin's declared extension dependencies
+    let declared = mgr
+        .storage
+        .get(&auth.plugin_id)
+        .map(|p| p.manifest.extensions.clone())
+        .unwrap_or_default();
+
+    let mut views = Vec::new();
+    for (ext_id, declared_ops) in &declared {
+        let registered = mgr.extensions.get(ext_id);
+        let available = registered.is_some();
+
+        let (display_name, description) = registered
+            .map(|e| (Some(e.display_name().to_string()), Some(e.description().to_string())))
+            .unwrap_or((None, None));
+
+        let operations = declared_ops
+            .iter()
+            .map(|op_name| {
+                let perm_str = crate::extensions::registry::ExtensionRegistry::permission_string(ext_id, op_name);
+                let permitted = mgr.permissions.has_permission(&auth.plugin_id, &Permission::Extension(perm_str));
+                let op_available = available
+                    && registered.is_some_and(|e| e.operations().iter().any(|o| o.name == *op_name));
+
+                PluginOperationView {
+                    name: op_name.clone(),
+                    permitted,
+                    available: op_available,
+                }
+            })
+            .collect();
+
+        views.push(PluginExtensionView {
+            id: ext_id.clone(),
+            display_name,
+            description,
+            available,
+            operations,
+        });
+    }
+
+    views.sort_by(|a, b| a.id.cmp(&b.id));
+    Json(ListExtensionsResponse { extensions: views })
 }
 
 /// POST /v1/extensions/{ext_id}/{operation} — execute an extension operation.
 ///
-/// Permission checking is done in the handler (not middleware) because the
-/// required permission scope is dynamic based on path parameters.
+/// Three-layer security model:
+/// 1. PERMISSION: Does this plugin have `ext:{ext_id}:{operation}`?
+/// 2. SCOPE: If the operation declares `scope_key`, is the scope value approved?
+/// 3. RISK: If risk_level is high, per-invocation runtime approval.
 pub async fn call_extension(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthenticatedPlugin>,
@@ -109,7 +174,7 @@ pub async fn call_extension(
             )
         })?;
 
-    // 3. Check permission: "ext:{ext_id}:{operation}"
+    // 3. LAYER 1 — PERMISSION: Check "ext:{ext_id}:{operation}"
     let perm_string = crate::extensions::registry::ExtensionRegistry::permission_string(&ext_id, &operation);
     let required_perm = Permission::Extension(perm_string.clone());
 
@@ -137,44 +202,160 @@ pub async fn call_extension(
         )
     })?;
 
-    // 5. Runtime approval for high-risk operations
+    // 5. LAYER 2 — SCOPE: If operation has a scope_key, check approved_scopes
+    if let Some(ref scope_key) = op_def.scope_key {
+        if let Some(scope_value) = body.input.get(scope_key).and_then(|v| v.as_str()) {
+            let approved_scopes = mgr.permissions.get_approved_scopes(&auth.plugin_id, &required_perm);
+
+            match approved_scopes {
+                None => {
+                    // Unrestricted — no scope checking
+                }
+                Some(scopes) => {
+                    if !scopes.iter().any(|s| s == scope_value) {
+                        // Scope not approved — request runtime approval
+                        let scope_desc = op_def.scope_description.as_deref().unwrap_or(scope_key);
+
+                        let mut context = std::collections::HashMap::new();
+                        context.insert("extension".to_string(), ext_id.clone());
+                        context.insert("extension_display_name".to_string(), ext.display_name().to_string());
+                        context.insert("operation".to_string(), operation.clone());
+                        context.insert("operation_description".to_string(), op_def.description.clone());
+                        context.insert("scope_key".to_string(), scope_key.clone());
+                        context.insert("scope_value".to_string(), scope_value.to_string());
+                        context.insert("scope_description".to_string(), scope_desc.to_string());
+
+                        let plugin_name = mgr
+                            .storage
+                            .get(&auth.plugin_id)
+                            .map(|p| p.manifest.name.clone())
+                            .unwrap_or_else(|| auth.plugin_id.clone());
+
+                        let request = super::approval::ApprovalRequest {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            plugin_id: auth.plugin_id.clone(),
+                            plugin_name,
+                            category: format!("extension_scope:{}", ext_id),
+                            permission: perm_string.clone(),
+                            context,
+                        };
+
+                        // Drop read lock before awaiting approval
+                        drop(mgr);
+
+                        match bridge.request_approval(request).await {
+                            super::approval::ApprovalDecision::Approve => {
+                                // Persist the approved scope
+                                let mut mgr = state.write().await;
+                                let _ = mgr.permissions.add_approved_scope(
+                                    &auth.plugin_id,
+                                    &required_perm,
+                                    scope_value.to_string(),
+                                );
+                                drop(mgr);
+
+                                // Re-acquire read lock and continue execution below
+                                let mgr = state.read().await;
+                                let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                                    error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
+                                })?;
+
+                                return execute_and_respond(
+                                    ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                                ).await;
+                            }
+                            super::approval::ApprovalDecision::ApproveOnce => {
+                                // One-time approval — don't persist, just continue
+                                let mgr = state.read().await;
+                                let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                                    error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
+                                })?;
+
+                                return execute_and_respond(
+                                    ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                                ).await;
+                            }
+                            super::approval::ApprovalDecision::Deny => {
+                                return Err(error_response(
+                                    StatusCode::FORBIDDEN,
+                                    "Scope approval denied",
+                                    Some(format!(
+                                        "User denied access to scope '{}' = '{}'",
+                                        scope_key, scope_value
+                                    )),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. LAYER 3 — RISK: Runtime approval for high-risk operations
+    execute_and_respond(
+        ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+    ).await
+}
+
+/// Execute the extension operation, handling high-risk runtime approval.
+async fn execute_and_respond(
+    ext: &dyn crate::extensions::Extension,
+    ext_id: &str,
+    operation: &str,
+    plugin_id: &str,
+    input: Value,
+    op_def: &crate::extensions::OperationDef,
+    bridge: &Arc<ApprovalBridge>,
+    state: &AppState,
+) -> Result<Json<CallExtensionResponse>, (StatusCode, Json<ExtensionErrorResponse>)> {
+    // High-risk operations need per-invocation approval
     if op_def.risk_level == RiskLevel::High {
         let mut context = std::collections::HashMap::new();
-        context.insert("extension".to_string(), ext_id.clone());
-        context.insert("operation".to_string(), operation.clone());
+        context.insert("extension".to_string(), ext_id.to_string());
+        context.insert("extension_display_name".to_string(), ext.display_name().to_string());
+        context.insert("operation".to_string(), operation.to_string());
+        context.insert("operation_description".to_string(), op_def.description.clone());
         context.insert("risk_level".to_string(), "high".to_string());
-        // Include a summary of the input for the approval dialog
-        if let Value::Object(map) = &body.input {
+        if let Value::Object(map) = &input {
             for (k, v) in map {
                 context.insert(format!("input.{}", k), v.to_string());
             }
         }
 
+        let plugin_name = {
+            let mgr = state.read().await;
+            mgr.storage
+                .get(plugin_id)
+                .map(|p| p.manifest.name.clone())
+                .unwrap_or_else(|| plugin_id.to_string())
+        };
+
         let request = super::approval::ApprovalRequest {
             id: uuid::Uuid::new_v4().to_string(),
-            plugin_id: auth.plugin_id.clone(),
-            plugin_name: auth.plugin_id.clone(),
+            plugin_id: plugin_id.to_string(),
+            plugin_name,
             category: format!("extension:{}", ext_id),
-            permission: perm_string.clone(),
+            permission: crate::extensions::registry::ExtensionRegistry::permission_string(ext_id, operation),
             context,
         };
 
-        // Drop the read lock before awaiting approval (which can take up to 60s)
-        drop(mgr);
-
+        // Note: we may or may not still hold the read lock. The caller is responsible
+        // for ensuring we have a valid `ext` reference. For high-risk approval, we
+        // need to re-acquire after dropping.
         match bridge.request_approval(request).await {
             super::approval::ApprovalDecision::Approve
             | super::approval::ApprovalDecision::ApproveOnce => {
                 // Re-acquire read lock
                 let mgr = state.read().await;
-                let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                let ext = mgr.extensions.get(ext_id).ok_or_else(|| {
                     error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
                 })?;
 
-                let result = ext.execute(&operation, body.input).await.map_err(|e| {
+                let result = ext.execute(operation, input).await.map_err(|e| {
                     log::error!(
                         "Extension error: ext={} op={} plugin={} error={}",
-                        ext_id, operation, auth.plugin_id, e
+                        ext_id, operation, plugin_id, e
                     );
                     error_response(
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -185,7 +366,7 @@ pub async fn call_extension(
 
                 log::info!(
                     "AUDIT plugin={} extension={} operation={} status=200",
-                    auth.plugin_id, ext_id, operation
+                    plugin_id, ext_id, operation
                 );
 
                 return Ok(Json(CallExtensionResponse {
@@ -204,11 +385,11 @@ pub async fn call_extension(
         }
     }
 
-    // 6. Execute (non-high-risk path, or low/medium risk)
-    let result = ext.execute(&operation, body.input).await.map_err(|e| {
+    // Non-high-risk: execute directly
+    let result = ext.execute(operation, input).await.map_err(|e| {
         log::error!(
             "Extension error: ext={} op={} plugin={} error={}",
-            ext_id, operation, auth.plugin_id, e
+            ext_id, operation, plugin_id, e
         );
         error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -219,7 +400,7 @@ pub async fn call_extension(
 
     log::info!(
         "AUDIT plugin={} extension={} operation={} status=200",
-        auth.plugin_id, ext_id, operation
+        plugin_id, ext_id, operation
     );
 
     Ok(Json(CallExtensionResponse {

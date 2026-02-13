@@ -40,9 +40,9 @@ export function PermissionList({ pluginId }: Props) {
         const isFs = FS_PERMISSIONS.includes(grant.permission);
         const hasPaths =
           isFs &&
-          grant.approved_paths !== null &&
-          grant.approved_paths !== undefined;
-        const paths = grant.approved_paths ?? [];
+          grant.approved_scopes !== null &&
+          grant.approved_scopes !== undefined;
+        const paths = grant.approved_scopes ?? [];
         const isExpanded = expandedPerms.has(grant.permission);
 
         return (
@@ -77,7 +77,7 @@ export function PermissionList({ pluginId }: Props) {
                           : `${paths.length} path${paths.length !== 1 ? "s" : ""}`}
                       </span>
                     )}
-                    {isFs && grant.approved_paths === null && (
+                    {isFs && grant.approved_scopes === null && (
                       <span className="text-[10px] text-nx-warning font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-warning-muted flex-shrink-0">
                         UNRESTRICTED
                       </span>

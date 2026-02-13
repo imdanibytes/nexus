@@ -27,8 +27,8 @@
     "tools": [
       {
         "name": "run_security_audit",
-        "description": "Run a permission test battery checking all granted permissions against the Host API",
-        "permissions": ["system:info", "filesystem:read", "process:list", "network:local"],
+        "description": "Run a comprehensive security test battery checking all granted permissions, SSRF protections, path traversal defenses, auth enforcement, schema validation, and IPv6 bypass mitigations against the Host API. Returns structured pass/fail results for each test.",
+        "permissions": ["system:info", "filesystem:read", "filesystem:write", "process:list", "network:local", "network:internet"],
         "input_schema": {
           "type": "object",
           "properties": {},
@@ -36,6 +36,9 @@
         }
       }
     ]
+  },
+  "extensions": {
+    "system-info": ["get_info", "read_env", "shutdown_host"]
   },
   "env": {},
   "min_nexus_version": "0.1.0",

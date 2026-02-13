@@ -114,10 +114,138 @@ impl std::fmt::Display for Permission {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn known_permissions_roundtrip() {
+        let perms = vec![
+            Permission::SystemInfo,
+            Permission::FilesystemRead,
+            Permission::FilesystemWrite,
+            Permission::ProcessList,
+            Permission::DockerRead,
+            Permission::DockerManage,
+            Permission::NetworkLocal,
+            Permission::NetworkInternet,
+        ];
+
+        for perm in perms {
+            let json = serde_json::to_value(&perm).unwrap();
+            let deserialized: Permission = serde_json::from_value(json.clone()).unwrap();
+            assert_eq!(perm, deserialized, "roundtrip failed for {:?}", json);
+        }
+    }
+
+    #[test]
+    fn extension_permission_roundtrip() {
+        let perm = Permission::Extension("ext:git-ops:status".to_string());
+        let json = serde_json::to_value(&perm).unwrap();
+        assert_eq!(json, serde_json::json!("ext:git-ops:status"));
+
+        let deserialized: Permission = serde_json::from_value(json).unwrap();
+        assert_eq!(perm, deserialized);
+    }
+
+    #[test]
+    fn unknown_permission_fails_deserialization() {
+        let result = serde_json::from_value::<Permission>(serde_json::json!("bogus:perm"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn extension_prefix_required() {
+        // "ext:" prefix → Extension variant
+        let ok = serde_json::from_value::<Permission>(serde_json::json!("ext:foo:bar"));
+        assert!(ok.is_ok());
+
+        // No "ext:" prefix and not a known permission → error
+        let err = serde_json::from_value::<Permission>(serde_json::json!("foo:bar"));
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn as_str_matches_serialization() {
+        let perms = vec![
+            (Permission::SystemInfo, "system:info"),
+            (Permission::FilesystemRead, "filesystem:read"),
+            (Permission::FilesystemWrite, "filesystem:write"),
+            (Permission::NetworkLocal, "network:local"),
+            (Permission::Extension("ext:x:y".into()), "ext:x:y"),
+        ];
+
+        for (perm, expected) in perms {
+            assert_eq!(perm.as_str(), expected);
+            let json = serde_json::to_value(&perm).unwrap();
+            assert_eq!(json.as_str().unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn risk_levels_are_valid() {
+        let all_perms = vec![
+            Permission::SystemInfo,
+            Permission::FilesystemRead,
+            Permission::FilesystemWrite,
+            Permission::ProcessList,
+            Permission::DockerRead,
+            Permission::DockerManage,
+            Permission::NetworkLocal,
+            Permission::NetworkInternet,
+            Permission::Extension("ext:test:op".into()),
+        ];
+
+        for perm in all_perms {
+            let risk = perm.risk_level();
+            assert!(
+                ["low", "medium", "high"].contains(&risk),
+                "invalid risk level '{}' for {:?}",
+                risk,
+                perm
+            );
+        }
+    }
+
+    #[test]
+    fn descriptions_are_nonempty() {
+        let perms = vec![
+            Permission::SystemInfo,
+            Permission::FilesystemRead,
+            Permission::FilesystemWrite,
+            Permission::ProcessList,
+            Permission::DockerRead,
+            Permission::DockerManage,
+            Permission::NetworkLocal,
+            Permission::NetworkInternet,
+        ];
+
+        for perm in perms {
+            assert!(!perm.description().is_empty(), "empty description for {:?}", perm);
+        }
+    }
+
+    #[test]
+    fn display_matches_as_str() {
+        let perm = Permission::FilesystemRead;
+        assert_eq!(format!("{}", perm), perm.as_str());
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GrantedPermission {
     pub plugin_id: String,
     pub permission: Permission,
     pub granted_at: chrono::DateTime<chrono::Utc>,
-    pub approved_paths: Option<Vec<String>>,
+    /// Generalized scope whitelist. Replaces the former `approved_paths`.
+    ///
+    /// - `None` = unrestricted (no scope checking)
+    /// - `Some([])` = restricted, nothing approved yet (runtime approval on first use)
+    /// - `Some(["value1", "value2"])` = these specific scope values are approved
+    ///
+    /// For filesystem permissions, scope values are directory paths.
+    /// For extension permissions with `scope_key`, scope values are the
+    /// operation-specific resource identifiers (e.g. repo paths, domains).
+    #[serde(alias = "approved_paths")]
+    pub approved_scopes: Option<Vec<String>>,
 }

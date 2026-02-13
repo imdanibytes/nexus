@@ -5,6 +5,8 @@ import { PluginLogs } from "./components/plugins/PluginLogs";
 import { MarketplacePage } from "./components/marketplace/MarketplacePage";
 import { PluginDetail } from "./components/marketplace/PluginDetail";
 import { SettingsPage } from "./components/settings/SettingsPage";
+import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarketplacePage";
+import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { checkDocker } from "./lib/tauri";
@@ -70,9 +72,11 @@ function App() {
   const {
     currentView,
     selectedRegistryEntry,
+    selectedExtensionEntry,
     installedPlugins,
     setView,
     selectRegistryEntry,
+    selectExtensionEntry,
   } = useAppStore();
   const { refresh } = usePlugins();
   const { addNotification } = useAppStore();
@@ -132,6 +136,22 @@ function App() {
             onBack={() => {
               selectRegistryEntry(null);
               setView("marketplace");
+            }}
+          />
+        </ErrorBoundary>
+      )}
+      {currentView === "extension-marketplace" && (
+        <ErrorBoundary label="Extension Marketplace">
+          <ExtensionMarketplacePage />
+        </ErrorBoundary>
+      )}
+      {currentView === "extension-detail" && selectedExtensionEntry && (
+        <ErrorBoundary label="Extension Detail">
+          <ExtensionDetail
+            entry={selectedExtensionEntry}
+            onBack={() => {
+              selectExtensionEntry(null);
+              setView("extension-marketplace");
             }}
           />
         </ErrorBoundary>

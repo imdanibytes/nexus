@@ -204,10 +204,59 @@ export async function registryToggle(
 
 // Extensions
 
-import type { ExtensionStatus } from "../types/extension";
+import type {
+  ExtensionManifest,
+  ExtensionRegistryEntry,
+  ExtensionStatus,
+  InstalledExtension,
+} from "../types/extension";
 
 export async function extensionList(): Promise<ExtensionStatus[]> {
   return invoke("extension_list");
+}
+
+export async function extensionInstall(
+  manifestUrl: string
+): Promise<InstalledExtension> {
+  return invoke("extension_install", { manifestUrl });
+}
+
+export async function extensionInstallLocal(
+  manifestPath: string
+): Promise<InstalledExtension> {
+  return invoke("extension_install_local", { manifestPath });
+}
+
+export async function extensionEnable(extId: string): Promise<void> {
+  return invoke("extension_enable", { extId });
+}
+
+export async function extensionDisable(extId: string): Promise<void> {
+  return invoke("extension_disable", { extId });
+}
+
+export async function extensionRemove(extId: string): Promise<void> {
+  return invoke("extension_remove", { extId });
+}
+
+export async function extensionPreview(
+  manifestUrl: string
+): Promise<ExtensionManifest> {
+  return invoke("extension_preview", { manifestUrl });
+}
+
+export async function extensionMarketplaceSearch(
+  query: string
+): Promise<ExtensionRegistryEntry[]> {
+  return invoke("extension_marketplace_search", { query });
+}
+
+export async function permissionRemoveScope(
+  pluginId: string,
+  permission: Permission,
+  scope: string
+): Promise<void> {
+  return invoke("permission_remove_scope", { pluginId, permission, scope });
 }
 
 // MCP Gateway

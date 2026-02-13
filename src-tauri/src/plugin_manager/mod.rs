@@ -5,6 +5,7 @@ pub mod registry;
 pub mod storage;
 
 use crate::error::{NexusError, NexusResult};
+use crate::extensions::loader::ExtensionLoader;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::permissions::PermissionStore;
 use manifest::PluginManifest;
@@ -21,8 +22,10 @@ pub struct PluginManager {
     pub storage: PluginStorage,
     pub permissions: PermissionStore,
     pub extensions: ExtensionRegistry,
+    pub extension_loader: ExtensionLoader,
     pub registry_store: registry::RegistryStore,
     pub registry_cache: Vec<registry::RegistryEntry>,
+    pub extension_registry_cache: Vec<registry::ExtensionRegistryEntry>,
     pub settings: NexusSettings,
     pub plugin_settings: PluginSettingsStore,
     pub mcp_settings: McpSettings,
@@ -60,12 +63,20 @@ impl PluginManager {
 
         let (tool_version_tx, tool_version_rx) = tokio::sync::watch::channel(0u64);
 
+        let extension_loader = ExtensionLoader::new(&data_dir);
+        let mut extensions = ExtensionRegistry::new();
+
+        // Load all enabled extensions at startup
+        extension_loader.load_enabled(&mut extensions);
+
         PluginManager {
             storage,
             permissions,
-            extensions: ExtensionRegistry::new(),
+            extensions,
+            extension_loader,
             registry_store,
             registry_cache: Vec::new(),
+            extension_registry_cache: Vec::new(),
             settings,
             plugin_settings,
             mcp_settings,
@@ -107,6 +118,37 @@ impl PluginManager {
         log::info!("Pulling image: {}", manifest.image);
         docker::pull_image(&manifest.image).await?;
 
+        // Verify image digest if declared in manifest
+        if let Some(ref expected_digest) = manifest.image_digest {
+            match docker::get_image_digest(&manifest.image).await? {
+                Some(actual_digest) => {
+                    if &actual_digest != expected_digest {
+                        return Err(NexusError::Other(format!(
+                            "Image digest mismatch for {}. Expected: {}, Got: {}. \
+                             The image may have been tampered with.",
+                            manifest.image, expected_digest, actual_digest
+                        )));
+                    }
+                    log::info!(
+                        "Image digest verified: {} = {}",
+                        manifest.image, actual_digest
+                    );
+                }
+                None => {
+                    log::warn!(
+                        "Image {} has no registry digest (locally built?). \
+                         Skipping digest verification.",
+                        manifest.image
+                    );
+                }
+            }
+        } else {
+            log::warn!(
+                "Plugin {} has no image_digest — skipping content verification",
+                manifest.id
+            );
+        }
+
         let port = self.storage.allocate_port();
         let token = uuid::Uuid::new_v4().to_string();
         let token_hash = storage::hash_token(&token);
@@ -117,7 +159,7 @@ impl PluginManager {
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect();
-        env_vars.push(format!("NEXUS_TOKEN={}", token));
+        env_vars.push(format!("NEXUS_PLUGIN_SECRET={}", token));
         // Browser-accessible URL — the iframe JS runs in the host browser, not inside the container
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         // Container-internal URL — for server-side code (MCP handlers etc.) that runs inside Docker
@@ -162,53 +204,103 @@ impl PluginManager {
         };
 
         // Grant only user-approved permissions.
-        // Filesystem permissions default to an empty approved_paths list so that
-        // every path access triggers a runtime approval prompt. Existing plugins
-        // with `None` (unrestricted) are unaffected — this only applies at install time.
+        // Filesystem permissions default to an empty approved_scopes list so that
+        // every path access triggers a runtime approval prompt. Extension permissions
+        // with scope_key also default to empty scopes. Existing plugins with `None`
+        // (unrestricted) are unaffected — this only applies at install time.
         for perm in &approved_permissions {
-            let approved_paths = match perm {
+            let approved_scopes = match perm {
                 crate::permissions::Permission::FilesystemRead
                 | crate::permissions::Permission::FilesystemWrite => Some(vec![]),
+                crate::permissions::Permission::Extension(_) => Some(vec![]),
                 _ => None,
             };
             let _ = self
                 .permissions
-                .grant(&plugin.manifest.id, perm.clone(), approved_paths);
+                .grant(&plugin.manifest.id, perm.clone(), approved_scopes);
         }
 
         self.storage.add(plugin.clone())?;
         Ok(plugin)
     }
 
+    /// Start a plugin. Recreates the container with a fresh auth token every
+    /// time — tokens are ephemeral to the container lifecycle. If a token leaks,
+    /// restarting the plugin invalidates it.
     pub async fn start(&mut self, plugin_id: &str) -> NexusResult<()> {
         let plugin = self
             .storage
             .get(plugin_id)
             .ok_or_else(|| NexusError::PluginNotFound(plugin_id.to_string()))?;
 
-        let container_id = plugin
-            .container_id
-            .clone()
-            .ok_or_else(|| NexusError::Other("No container ID".to_string()))?;
-
+        let manifest = plugin.manifest.clone();
         let port = plugin.assigned_port;
-        let ready_path = plugin
-            .manifest
+        let old_container_id = plugin.container_id.clone();
+
+        let ready_path = manifest
             .health
             .as_ref()
             .map(|h| h.endpoint.clone())
-            .unwrap_or_else(|| plugin.manifest.ui.path.clone());
+            .unwrap_or_else(|| manifest.ui.path.clone());
 
-        docker::start_container(&container_id).await?;
+        // Remove the old container (if any)
+        if let Some(ref cid) = old_container_id {
+            let _ = docker::stop_container(cid).await;
+            let _ = docker::remove_container(cid).await;
+        }
 
-        // Wait for the plugin's HTTP server to be reachable before reporting success
+        // Fresh token for every start
+        let new_token = uuid::Uuid::new_v4().to_string();
+        let new_hash = storage::hash_token(&new_token);
+
+        let mut env_vars: Vec<String> = manifest
+            .env
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
+        env_vars.push(format!("NEXUS_PLUGIN_SECRET={}", new_token));
+        env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
+        env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+
+        let mut labels = HashMap::new();
+        labels.insert("nexus.plugin.id".to_string(), manifest.id.clone());
+        labels.insert("nexus.plugin.version".to_string(), manifest.version.clone());
+
+        let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
+
+        let limits = docker::ResourceLimits {
+            nano_cpus: self
+                .settings
+                .cpu_quota_percent
+                .map(|pct| (pct / 100.0 * 1e9) as i64),
+            memory_bytes: self
+                .settings
+                .memory_limit_mb
+                .map(|mb| (mb * 1_048_576) as i64),
+        };
+
+        let new_container_id = docker::create_container(
+            &container_name,
+            &manifest.image,
+            port,
+            manifest.ui.port,
+            env_vars,
+            labels,
+            limits,
+        )
+        .await?;
+
+        docker::start_container(&new_container_id).await?;
         docker::wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;
 
         if let Some(plugin) = self.storage.get_mut(plugin_id) {
+            plugin.auth_token = new_hash;
+            plugin.container_id = Some(new_container_id);
             plugin.status = PluginStatus::Running;
-            self.storage.save()?;
         }
+        self.storage.save()?;
 
+        log::info!("Started plugin={} with fresh auth token", plugin_id);
         Ok(())
     }
 
@@ -279,11 +371,33 @@ impl PluginManager {
     }
 
     pub async fn refresh_registry(&mut self) -> NexusResult<()> {
-        self.registry_cache = registry::fetch_all(&self.registry_store).await;
+        let result = registry::fetch_all(&self.registry_store).await;
+        self.registry_cache = result.plugins;
+        self.extension_registry_cache = result.extensions;
         Ok(())
     }
 
     pub fn search_marketplace(&self, query: &str) -> Vec<registry::RegistryEntry> {
         registry::search_entries(&self.registry_cache, query)
+    }
+
+    pub fn search_extension_marketplace(&self, query: &str) -> Vec<registry::ExtensionRegistryEntry> {
+        registry::search_extension_entries(&self.extension_registry_cache, query)
+    }
+
+    /// Enable a host extension (spawns process, registers in runtime).
+    /// Uses split borrows to satisfy the borrow checker.
+    pub fn enable_extension(&mut self, ext_id: &str) -> Result<(), crate::extensions::ExtensionError> {
+        self.extension_loader.enable(ext_id, &mut self.extensions)
+    }
+
+    /// Disable a host extension (stops process, unregisters).
+    pub fn disable_extension(&mut self, ext_id: &str) -> Result<(), crate::extensions::ExtensionError> {
+        self.extension_loader.disable(ext_id, &mut self.extensions)
+    }
+
+    /// Remove a host extension (stop, delete files, unregister).
+    pub fn remove_extension(&mut self, ext_id: &str) -> Result<(), crate::extensions::ExtensionError> {
+        self.extension_loader.remove(ext_id, &mut self.extensions)
     }
 }

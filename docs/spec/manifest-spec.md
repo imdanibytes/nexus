@@ -181,5 +181,6 @@ in the manifest's `env` field:
 
 | Variable | Description |
 |----------|-------------|
-| `NEXUS_TOKEN` | Bearer token for authenticating with the Host API |
-| `NEXUS_API_URL` | Base URL for the Host API (e.g., `http://localhost:9600`) |
+| `NEXUS_PLUGIN_SECRET` | Plugin secret for exchanging for a short-lived access token via `POST /api/v1/auth/token` |
+| `NEXUS_API_URL` | Base URL for the Host API from the browser (e.g., `http://localhost:9600`) |
+| `NEXUS_HOST_URL` | Base URL for the Host API from inside the container (e.g., `http://host.docker.internal:9600`) |

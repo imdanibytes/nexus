@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, Download, RotateCcw, Check } from "lucide-react";
+import { RefreshCw, Download, RotateCcw, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
@@ -8,8 +8,8 @@ type UpdateState =
   | { phase: "checking" }
   | { phase: "up-to-date" }
   | { phase: "available"; update: Update }
-  | { phase: "downloading"; progress: number }
-  | { phase: "ready" }
+  | { phase: "downloading"; progress: number; notes?: string }
+  | { phase: "ready"; notes?: string }
   | { phase: "error"; message: string };
 
 export function UpdateCheck() {
@@ -33,8 +33,9 @@ export function UpdateCheck() {
   async function handleDownload() {
     if (state.phase !== "available") return;
     const { update } = state;
+    const notes = update.body || undefined;
 
-    setState({ phase: "downloading", progress: 0 });
+    setState({ phase: "downloading", progress: 0, notes });
     try {
       let totalBytes = 0;
       let downloadedBytes = 0;
@@ -45,13 +46,13 @@ export function UpdateCheck() {
         } else if (event.event === "Progress") {
           downloadedBytes += event.data.chunkLength;
           const progress = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0;
-          setState({ phase: "downloading", progress: Math.min(progress, 100) });
+          setState({ phase: "downloading", progress: Math.min(progress, 100), notes });
         } else if (event.event === "Finished") {
-          setState({ phase: "ready" });
+          setState({ phase: "ready", notes });
         }
       });
 
-      setState({ phase: "ready" });
+      setState({ phase: "ready", notes });
     } catch (e) {
       setState({ phase: "error", message: `Download failed: ${e}` });
     }
@@ -60,6 +61,16 @@ export function UpdateCheck() {
   async function handleRelaunch() {
     await relaunch();
   }
+
+  const [notesOpen, setNotesOpen] = useState(true);
+
+  // Get release notes from whichever state carries them
+  const releaseNotes =
+    state.phase === "available"
+      ? state.update.body || null
+      : state.phase === "downloading" || state.phase === "ready"
+        ? state.notes || null
+        : null;
 
   return (
     <div className="space-y-3">
@@ -119,6 +130,35 @@ export function UpdateCheck() {
           <span className="text-[11px] text-nx-error">{state.message}</span>
         )}
       </div>
+
+      {/* Release notes */}
+      {releaseNotes && (
+        <div className="rounded-[var(--radius-card)] border border-nx-border bg-nx-surface overflow-hidden">
+          <button
+            onClick={() => setNotesOpen(!notesOpen)}
+            className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-nx-overlay/50 transition-colors"
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-nx-text-muted">
+              What's New
+              {state.phase === "available" && (
+                <span className="ml-2 normal-case tracking-normal font-normal text-nx-text-ghost">
+                  v{state.update.version}
+                </span>
+              )}
+            </span>
+            {notesOpen ? (
+              <ChevronUp size={12} className="text-nx-text-muted" />
+            ) : (
+              <ChevronDown size={12} className="text-nx-text-muted" />
+            )}
+          </button>
+          {notesOpen && (
+            <div className="px-3 pb-3 text-[12px] leading-relaxed text-nx-text-secondary whitespace-pre-line border-t border-nx-border/50 pt-2">
+              {releaseNotes}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Download progress bar */}
       {state.phase === "downloading" && (

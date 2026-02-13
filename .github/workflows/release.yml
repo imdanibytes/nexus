@@ -52,6 +52,27 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
 
+      - name: Import Apple Developer Certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Resolve signing identity
+        run: |
+          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
+          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
+          echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> $GITHUB_ENV
+          echo "Signing identity: $CERT_ID"
+
       - name: Build MCP sidecar
         run: bash scripts/build-mcp-sidecar.sh
         env:
@@ -62,6 +83,12 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CARGO_BUILD_TARGET: ${{ matrix.target }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: cargo tauri build --target ${{ matrix.target }}
 
       - name: Upload artifacts
@@ -123,6 +150,16 @@ jobs:
           # Copy DMGs (filenames already include arch)
           find artifacts -name "*.dmg" -type f -exec cp {} release/ \;
 
+          # Load release notes (shown in the in-app "What's New" panel)
+          NOTES_FILE="docs/release-notes/${TAG}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            NOTES=$(cat "$NOTES_FILE")
+            echo "Using release notes from $NOTES_FILE"
+          else
+            NOTES="Release ${TAG}"
+            echo "No release notes file found — using default"
+          fi
+
           # Process per-architecture updater bundles
           PLATFORMS="{}"
           for arch_dir in artifacts/nexus-*; do
@@ -158,7 +195,7 @@ jobs:
           # Write latest.json
           jq -n \
             --arg version "$VERSION" \
-            --arg notes "Release ${TAG}" \
+            --arg notes "$NOTES" \
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson platforms "$PLATFORMS" \
             '{version: $version, notes: $notes, pub_date: $date, platforms: $platforms}' \
@@ -175,10 +212,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          gh release create "$TAG" \
-            --title "Nexus ${TAG}" \
-            --generate-notes \
-            release/*
+          NOTES_FILE="docs/release-notes/${TAG}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            gh release create "$TAG" \
+              --title "Nexus ${TAG}" \
+              --notes-file "$NOTES_FILE" \
+              release/*
+          else
+            gh release create "$TAG" \
+              --title "Nexus ${TAG}" \
+              --generate-notes \
+              release/*
+          fi
 
       - uses: actions/setup-node@v4
         with:

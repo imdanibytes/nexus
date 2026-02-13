@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { extensionList } from "../../lib/tauri";
+import { extensionList, extensionEnable, extensionDisable, extensionRemove } from "../../lib/tauri";
+import { useAppStore } from "../../stores/appStore";
 import type { ExtensionStatus } from "../../types/extension";
 import {
   Blocks,
@@ -7,6 +8,10 @@ import {
   Shield,
   ShieldAlert,
   Puzzle,
+  Plus,
+  Power,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 const RISK_STYLES: Record<string, { bg: string; text: string }> = {
@@ -19,6 +24,8 @@ export function ExtensionsTab() {
   const [extensions, setExtensions] = useState<ExtensionStatus[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [busyExt, setBusyExt] = useState<string | null>(null);
+  const { setView, addNotification } = useAppStore();
 
   const refresh = useCallback(async () => {
     try {
@@ -47,6 +54,37 @@ export function ExtensionsTab() {
     });
   }
 
+  async function handleToggle(ext: ExtensionStatus) {
+    setBusyExt(ext.id);
+    try {
+      if (ext.enabled) {
+        await extensionDisable(ext.id);
+        addNotification(`Extension "${ext.display_name}" disabled`, "info");
+      } else {
+        await extensionEnable(ext.id);
+        addNotification(`Extension "${ext.display_name}" enabled`, "success");
+      }
+      await refresh();
+    } catch (e) {
+      addNotification(`Failed to ${ext.enabled ? "disable" : "enable"} extension: ${e}`, "error");
+    } finally {
+      setBusyExt(null);
+    }
+  }
+
+  async function handleRemove(ext: ExtensionStatus) {
+    setBusyExt(ext.id);
+    try {
+      await extensionRemove(ext.id);
+      addNotification(`Extension "${ext.display_name}" removed`, "info");
+      await refresh();
+    } catch (e) {
+      addNotification(`Failed to remove extension: ${e}`, "error");
+    } finally {
+      setBusyExt(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -63,23 +101,34 @@ export function ExtensionsTab() {
     <div className="space-y-6">
       {/* Header */}
       <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-2">
-          <Blocks size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            Host Extensions
-          </h3>
-        </div>
-        <p className="text-[11px] text-nx-text-ghost">
-          Extensions run trusted code on the host and expose typed, validated
-          operations to plugins. Plugins consume extensions through the Host API
-          to perform privileged tasks like credential management and cache
-          control.
-        </p>
-        <div className="mt-3 flex items-center gap-2">
-          <span className="text-[11px] text-nx-text-muted font-medium">
-            {extensions.length} extension{extensions.length !== 1 ? "s" : ""}{" "}
-            registered
-          </span>
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Blocks size={15} strokeWidth={1.5} className="text-nx-text-muted" />
+              <h3 className="text-[14px] font-semibold text-nx-text">
+                Host Extensions
+              </h3>
+            </div>
+            <p className="text-[11px] text-nx-text-ghost">
+              Extensions run trusted code on the host and expose typed, validated
+              operations to plugins. Plugins consume extensions through the Host API
+              to perform privileged tasks like credential management and cache
+              control.
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-[11px] text-nx-text-muted font-medium">
+                {extensions.length} extension{extensions.length !== 1 ? "s" : ""}{" "}
+                registered
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setView("extension-marketplace")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150 flex-shrink-0 ml-4"
+          >
+            <Plus size={12} strokeWidth={1.5} />
+            Add Extension
+          </button>
         </div>
       </section>
 
@@ -93,6 +142,7 @@ export function ExtensionsTab() {
       ) : (
         extensions.map((ext) => {
           const isOpen = expanded.has(ext.id);
+          const isBusy = busyExt === ext.id;
           return (
             <section
               key={ext.id}
@@ -111,6 +161,17 @@ export function ExtensionsTab() {
                     <span className="text-[10px] text-nx-text-ghost font-mono">
                       {ext.id}
                     </span>
+                    {ext.installed && (
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] font-medium ${
+                          ext.enabled
+                            ? "bg-nx-success-muted text-nx-success"
+                            : "bg-nx-overlay text-nx-text-muted"
+                        }`}
+                      >
+                        {ext.enabled ? "Enabled" : "Disabled"}
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-nx-text-ghost">
                     {ext.description}
@@ -140,6 +201,42 @@ export function ExtensionsTab() {
               {/* Expanded detail */}
               {isOpen && (
                 <div className="border-t border-nx-border">
+                  {/* Enable/Disable + Remove controls */}
+                  {ext.installed && (
+                    <div className="px-4 pt-4 flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggle(ext);
+                        }}
+                        disabled={isBusy}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] transition-all duration-150 disabled:opacity-50 ${
+                          ext.enabled
+                            ? "bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary"
+                            : "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
+                        }`}
+                      >
+                        {isBusy ? (
+                          <Loader2 size={12} strokeWidth={1.5} className="animate-spin" />
+                        ) : (
+                          <Power size={12} strokeWidth={1.5} />
+                        )}
+                        {ext.enabled ? "Disable" : "Enable"}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemove(ext);
+                        }}
+                        disabled={isBusy}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted hover:bg-nx-error/20 text-nx-error transition-all duration-150 disabled:opacity-50"
+                      >
+                        <Trash2 size={12} strokeWidth={1.5} />
+                        Remove
+                      </button>
+                    </div>
+                  )}
+
                   {/* Operations */}
                   <div className="p-4">
                     <div className="flex items-center gap-2 mb-3">
@@ -169,6 +266,11 @@ export function ExtensionsTab() {
                             >
                               {op.risk_level}
                             </span>
+                            {op.scope_key && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-muted font-mono flex-shrink-0">
+                                scope: {op.scope_key}
+                              </span>
+                            )}
                             <span className="text-[11px] text-nx-text-ghost truncate min-w-0 flex-1">
                               {op.description}
                             </span>
@@ -177,6 +279,32 @@ export function ExtensionsTab() {
                       })}
                     </div>
                   </div>
+
+                  {/* Capabilities */}
+                  {ext.capabilities.length > 0 && (
+                    <div className="px-4 pb-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Shield
+                          size={12}
+                          strokeWidth={1.5}
+                          className="text-nx-text-ghost"
+                        />
+                        <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
+                          Capabilities
+                        </span>
+                      </div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {ext.capabilities.map((cap, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] px-2 py-1 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary"
+                          >
+                            {cap.type === "custom" ? cap.name : cap.type.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Plugin consumers */}
                   <div className="px-4 pb-4">

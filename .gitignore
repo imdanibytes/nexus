@@ -7,6 +7,10 @@ dist-ssr/
 
 # Rust build
 src-tauri/target/
+test-extensions/*/target/
+
+# Test extension secrets (keypairs, etc.)
+test-extensions/*/keypair.json
 
 # Logs
 *.log

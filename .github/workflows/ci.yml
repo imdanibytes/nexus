@@ -39,7 +39,7 @@ jobs:
         run: pnpm lint
 
   rust:
-    name: Rust (cargo check + clippy)
+    name: Rust (check + clippy + test + coverage)
     runs-on: macos-latest
 
     steps:
@@ -48,7 +48,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Cargo cache
         uses: actions/cache@v4
@@ -84,3 +87,17 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
+
+      - name: Tests + coverage
+        working-directory: src-tauri
+        run: |
+          cargo llvm-cov --lib --skip-functions 2>&1 | tee coverage.txt
+          # Print to CI log
+          cat coverage.txt
+          # Write GitHub job summary
+          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Only include files with >0% coverage + the TOTAL line (skip the 0% noise)
+          head -2 coverage.txt >> $GITHUB_STEP_SUMMARY
+          grep -E '^\s*(TOTAL|.*[1-9][0-9]*\.[0-9]+%)' coverage.txt >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY

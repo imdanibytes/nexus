@@ -120,7 +120,7 @@ Bare `reqwest::get()` with no timeout, no size limit, no redirect cap, and `file
 
 No registry whitelist or image signature verification. Could pull from attacker-controlled registries.
 
-**Status**: Manifest validation tightened. Full image signing deferred to roadmap.
+**Fix**: Docker image digest pinning. Manifest declares `image_digest: "sha256:..."`. After pulling, Nexus compares the pulled image's registry digest to the declared value. Mismatch rejects the install. Prevents tag mutation, registry compromise, and MITM attacks. Optional for local dev installs, logged warning when absent.
 
 ---
 
@@ -153,7 +153,9 @@ No validation on manifest field lengths. React auto-escapes, but Unicode directi
 
 Tokens are UUIDs generated once at install, never rotated. Survive permission revocations.
 
-**Status**: Deferred to keychain integration pass.
+**Fix (Phase 1)**: Tokens are ephemeral — every `start()` recreates the container with a fresh UUID secret.
+
+**Fix (Phase 2)**: AWS-style temporary credentials. Plugin secret (`NEXUS_PLUGIN_SECRET`) is exchanged for short-lived access tokens (15 min TTL) via `POST /api/v1/auth/token`. The secret never reaches the browser — only access tokens are exposed to frontend code. Session store validates access tokens; expired tokens auto-reject. Plugin server caches tokens and refreshes 30s before expiry.
 
 ---
 
@@ -163,7 +165,7 @@ Tokens are UUIDs generated once at install, never rotated. Survive permission re
 
 No rate limiting middleware. A malicious plugin could DoS with millions of requests.
 
-**Status**: Deferred. Add tower rate limiting middleware.
+**Fix**: Per-plugin fixed-window rate limiter (100 req/s per plugin). Returns 429 + Retry-After header. Runs as axum middleware after auth.
 
 ### 14. Verbose Error Messages
 
@@ -195,11 +197,11 @@ Some handlers return `INTERNAL_SERVER_ERROR` with unvalidated error text.
 | #6 Resource Quotas | Fixed | CPU + memory limits passed to Docker HostConfig |
 | #7 Auto-Grant Perms | Fixed | Two-step install dialog (previous session) |
 | #8 Registry Fetching | Fixed | Hardened client: 30s timeout, 5 redirects, 10MB cap |
-| #9 Arbitrary Images | Partial | Manifest field validation added. Image signing deferred. |
+| #9 Arbitrary Images | Fixed | Digest pinning: optional `image_digest` in manifest, verified after pull. Rejects on mismatch. |
 | #10 Manifest XSS | Fixed | Length limits + bidi override detection |
 | #11 CSP Inline | Accepted | React dynamic styles require unsafe-inline for style-src |
-| #12 Token Rotation | Deferred | Requires container recreation; planned for future |
-| #13 Rate Limiting | Deferred | Needs governor/tower-governor crate |
+| #12 Token Rotation | Fixed | Ephemeral secrets + AWS-style temporary credentials (15 min access tokens via POST /v1/auth/token) |
+| #13 Rate Limiting | Fixed | Per-plugin 100 req/s fixed-window limiter, 429 + Retry-After |
 | #14 Verbose Errors | Fixed | All fs/docker/network handlers return generic 403 |
 
 ### Additional Security Hardening
@@ -218,5 +220,5 @@ Some handlers return `INTERNAL_SERVER_ERROR` with unvalidated error text.
 | Finding | Status | Notes |
 |---------|--------|-------|
 | Redirect bypass in network proxy | Fixed | Custom redirect policy re-validates each hop: blocks metadata, Host API, and public→private redirects |
-| DNS rebinding in network proxy | Accepted | Hostname-based classification could be bypassed via DNS rebinding. Low risk in semi-trusted plugin model. Full fix requires IP-level validation after DNS resolution. |
+| DNS rebinding in network proxy | Fixed | Full IP-level validation: `resolve_and_classify()` resolves hostname via DNS, validates resolved IP (blocks metadata IPs), classifies as private/public based on actual IP. Connection pinned to resolved address via `reqwest::resolve()` to prevent TOCTOU race. IP literals parsed directly without DNS. |
 | Docker `mounts` not explicitly empty | Fixed | Added `mounts: Some(vec![])` for defense-in-depth alongside `binds: Some(vec![])` |

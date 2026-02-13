@@ -22,6 +22,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -41,6 +42,11 @@ futures-util = "0.3"
 tar = "0.4"
 utoipa = { version = "5", features = ["axum_extras"] }
 sha2 = "0.10"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+base64 = "0.22"
 async-stream = "0.3"
 async-trait = "0.1"
 jsonschema = "0.28"
+
+[dev-dependencies]
+tempfile = "3"

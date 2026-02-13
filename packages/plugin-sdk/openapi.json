@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Nexus Host API",
-    "description": "API available to Nexus plugins for interacting with the host system. All authenticated endpoints require a Bearer token (NEXUS_TOKEN).",
+    "description": "API available to Nexus plugins for interacting with the host system. Plugins exchange their secret (NEXUS_PLUGIN_SECRET) for a short-lived access token via POST /v1/auth/token, then use it as a Bearer token.",
     "contact": {
       "name": "danibytes"
     },

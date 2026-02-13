@@ -93,6 +93,28 @@ pub async fn pull_image(image: &str) -> NexusResult<()> {
     Ok(())
 }
 
+/// Get the SHA-256 manifest digest of a pulled image.
+///
+/// Returns the digest in `sha256:hex` format, or `None` for locally-built
+/// images (which don't have a registry digest).
+pub async fn get_image_digest(image: &str) -> NexusResult<Option<String>> {
+    let docker = connect()?;
+    let inspect = docker.inspect_image(image).await.map_err(NexusError::Docker)?;
+
+    if let Some(repo_digests) = inspect.repo_digests {
+        for digest_str in &repo_digests {
+            // Format: "repo@sha256:hexstring"
+            if let Some(digest) = digest_str.split('@').nth(1) {
+                if digest.starts_with("sha256:") {
+                    return Ok(Some(digest.to_string()));
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 pub async fn build_image(context_dir: &Path, tag: &str) -> NexusResult<()> {
     let docker = connect()?;
 

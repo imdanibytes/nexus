@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const PORT = 80;
-const NEXUS_TOKEN = process.env.NEXUS_TOKEN || "";
+const NEXUS_PLUGIN_SECRET = process.env.NEXUS_PLUGIN_SECRET || "";
 const NEXUS_API_URL =
   process.env.NEXUS_API_URL || "http://host.docker.internal:9600";
 // Server-side URL for code running inside the Docker container
@@ -21,6 +21,37 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
 };
 
+// ── Token Management ───────────────────────────────────────────
+// Exchange the plugin secret for a short-lived access token.
+// The secret never leaves server-side code.
+
+let cachedAccessToken = null;
+let tokenExpiresAt = 0;
+
+async function getAccessToken() {
+  // Return cached token if still valid (with 30s buffer)
+  if (cachedAccessToken && Date.now() < tokenExpiresAt - 30000) {
+    return cachedAccessToken;
+  }
+
+  const res = await fetch(`${NEXUS_HOST_URL}/api/v1/auth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ secret: NEXUS_PLUGIN_SECRET }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Token exchange failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  cachedAccessToken = data.access_token;
+  tokenExpiresAt = Date.now() + data.expires_in * 1000;
+  return cachedAccessToken;
+}
+
+// ── Server ─────────────────────────────────────────────────────
+
 const server = http.createServer((req, res) => {
   // Health check
   if (req.url === "/health") {
@@ -29,18 +60,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Token endpoint — lets the frontend JS retrieve the auth token
+  // Config endpoint — serves a short-lived access token to the frontend.
+  // The plugin secret is NEVER exposed here.
   if (req.url === "/api/config") {
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    });
-    res.end(
-      JSON.stringify({
-        token: NEXUS_TOKEN,
-        apiUrl: NEXUS_API_URL,
+    getAccessToken()
+      .then((token) => {
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.end(JSON.stringify({ token, apiUrl: NEXUS_API_URL }));
       })
-    );
+      .catch((err) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      });
     return;
   }
 
@@ -52,11 +86,13 @@ const server = http.createServer((req, res) => {
       try {
         const { tool_name } = JSON.parse(body);
         let result;
+        const token = await getAccessToken();
+        const headers = { Authorization: `Bearer ${token}` };
 
         switch (tool_name) {
           case "get_system_info": {
             const resp = await fetch(`${NEXUS_HOST_URL}/api/v1/system/info`, {
-              headers: { Authorization: `Bearer ${NEXUS_TOKEN}` },
+              headers,
             });
             const info = await resp.json();
             result = {
@@ -67,7 +103,7 @@ const server = http.createServer((req, res) => {
           }
           case "get_greeting": {
             const resp = await fetch(`${NEXUS_HOST_URL}/api/v1/settings`, {
-              headers: { Authorization: `Bearer ${NEXUS_TOKEN}` },
+              headers,
             });
             const settings = await resp.json();
             const greeting = settings.greeting_text || "Hello";

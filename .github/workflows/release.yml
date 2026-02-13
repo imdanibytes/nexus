@@ -102,41 +102,48 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          merge-multiple: true
 
-      - name: Generate latest.json updater manifest
+      - name: Generate latest.json and prepare release files
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
           REPO="imdanibytes/nexus"
 
-          # Read signatures
-          AARCH64_SIG=$(cat artifacts/Nexus.app.tar.gz.sig 2>/dev/null || echo "")
-          # Handle case where both architectures produce same-named files
-          # In practice, artifacts are in separate directories
-
-          # Find the actual files
           echo "=== Artifact structure ==="
           find artifacts -type f | sort
 
-          # Find .sig files
-          SIGS=($(find artifacts -name "*.app.tar.gz.sig" -type f))
-          TARBALLS=($(find artifacts -name "*.app.tar.gz" ! -name "*.sig" -type f))
+          # Prepare a flat release directory
+          mkdir -p release
 
-          # Build platforms JSON
+          # Copy DMGs (filenames already include arch)
+          find artifacts -name "*.dmg" -type f -exec cp {} release/ \;
+
+          # Process per-architecture updater bundles
           PLATFORMS="{}"
-          for i in "${!SIGS[@]}"; do
-            SIG_CONTENT=$(cat "${SIGS[$i]}")
-            TARBALL_NAME=$(basename "${TARBALLS[$i]}")
-            URL="https://github.com/${REPO}/releases/download/${TAG}/${TARBALL_NAME}"
+          for arch_dir in artifacts/nexus-*; do
+            [ -d "$arch_dir" ] || continue
+            arch=$(basename "$arch_dir")
 
-            # Determine platform key from artifact directory name
-            DIR=$(dirname "${SIGS[$i]}")
-            if echo "$DIR" | grep -q "aarch64"; then
+            tarball=$(find "$arch_dir" -name "*.app.tar.gz" ! -name "*.sig" -type f | head -1)
+            sig=$(find "$arch_dir" -name "*.app.tar.gz.sig" -type f | head -1)
+
+            if [ -z "$tarball" ] || [ -z "$sig" ]; then
+              echo "Warning: Missing updater bundle for $arch"
+              continue
+            fi
+
+            # Determine platform key and create arch-specific filename
+            if echo "$arch" | grep -q "aarch64"; then
               PLATFORM_KEY="darwin-aarch64"
+              RENAMED="Nexus_aarch64.app.tar.gz"
             else
               PLATFORM_KEY="darwin-x86_64"
+              RENAMED="Nexus_x86_64.app.tar.gz"
             fi
+
+            cp "$tarball" "release/$RENAMED"
+            SIG_CONTENT=$(cat "$sig")
+            URL="https://github.com/${REPO}/releases/download/${TAG}/${RENAMED}"
 
             PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "$PLATFORM_KEY" \
               --arg url "$URL" --arg sig "$SIG_CONTENT" \
@@ -150,25 +157,23 @@ jobs:
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson platforms "$PLATFORMS" \
             '{version: $version, notes: $notes, pub_date: $date, platforms: $platforms}' \
-            > artifacts/latest.json
+            > release/latest.json
 
           echo "=== latest.json ==="
-          cat artifacts/latest.json
+          cat release/latest.json
+
+          echo "=== Release files ==="
+          ls -la release/
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-
-          # Collect all release files
-          FILES=($(find artifacts -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" -type f))
-          FILES+=("artifacts/latest.json")
-
           gh release create "$TAG" \
             --title "Nexus ${TAG}" \
             --generate-notes \
-            "${FILES[@]}"
+            release/*
 
       - uses: actions/setup-node@v4
         with:

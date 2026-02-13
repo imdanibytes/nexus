@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   build:
@@ -67,8 +68,31 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
 
+  build-sdk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build SDK
+        run: |
+          cd packages/plugin-sdk
+          npm install
+          npm run generate
+          npm run build
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-sdk
+          path: packages/plugin-sdk/dist/
+
   publish:
-    needs: build
+    needs: [build, build-sdk]
     runs-on: ubuntu-latest
 
     steps:
@@ -146,21 +170,12 @@ jobs:
             --generate-notes \
             "${FILES[@]}"
 
-  publish-sdk:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://npm.pkg.github.com
 
-      - name: Build and publish SDK
+      - name: Publish SDK to GitHub Packages
         run: |
           cd packages/plugin-sdk
           npm install

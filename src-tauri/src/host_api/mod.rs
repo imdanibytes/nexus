@@ -123,7 +123,7 @@ pub async fn start_server(
             state.clone(),
             middleware::auth_middleware,
         ))
-        .layer(Extension(approvals))
+        .layer(Extension(approvals.clone()))
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 
@@ -135,7 +135,8 @@ pub async fn start_server(
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),
             mcp::gateway_auth_middleware,
-        ));
+        ))
+        .layer(Extension(approvals.clone()));
 
     let app = Router::new()
         // Public routes (no auth required)

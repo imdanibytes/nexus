@@ -217,13 +217,22 @@ pub async fn call_tool(
     let plugin_name = plugin.manifest.name.clone();
     let tool_description = tool_def.description.clone();
     let port = plugin.assigned_port;
+
+    // Check if the user has permanently approved this tool (via prior "Approve" click)
+    let already_approved = requires_approval
+        && mgr
+            .mcp_settings
+            .plugins
+            .get(&plugin_id)
+            .is_some_and(|s| s.approved_tools.contains(&local_name));
+
     drop(mgr);
 
-    // Runtime approval for tools that require it
-    if requires_approval {
+    // Runtime approval for tools that require it (unless permanently approved)
+    if requires_approval && !already_approved {
         let mut context = std::collections::HashMap::new();
-        context.insert("tool".to_string(), local_name.clone());
-        context.insert("plugin".to_string(), plugin_name.clone());
+        context.insert("tool_name".to_string(), local_name.clone());
+        context.insert("plugin_name".to_string(), plugin_name.clone());
         context.insert("description".to_string(), tool_description);
         // Include argument summary so the user can see what the AI is requesting
         if let serde_json::Value::Object(map) = &req.arguments {
@@ -248,10 +257,32 @@ pub async fn call_tool(
         let decision = bridge.request_approval(approval_req).await;
 
         match decision {
-            super::approval::ApprovalDecision::Approve
-            | super::approval::ApprovalDecision::ApproveOnce => {
+            super::approval::ApprovalDecision::Approve => {
+                // Persist: future calls to this tool skip approval
+                let mut mgr = state.write().await;
+                let plugin_settings = mgr
+                    .mcp_settings
+                    .plugins
+                    .entry(plugin_id.clone())
+                    .or_insert_with(|| crate::plugin_manager::storage::McpPluginSettings {
+                        enabled: true,
+                        disabled_tools: vec![],
+                        approved_tools: vec![],
+                    });
+                if !plugin_settings.approved_tools.contains(&local_name) {
+                    plugin_settings.approved_tools.push(local_name.clone());
+                }
+                let _ = mgr.mcp_settings.save();
+                drop(mgr);
+
                 log::info!(
-                    "AUDIT MCP tool approved: plugin={} tool={}",
+                    "AUDIT MCP tool permanently approved: plugin={} tool={}",
+                    plugin_id, local_name
+                );
+            }
+            super::approval::ApprovalDecision::ApproveOnce => {
+                log::info!(
+                    "AUDIT MCP tool approved once: plugin={} tool={}",
                     plugin_id, local_name
                 );
             }

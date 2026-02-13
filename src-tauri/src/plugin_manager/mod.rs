@@ -7,7 +7,10 @@ pub mod storage;
 use crate::error::{NexusError, NexusResult};
 use crate::permissions::PermissionStore;
 use manifest::PluginManifest;
-use storage::{InstalledPlugin, NexusSettings, PluginSettingsStore, PluginStatus, PluginStorage};
+use storage::{
+    hash_token, InstalledPlugin, McpSettings, NexusSettings, PluginSettingsStore, PluginStatus,
+    PluginStorage,
+};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -19,6 +22,8 @@ pub struct PluginManager {
     pub registry_cache: Vec<registry::RegistryEntry>,
     pub settings: NexusSettings,
     pub plugin_settings: PluginSettingsStore,
+    pub mcp_settings: McpSettings,
+    pub gateway_token_hash: String,
     pub data_dir: PathBuf,
 }
 
@@ -29,6 +34,23 @@ impl PluginManager {
         let registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
         let settings = NexusSettings::load(&data_dir).unwrap_or_default();
         let plugin_settings = PluginSettingsStore::load(&data_dir).unwrap_or_default();
+        let mcp_settings = McpSettings::load(&data_dir).unwrap_or_default();
+
+        // Generate or load the MCP gateway token
+        let token_path = data_dir.join("mcp_gateway_token");
+        let raw_token = if token_path.exists() {
+            std::fs::read_to_string(&token_path).unwrap_or_else(|_| {
+                let t = uuid::Uuid::new_v4().to_string();
+                let _ = std::fs::write(&token_path, &t);
+                t
+            })
+        } else {
+            let t = uuid::Uuid::new_v4().to_string();
+            let _ = std::fs::write(&token_path, &t);
+            log::info!("Generated new MCP gateway token");
+            t
+        };
+        let gateway_token_hash = hash_token(raw_token.trim());
 
         PluginManager {
             storage,
@@ -37,8 +59,15 @@ impl PluginManager {
             registry_cache: Vec::new(),
             settings,
             plugin_settings,
+            mcp_settings,
+            gateway_token_hash,
             data_dir,
         }
+    }
+
+    /// Verify a raw gateway token against the stored hash.
+    pub fn verify_gateway_token(&self, raw: &str) -> bool {
+        hash_token(raw) == self.gateway_token_hash
     }
 
     pub async fn install(
@@ -71,6 +100,8 @@ impl PluginManager {
         env_vars.push(format!("NEXUS_TOKEN={}", token));
         // Browser-accessible URL — the iframe JS runs in the host browser, not inside the container
         env_vars.push(format!("NEXUS_API_URL=http://localhost:9600"));
+        // Container-internal URL — for server-side code (MCP handlers etc.) that runs inside Docker
+        env_vars.push(format!("NEXUS_HOST_URL=http://host.docker.internal:9600"));
 
         // Labels for tracking
         let mut labels = HashMap::new();

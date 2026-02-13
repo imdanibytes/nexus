@@ -1,6 +1,7 @@
 pub mod approval;
 pub mod docker;
 pub mod filesystem;
+pub mod mcp;
 mod middleware;
 pub mod network;
 pub mod process;
@@ -116,6 +117,15 @@ pub async fn start_server(
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 
+    // MCP gateway routes — separate auth via X-Nexus-Gateway-Token header
+    let mcp_routes = Router::new()
+        .route("/v1/mcp/tools", routing::get(mcp::list_tools))
+        .route("/v1/mcp/call", routing::post(mcp::call_tool))
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            mcp::gateway_auth_middleware,
+        ));
+
     let app = Router::new()
         // Public routes (no auth required)
         .route("/api/v1/theme.css", routing::get(theme::theme_css))
@@ -125,7 +135,9 @@ pub async fn start_server(
         )
         // OpenAPI spec
         .route("/api/openapi.json", routing::get(openapi_spec))
-        // Authenticated routes
+        // MCP gateway routes (gateway token auth)
+        .nest("/api", mcp_routes)
+        // Authenticated routes (plugin Bearer token auth)
         .nest("/api", authenticated_routes)
         .layer(cors)
         .with_state(state);

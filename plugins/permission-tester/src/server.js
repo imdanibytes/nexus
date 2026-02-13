@@ -6,6 +6,8 @@ const PORT = 80;
 const NEXUS_TOKEN = process.env.NEXUS_TOKEN || "";
 const NEXUS_API_URL =
   process.env.NEXUS_API_URL || "http://host.docker.internal:9600";
+const NEXUS_HOST_URL =
+  process.env.NEXUS_HOST_URL || "http://host.docker.internal:9600";
 
 const publicDir = path.join(__dirname, "public");
 
@@ -34,6 +36,90 @@ const server = http.createServer((req, res) => {
         apiUrl: NEXUS_API_URL,
       })
     );
+    return;
+  }
+
+  // MCP tool call handler
+  if (req.method === "POST" && req.url === "/mcp/call") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { tool_name } = JSON.parse(body);
+        let result;
+
+        switch (tool_name) {
+          case "run_security_audit": {
+            const results = [];
+            const headers = { Authorization: `Bearer ${NEXUS_TOKEN}` };
+
+            // Test system:info
+            try {
+              const r = await fetch(`${NEXUS_HOST_URL}/api/v1/system/info`, {
+                headers,
+              });
+              results.push(
+                `system:info — ${r.status === 200 ? "PASS" : "FAIL"} (${r.status})`
+              );
+            } catch (e) {
+              results.push(`system:info — ERROR: ${e.message}`);
+            }
+
+            // Test filesystem:read
+            try {
+              const r = await fetch(
+                `${NEXUS_HOST_URL}/api/v1/fs/list?path=/tmp`,
+                { headers }
+              );
+              results.push(
+                `filesystem:read — ${r.status === 200 ? "PASS" : r.status === 403 ? "DENIED" : "FAIL"} (${r.status})`
+              );
+            } catch (e) {
+              results.push(`filesystem:read — ERROR: ${e.message}`);
+            }
+
+            // Test process:list
+            try {
+              const r = await fetch(`${NEXUS_HOST_URL}/api/v1/process/list`, {
+                headers,
+              });
+              results.push(
+                `process:list — ${r.status === 200 ? "PASS" : r.status === 403 ? "DENIED" : "FAIL"} (${r.status})`
+              );
+            } catch (e) {
+              results.push(`process:list — ERROR: ${e.message}`);
+            }
+
+            result = {
+              content: [
+                {
+                  type: "text",
+                  text: `Security Audit Results:\n${results.join("\n")}`,
+                },
+              ],
+              is_error: false,
+            };
+            break;
+          }
+          default:
+            result = {
+              content: [{ type: "text", text: `Unknown tool: ${tool_name}` }],
+              is_error: true,
+            };
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            content: [{ type: "text", text: `Error: ${err.message}` }],
+            is_error: true,
+          })
+        );
+      }
+    });
     return;
   }
 

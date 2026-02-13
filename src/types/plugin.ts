@@ -1,3 +1,5 @@
+import type { McpConfig } from "./mcp";
+
 export type PluginStatus = "installing" | "running" | "stopped" | "error";
 
 export interface UiConfig {
@@ -35,6 +37,7 @@ export interface PluginManifest {
   env: Record<string, string>;
   min_nexus_version?: string;
   settings?: SettingDef[];
+  mcp?: McpConfig;
 }
 
 export interface InstalledPlugin {

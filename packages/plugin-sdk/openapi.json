@@ -1,0 +1,656 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Nexus Host API",
+    "description": "API available to Nexus plugins for interacting with the host system. All authenticated endpoints require a Bearer token (NEXUS_TOKEN).",
+    "contact": {
+      "name": "danibytes"
+    },
+    "license": {
+      "name": "MIT"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/docker/containers": {
+      "get": {
+        "tags": [
+          "docker"
+        ],
+        "operationId": "list_containers",
+        "responses": {
+          "200": {
+            "description": "Docker containers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContainerInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/docker/stats/{id}": {
+      "get": {
+        "tags": [
+          "docker"
+        ],
+        "operationId": "container_stats",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Container stats (Docker inspect)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/fs/list": {
+      "get": {
+        "tags": [
+          "filesystem"
+        ],
+        "operationId": "list_dir",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory listing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirListing"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/fs/read": {
+      "get": {
+        "tags": [
+          "filesystem"
+        ],
+        "operationId": "read_file",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileContent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/fs/write": {
+      "post": {
+        "tags": [
+          "filesystem"
+        ],
+        "operationId": "write_file",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "File written"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/network/proxy": {
+      "post": {
+        "tags": [
+          "network"
+        ],
+        "operationId": "proxy_request",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProxyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Proxied response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProxyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "502": {
+            "description": "Upstream error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/process/list": {
+      "get": {
+        "tags": [
+          "process"
+        ],
+        "operationId": "list_processes",
+        "responses": {
+          "200": {
+            "description": "Running processes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProcessInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get settings for the authenticated plugin.",
+        "description": "Returns a flat key-value map. Defaults from the manifest are\napplied first, then any explicitly saved overrides.",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "Plugin settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {},
+                  "propertyNames": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update settings for the authenticated plugin.",
+        "description": "Accepts a flat key-value map. Values are validated against the manifest's\nsettings schema: unknown keys are rejected, value types must match.",
+        "operationId": "put_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {},
+                "propertyNames": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settings saved"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/info": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "system_info",
+        "responses": {
+          "200": {
+            "description": "Host system information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ContainerInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "names",
+          "image",
+          "state",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "DirEntry": {
+        "type": "object",
+        "required": [
+          "name",
+          "path",
+          "is_dir",
+          "size"
+        ],
+        "properties": {
+          "is_dir": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "DirListing": {
+        "type": "object",
+        "required": [
+          "path",
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirEntry"
+            }
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "FileContent": {
+        "type": "object",
+        "required": [
+          "path",
+          "content",
+          "size"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ProcessInfo": {
+        "type": "object",
+        "required": [
+          "pid",
+          "name",
+          "cpu_usage",
+          "memory"
+        ],
+        "properties": {
+          "cpu_usage": {
+            "type": "number",
+            "format": "float"
+          },
+          "memory": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "pid": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "ProxyRequest": {
+        "type": "object",
+        "required": [
+          "url",
+          "method"
+        ],
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "method": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "ProxyResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "headers",
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "SystemInfo": {
+        "type": "object",
+        "required": [
+          "os",
+          "os_version",
+          "hostname",
+          "uptime",
+          "cpu_count",
+          "total_memory",
+          "nexus_version"
+        ],
+        "properties": {
+          "cpu_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "nexus_version": {
+            "type": "string"
+          },
+          "os": {
+            "type": "string"
+          },
+          "os_version": {
+            "type": "string"
+          },
+          "total_memory": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "uptime": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "WriteRequest": {
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer_auth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "system",
+      "description": "Host system information"
+    },
+    {
+      "name": "filesystem",
+      "description": "Read and write files on the host"
+    },
+    {
+      "name": "process",
+      "description": "List host processes"
+    },
+    {
+      "name": "docker",
+      "description": "Docker container inspection"
+    },
+    {
+      "name": "network",
+      "description": "Network proxy for external requests"
+    },
+    {
+      "name": "settings",
+      "description": "Per-plugin settings (scoped to authenticated plugin)"
+    }
+  ]
+}

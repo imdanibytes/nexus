@@ -165,6 +165,65 @@ impl PluginSettingsStore {
 }
 
 // ---------------------------------------------------------------------------
+// MCP settings storage
+// ---------------------------------------------------------------------------
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpPluginSettings {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub disabled_tools: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpSettings {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub plugins: HashMap<String, McpPluginSettings>,
+    #[serde(skip)]
+    path: PathBuf,
+}
+
+impl Default for McpSettings {
+    fn default() -> Self {
+        McpSettings {
+            enabled: true,
+            plugins: HashMap::new(),
+            path: PathBuf::new(),
+        }
+    }
+}
+
+impl McpSettings {
+    pub fn load(data_dir: &std::path::Path) -> NexusResult<Self> {
+        let path = data_dir.join("mcp_settings.json");
+        if path.exists() {
+            let data = std::fs::read_to_string(&path)?;
+            let mut settings: McpSettings = serde_json::from_str(&data)?;
+            settings.path = path;
+            Ok(settings)
+        } else {
+            Ok(McpSettings {
+                path,
+                ..Default::default()
+            })
+        }
+    }
+
+    pub fn save(&self) -> NexusResult<()> {
+        let data = serde_json::to_string_pretty(self)?;
+        std::fs::write(&self.path, data)?;
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // App-level settings (resource quotas, etc.)
 // ---------------------------------------------------------------------------
 

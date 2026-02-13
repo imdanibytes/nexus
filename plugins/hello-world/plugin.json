@@ -18,6 +18,30 @@
     "endpoint": "/health",
     "interval_secs": 30
   },
+  "mcp": {
+    "tools": [
+      {
+        "name": "get_system_info",
+        "description": "Get host OS, hostname, uptime, CPU count, and memory",
+        "permissions": ["system:info"],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "get_greeting",
+        "description": "Get the configured greeting text from plugin settings",
+        "permissions": [],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    ]
+  },
   "env": {},
   "min_nexus_version": "0.1.0",
   "settings": [

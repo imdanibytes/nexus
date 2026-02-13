@@ -114,6 +114,7 @@ function PluginSettingsCard({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     pluginGetSettings(plugin.manifest.id)
@@ -152,14 +153,36 @@ function PluginSettingsCard({
           {busy === "stopping" ? "Stopping..." : "Stop"}
         </button>
       )}
-      <button
-        onClick={onRemove}
-        disabled={busy !== null}
-        className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-error-muted text-nx-error hover:bg-nx-error/20 transition-colors duration-150 disabled:opacity-50"
-      >
-        <Trash2 size={10} strokeWidth={2} />
-        {busy === "removing" ? "Removing..." : "Remove"}
-      </button>
+      {showConfirm ? (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              onRemove();
+              setShowConfirm(false);
+            }}
+            disabled={busy !== null}
+            className="px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-error hover:bg-nx-error/80 text-white transition-colors duration-150 disabled:opacity-50"
+          >
+            {busy === "removing" ? "Removing..." : "Confirm"}
+          </button>
+          <button
+            onClick={() => setShowConfirm(false)}
+            disabled={busy !== null}
+            className="px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-colors duration-150 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowConfirm(true)}
+          disabled={busy !== null}
+          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-error-muted text-nx-error hover:bg-nx-error/20 transition-colors duration-150 disabled:opacity-50"
+        >
+          <Trash2 size={10} strokeWidth={2} />
+          Remove
+        </button>
+      )}
     </div>
   );
 

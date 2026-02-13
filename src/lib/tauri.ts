@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { InstalledPlugin, PluginManifest, RegistryEntry, RegistrySource } from "../types/plugin";
 import type { ApprovalDecision, GrantedPermission, Permission } from "../types/permissions";
+import type { McpSettings, McpToolStatus } from "../types/mcp";
 
 export async function pluginList(): Promise<InstalledPlugin[]> {
   return invoke("plugin_list");
@@ -199,4 +200,25 @@ export async function registryToggle(
   enabled: boolean
 ): Promise<void> {
   return invoke("registry_toggle", { id, enabled });
+}
+
+// MCP Gateway
+
+export async function mcpGetSettings(): Promise<McpSettings> {
+  return invoke("mcp_get_settings");
+}
+
+export async function mcpSetEnabled(
+  scope: string,
+  enabled: boolean
+): Promise<void> {
+  return invoke("mcp_set_enabled", { scope, enabled });
+}
+
+export async function mcpListTools(): Promise<McpToolStatus[]> {
+  return invoke("mcp_list_tools");
+}
+
+export async function mcpConfigSnippet(): Promise<Record<string, unknown>> {
+  return invoke("mcp_config_snippet");
 }

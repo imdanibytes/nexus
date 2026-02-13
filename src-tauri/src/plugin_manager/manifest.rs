@@ -1,6 +1,6 @@
 use crate::permissions::Permission;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SettingDef {
@@ -11,6 +11,20 @@ pub struct SettingDef {
     pub description: Option<String>,
     pub default: Option<serde_json::Value>,
     pub options: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpToolDef {
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub permissions: Vec<String>,
+    pub input_schema: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpConfig {
+    pub tools: Vec<McpToolDef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +47,8 @@ pub struct PluginManifest {
     pub min_nexus_version: Option<String>,
     #[serde(default)]
     pub settings: Vec<SettingDef>,
+    #[serde(default)]
+    pub mcp: Option<McpConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +133,56 @@ impl PluginManifest {
         if let Some(icon) = &self.icon {
             if !icon.starts_with("http://") && !icon.starts_with("https://") {
                 return Err("Icon must be an http or https URL".to_string());
+            }
+        }
+
+        // MCP tool validation
+        if let Some(mcp) = &self.mcp {
+            let mut tool_names = HashSet::new();
+            let tool_name_re = |name: &str| -> bool {
+                !name.is_empty()
+                    && name.len() <= 100
+                    && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            };
+
+            for tool in &mcp.tools {
+                if !tool_name_re(&tool.name) {
+                    return Err(format!(
+                        "MCP tool name '{}' is invalid (must be non-empty, max 100 chars, [a-z0-9_] only)",
+                        tool.name
+                    ));
+                }
+                if !tool_names.insert(&tool.name) {
+                    return Err(format!("Duplicate MCP tool name: '{}'", tool.name));
+                }
+                if tool.description.len() > 2000 {
+                    return Err(format!(
+                        "MCP tool '{}' description exceeds 2000 characters",
+                        tool.name
+                    ));
+                }
+                if strip_bidi_overrides(&tool.description) {
+                    return Err(format!(
+                        "MCP tool '{}' description contains bidirectional override characters",
+                        tool.name
+                    ));
+                }
+                // input_schema must have "type": "object" at root
+                if tool.input_schema.get("type").and_then(|v| v.as_str()) != Some("object") {
+                    return Err(format!(
+                        "MCP tool '{}' input_schema must have \"type\": \"object\" at root",
+                        tool.name
+                    ));
+                }
+                // Validate permission strings parse as Permission enum
+                for perm_str in &tool.permissions {
+                    if serde_json::from_value::<Permission>(serde_json::Value::String(perm_str.clone())).is_err() {
+                        return Err(format!(
+                            "MCP tool '{}' has invalid permission: '{}'",
+                            tool.name, perm_str
+                        ));
+                    }
+                }
             }
         }
 

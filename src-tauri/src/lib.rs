@@ -87,6 +87,10 @@ pub fn run() {
             commands::registries::registry_add,
             commands::registries::registry_remove,
             commands::registries::registry_toggle,
+            commands::mcp::mcp_get_settings,
+            commands::mcp::mcp_set_enabled,
+            commands::mcp::mcp_list_tools,
+            commands::mcp::mcp_config_snippet,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

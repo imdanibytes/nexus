@@ -1,0 +1,33 @@
+{
+  "name": "@nexus/plugin-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Nexus plugins — auto-generated from the Host API OpenAPI spec",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client/index.js",
+      "types": "./dist/client/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "openapi.json"
+  ],
+  "scripts": {
+    "generate": "openapi-ts",
+    "build": "tsc",
+    "prepublishOnly": "npm run generate && npm run build"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.92.3",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}

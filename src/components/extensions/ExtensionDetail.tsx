@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ExtensionRegistryEntry, ExtensionManifest, Capability } from "../../types/extension";
 import { extensionPreview, extensionInstall } from "../../lib/extensions";
+import { checkUrlReachable } from "../../lib/tauri";
 import { useAppStore } from "../../stores/appStore";
 import {
   ArrowLeft,
@@ -15,6 +16,7 @@ import {
   Cpu,
   Library,
   Puzzle,
+  AlertTriangle,
 } from "lucide-react";
 
 const RISK_STYLES: Record<string, { bg: string; text: string }> = {
@@ -69,6 +71,15 @@ export function ExtensionDetail({ entry, onBack }: Props) {
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [manifest, setManifest] = useState<ExtensionManifest | null>(null);
+  const [manifestReachable, setManifestReachable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    checkUrlReachable(entry.manifest_url).then((reachable) => {
+      if (!cancelled) setManifestReachable(reachable);
+    });
+    return () => { cancelled = true; };
+  }, [entry.manifest_url]);
 
   async function handlePreview() {
     setLoading(true);
@@ -114,18 +125,25 @@ export function ExtensionDetail({ entry, onBack }: Props) {
             </p>
           </div>
           {!manifest ? (
-            <button
-              onClick={handlePreview}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-60 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
-            >
-              {loading ? (
-                <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
-              ) : (
-                <Shield size={14} strokeWidth={1.5} />
-              )}
-              {loading ? "Loading..." : "Review & Install"}
-            </button>
+            manifestReachable === false ? (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
+                <AlertTriangle size={12} strokeWidth={1.5} />
+                Unavailable
+              </span>
+            ) : (
+              <button
+                onClick={handlePreview}
+                disabled={loading || manifestReachable === null}
+                className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-60 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
+              >
+                {loading || manifestReachable === null ? (
+                  <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                ) : (
+                  <Shield size={14} strokeWidth={1.5} />
+                )}
+                {manifestReachable === null ? "Checking..." : loading ? "Loading..." : "Review & Install"}
+              </button>
+            )
           ) : (
             <button
               onClick={handleInstall}

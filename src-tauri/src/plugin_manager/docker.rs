@@ -58,6 +58,117 @@ pub async fn image_exists(image: &str) -> NexusResult<bool> {
     }
 }
 
+/// Check if a Docker image exists in a remote registry without pulling it.
+///
+/// Supports ghcr.io and Docker Hub. Returns false for unrecognized registries
+/// or network errors (fail-open: install button still enabled, pull will fail
+/// with a clear error message instead).
+pub async fn check_image_available(image: &str) -> bool {
+    match check_image_available_inner(image).await {
+        Ok(available) => available,
+        Err(e) => {
+            log::warn!("Image availability check failed for {}: {}", image, e);
+            // Fail-open: let the user attempt the install
+            true
+        }
+    }
+}
+
+async fn check_image_available_inner(image: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let (registry, repository, tag) = parse_image_ref(image);
+
+    let (token_url, manifest_url) = match registry.as_str() {
+        "ghcr.io" => (
+            format!(
+                "https://ghcr.io/token?scope=repository:{}:pull",
+                repository
+            ),
+            format!(
+                "https://ghcr.io/v2/{}/manifests/{}",
+                repository, tag
+            ),
+        ),
+        "docker.io" | "" => (
+            format!(
+                "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{}:pull",
+                repository
+            ),
+            format!(
+                "https://registry-1.docker.io/v2/{}/manifests/{}",
+                repository, tag
+            ),
+        ),
+        other => {
+            // Unknown registry — try generic V2 API without auth
+            let base = format!("https://{}", other);
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()?;
+            let resp = client
+                .head(format!("{}/v2/{}/manifests/{}", base, repository, tag))
+                .header(
+                    "Accept",
+                    "application/vnd.docker.distribution.manifest.v2+json",
+                )
+                .send()
+                .await?;
+            return Ok(resp.status().is_success());
+        }
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
+
+    // Get anonymous pull token
+    #[derive(serde::Deserialize)]
+    struct TokenResponse {
+        token: String,
+    }
+    let token_resp: TokenResponse = client.get(&token_url).send().await?.json().await?;
+
+    // HEAD the manifest
+    let resp = client
+        .head(&manifest_url)
+        .header("Authorization", format!("Bearer {}", token_resp.token))
+        .header(
+            "Accept",
+            "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json",
+        )
+        .send()
+        .await?;
+
+    Ok(resp.status().is_success())
+}
+
+/// Parse a Docker image reference into (registry, repository, tag).
+///
+/// Examples:
+///   "ghcr.io/owner/image:1.0"  → ("ghcr.io", "owner/image", "1.0")
+///   "owner/image:latest"       → ("docker.io", "owner/image", "latest")
+///   "image:tag"                → ("docker.io", "library/image", "tag")
+fn parse_image_ref(image: &str) -> (String, String, String) {
+    let (name, tag) = if let Some((n, t)) = image.rsplit_once(':') {
+        (n, t)
+    } else {
+        (image, "latest")
+    };
+
+    // If name contains a dot or colon in the first segment, it's a registry
+    let parts: Vec<&str> = name.splitn(2, '/').collect();
+    if parts.len() == 2 && (parts[0].contains('.') || parts[0].contains(':')) {
+        let registry = parts[0].to_string();
+        let repository = parts[1].to_string();
+        (registry, repository, tag.to_string())
+    } else if parts.len() == 2 {
+        // "owner/image" → Docker Hub
+        ("docker.io".to_string(), name.to_string(), tag.to_string())
+    } else {
+        // "image" → Docker Hub library
+        ("docker.io".to_string(), format!("library/{}", name), tag.to_string())
+    }
+}
+
 pub async fn pull_image(image: &str) -> NexusResult<()> {
     // Skip pull if the image already exists locally
     if image_exists(image).await? {

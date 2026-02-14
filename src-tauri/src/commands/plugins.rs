@@ -138,6 +138,13 @@ pub async fn plugin_remove(
 }
 
 
+/// Check if a Docker image is available in its remote registry.
+/// Used by the marketplace to disable the install button when images don't exist.
+#[tauri::command]
+pub async fn check_image_available(image: String) -> Result<bool, String> {
+    Ok(docker::check_image_available(&image).await)
+}
+
 #[tauri::command]
 pub async fn plugin_sync_status(
     state: tauri::State<'_, AppState>,

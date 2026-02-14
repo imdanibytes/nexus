@@ -59,6 +59,14 @@ export async function pluginSyncStatus(): Promise<InstalledPlugin[]> {
   return invoke("plugin_sync_status");
 }
 
+export async function checkImageAvailable(image: string): Promise<boolean> {
+  return invoke("check_image_available", { image });
+}
+
+export async function checkUrlReachable(url: string): Promise<boolean> {
+  return invoke("check_url_reachable", { url });
+}
+
 export async function pluginLogs(
   pluginId: string,
   tail?: number

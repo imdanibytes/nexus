@@ -128,3 +128,21 @@ pub async fn save_resource_quotas(
     mgr.settings.memory_limit_mb = memory_mb;
     mgr.settings.save().map_err(|e| e.to_string())
 }
+
+/// HEAD a URL to check if it's reachable (2xx/3xx = true).
+/// Used by the extension marketplace to verify manifest URLs exist before enabling install.
+#[tauri::command]
+pub async fn check_url_reachable(url: String) -> Result<bool, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+    match client.head(&url).send().await {
+        Ok(resp) => Ok(resp.status().is_success() || resp.status().is_redirection()),
+        Err(e) => {
+            log::warn!("URL reachability check failed for {}: {}", url, e);
+            // Fail-open: let the user try the install
+            Ok(true)
+        }
+    }
+}

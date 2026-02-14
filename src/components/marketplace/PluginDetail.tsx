@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { RegistryEntry, PluginManifest } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
 import { PermissionDialog } from "../permissions/PermissionDialog";
 import { usePlugins } from "../../hooks/usePlugins";
-import { ArrowLeft, Download, Check, Loader2 } from "lucide-react";
+import { checkImageAvailable } from "../../lib/tauri";
+import { ArrowLeft, Download, Check, Loader2, AlertTriangle } from "lucide-react";
 
 interface Props {
   entry: RegistryEntry;
@@ -15,6 +16,16 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
   const { previewRemote, install } = usePlugins();
   const [loading, setLoading] = useState(false);
   const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
+  const [imageAvailable, setImageAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (isInstalled) return;
+    let cancelled = false;
+    checkImageAvailable(entry.image).then((available) => {
+      if (!cancelled) setImageAvailable(available);
+    });
+    return () => { cancelled = true; };
+  }, [entry.image, isInstalled]);
 
   async function handleInstallClick() {
     setLoading(true);
@@ -54,18 +65,23 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
               <Check size={12} strokeWidth={1.5} />
               Installed
             </span>
+          ) : imageAvailable === false ? (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
+              <AlertTriangle size={12} strokeWidth={1.5} />
+              Image Unavailable
+            </span>
           ) : (
             <button
               onClick={handleInstallClick}
-              disabled={loading}
+              disabled={loading || imageAvailable === null}
               className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-60 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
             >
-              {loading ? (
+              {loading || imageAvailable === null ? (
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
               ) : (
                 <Download size={14} strokeWidth={1.5} />
               )}
-              {loading ? "Loading..." : "Install"}
+              {imageAvailable === null ? "Checking..." : loading ? "Loading..." : "Install"}
             </button>
           )}
         </div>

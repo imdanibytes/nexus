@@ -31,6 +31,7 @@ export interface PluginManifest {
   homepage?: string;
   icon?: string;
   image: string;
+  image_digest?: string;
   ui: UiConfig;
   permissions: string[];
   health?: HealthConfig;
@@ -56,6 +57,7 @@ export interface RegistryEntry {
   version: string;
   description: string;
   image: string;
+  image_digest?: string;
   manifest_url: string;
   categories: string[];
   downloads: number;

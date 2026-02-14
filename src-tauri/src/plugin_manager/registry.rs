@@ -149,6 +149,10 @@ pub struct RegistryEntry {
     pub version: String,
     pub description: String,
     pub image: String,
+    /// SHA-256 digest of the Docker image (e.g. "sha256:a1b2c3...").
+    /// Displayed in the marketplace and used for integrity verification.
+    #[serde(default)]
+    pub image_digest: Option<String>,
     pub manifest_url: String,
     #[serde(default)]
     pub categories: Vec<String>,

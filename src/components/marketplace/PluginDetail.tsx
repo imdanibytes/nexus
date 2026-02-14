@@ -82,6 +82,17 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
             </code>
           </div>
 
+          {entry.image_digest && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
+                Image Digest
+              </h4>
+              <code className="text-[12px] bg-nx-deep text-nx-text-secondary px-2.5 py-1 rounded-[var(--radius-tag)] font-mono break-all">
+                {entry.image_digest}
+              </code>
+            </div>
+          )}
+
           {entry.categories.length > 0 && (
             <div>
               <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">

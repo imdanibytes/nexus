@@ -3,6 +3,7 @@ import type { InstalledPlugin, PluginManifest, RegistryEntry, RegistrySource } f
 import type { ApprovalDecision, GrantedPermission, Permission } from "../types/permissions";
 import type { McpSettings, McpToolStatus } from "../types/mcp";
 import type { AvailableUpdate } from "../types/updates";
+import type { ClassifiedTool, PluginMetadata } from "../types/mcp_wrap";
 
 export async function pluginList(): Promise<InstalledPlugin[]> {
   return invoke("plugin_list");
@@ -366,4 +367,34 @@ export async function pluginStorageInfo(pluginId: string): Promise<number> {
 
 export async function pluginClearStorage(pluginId: string): Promise<void> {
   return invoke("plugin_clear_storage", { pluginId });
+}
+
+// MCP Wrap
+
+export async function mcpDiscoverTools(
+  command: string
+): Promise<ClassifiedTool[]> {
+  return invoke("mcp_discover_tools", { command });
+}
+
+export async function mcpSuggestMetadata(
+  command: string
+): Promise<PluginMetadata> {
+  return invoke("mcp_suggest_metadata", { command });
+}
+
+export async function mcpGenerateAndInstall(
+  command: string,
+  tools: ClassifiedTool[],
+  metadata: PluginMetadata,
+  approvedPermissions: Permission[],
+  deferredPermissions: Permission[]
+): Promise<InstalledPlugin> {
+  return invoke("mcp_generate_and_install", {
+    command,
+    tools,
+    metadata,
+    approvedPermissions,
+    deferredPermissions,
+  });
 }

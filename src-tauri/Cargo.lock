@@ -2759,6 +2759,7 @@ dependencies = [
  "jsonschema",
  "log",
  "notify-rust",
+ "regex",
  "reqwest",
  "semver",
  "serde",

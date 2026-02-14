@@ -3,6 +3,8 @@ import type { RegistryKind, RegistrySource } from "../../types/plugin";
 import * as api from "../../lib/tauri";
 import { Database, FolderOpen, Globe, Plus, Trash2 } from "lucide-react";
 
+const PROTECTED_REGISTRIES = new Set(["nexus-community", "nexus-mcp-local"]);
+
 export function RegistrySettings() {
   const [registries, setRegistries] = useState<RegistrySource[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -201,13 +203,15 @@ export function RegistrySettings() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => handleRemove(reg.id)}
-                className="text-nx-text-ghost hover:text-nx-error transition-colors duration-150 flex-shrink-0 ml-2"
-                title="Remove registry"
-              >
-                <Trash2 size={14} strokeWidth={1.5} />
-              </button>
+              {!PROTECTED_REGISTRIES.has(reg.id) && (
+                <button
+                  onClick={() => handleRemove(reg.id)}
+                  className="text-nx-text-ghost hover:text-nx-error transition-colors duration-150 flex-shrink-0 ml-2"
+                  title="Remove registry"
+                >
+                  <Trash2 size={14} strokeWidth={1.5} />
+                </button>
+              )}
             </div>
           ))
         )}

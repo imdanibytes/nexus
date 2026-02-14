@@ -49,6 +49,7 @@ jsonschema = "0.41"
 notify-rust = "4"
 semver = "1"
 serde_yaml = "0.9"
+regex = "1"
 
 [dev-dependencies]
 tempfile = "3"

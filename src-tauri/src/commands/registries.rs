@@ -44,11 +44,17 @@ pub async fn registry_add(
     Ok(source)
 }
 
+/// Built-in registries that cannot be removed by the user.
+const PROTECTED_REGISTRIES: &[&str] = &["nexus-community", "nexus-mcp-local"];
+
 #[tauri::command]
 pub async fn registry_remove(
     state: tauri::State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
+    if PROTECTED_REGISTRIES.contains(&id.as_str()) {
+        return Err(format!("Cannot remove built-in registry '{}'", id));
+    }
     let mut mgr = state.write().await;
     mgr.registry_store.remove(&id).map_err(|e| e.to_string())
 }

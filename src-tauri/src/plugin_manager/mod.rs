@@ -69,11 +69,25 @@ impl PluginManager {
     pub fn new(data_dir: PathBuf) -> Self {
         let storage = PluginStorage::load(&data_dir).unwrap_or_default();
         let permissions = PermissionStore::load(&data_dir).unwrap_or_default();
-        let registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
+        let mut registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
         let settings = NexusSettings::load(&data_dir).unwrap_or_default();
         let plugin_settings = PluginSettingsStore::load(&data_dir).unwrap_or_default();
         let mcp_settings = McpSettings::load(&data_dir).unwrap_or_default();
         let update_state = crate::update_checker::load_update_state(&data_dir);
+
+        // Auto-register local registry for MCP-wrapped plugins
+        let mcp_plugins_dir = data_dir.join("mcp-plugins");
+        std::fs::create_dir_all(&mcp_plugins_dir).ok();
+        if !registry_store.list().iter().any(|s| s.id == "nexus-mcp-local") {
+            let _ = registry_store.add(registry::RegistrySource {
+                id: "nexus-mcp-local".to_string(),
+                name: "MCP Wrapped Plugins".to_string(),
+                kind: registry::RegistryKind::Local,
+                url: mcp_plugins_dir.display().to_string(),
+                enabled: true,
+                trust: registry::RegistryTrust::Community,
+            });
+        }
 
         // Generate or load the MCP gateway token
         let token_path = data_dir.join("mcp_gateway_token");

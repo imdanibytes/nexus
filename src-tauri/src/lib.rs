@@ -2,6 +2,7 @@ mod commands;
 mod error;
 pub mod extensions;
 pub mod host_api;
+pub mod mcp_wrap;
 mod notification;
 mod permissions;
 mod plugin_manager;
@@ -137,6 +138,9 @@ pub fn run() {
             commands::updates::update_extension,
             commands::updates::update_extension_force_key,
             commands::updates::last_update_check,
+            commands::mcp_wrap::mcp_discover_tools,
+            commands::mcp_wrap::mcp_suggest_metadata,
+            commands::mcp_wrap::mcp_generate_and_install,
             notification::send_notification,
         ])
         .run(tauri::generate_context!())

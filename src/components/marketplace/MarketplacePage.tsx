@@ -8,13 +8,15 @@ import { SearchBar } from "./SearchBar";
 import { PermissionDialog } from "../permissions/PermissionDialog";
 import type { PluginManifest } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
-import { FolderOpen, RefreshCw, Package } from "lucide-react";
+import { FolderOpen, RefreshCw, Package, Wand2 } from "lucide-react";
+import { McpWrapWizard } from "./McpWrapWizard";
 
 export function MarketplacePage() {
   const { plugins, isLoading, refresh, search } = useMarketplace();
   const { previewLocal, installLocal } = usePlugins();
   const { installedPlugins, selectRegistryEntry, setView } = useAppStore();
   const [installing, setInstalling] = useState(false);
+  const [showMcpWizard, setShowMcpWizard] = useState(false);
 
   // Two-step local install state
   const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
@@ -69,9 +71,16 @@ export function MarketplacePage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowMcpWizard(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
+          >
+            <Wand2 size={12} strokeWidth={1.5} />
+            Wrap MCP Server
+          </button>
+          <button
             onClick={handleLocalInstall}
             disabled={installing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep transition-all duration-150"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash disabled:opacity-40 text-nx-text-secondary transition-all duration-150"
           >
             <FolderOpen size={12} strokeWidth={1.5} />
             {installing ? "Installing..." : "Install Local"}
@@ -134,6 +143,13 @@ export function MarketplacePage() {
           manifest={pendingManifest}
           onApprove={handleApprove}
           onDeny={handleDeny}
+        />
+      )}
+
+      {showMcpWizard && (
+        <McpWrapWizard
+          onClose={() => setShowMcpWizard(false)}
+          onInstalled={() => setView("plugins")}
         />
       )}
     </div>

@@ -177,10 +177,10 @@ mod tests {
             icon: None,
             image: "test:latest".into(),
             image_digest: None,
-            ui: crate::plugin_manager::manifest::UiConfig {
+            ui: Some(crate::plugin_manager::manifest::UiConfig {
                 port: 80,
                 path: "/".into(),
-            },
+            }),
             permissions: vec![],
             health: None,
             env: HashMap::new(),
@@ -224,10 +224,10 @@ mod tests {
             icon: None,
             image: "test:latest".into(),
             image_digest: None,
-            ui: crate::plugin_manager::manifest::UiConfig {
+            ui: Some(crate::plugin_manager::manifest::UiConfig {
                 port: 80,
                 path: "/".into(),
-            },
+            }),
             permissions: vec![],
             health: None,
             env: HashMap::new(),

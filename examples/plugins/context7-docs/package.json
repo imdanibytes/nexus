@@ -1,0 +1,14 @@
+{
+  "name": "com.nexus.context7",
+  "version": "0.1.0",
+  "description": "Up-to-date documentation and code examples for any library",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@upstash/context7-mcp": "*"
+  }
+}

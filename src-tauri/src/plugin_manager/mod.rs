@@ -236,11 +236,12 @@ impl PluginManager {
                 .map(|mb| (mb * 1_048_576) as i64),
         };
 
+        let container_port = manifest.ui.as_ref().map(|u| u.port).unwrap_or(80);
         let container_id = docker::create_container(
             &container_name,
             &manifest.image,
             port,
-            manifest.ui.port,
+            container_port,
             env_vars,
             labels,
             limits,
@@ -310,7 +311,11 @@ impl PluginManager {
             .health
             .as_ref()
             .map(|h| h.endpoint.clone())
-            .unwrap_or_else(|| manifest.ui.path.clone());
+            .unwrap_or_else(|| {
+                manifest.ui.as_ref()
+                    .map(|u| u.path.clone())
+                    .unwrap_or_else(|| "/health".to_string())
+            });
 
         // Remove the old container (if any)
         if let Some(ref cid) = old_container_id {
@@ -350,11 +355,12 @@ impl PluginManager {
                 .map(|mb| (mb * 1_048_576) as i64),
         };
 
+        let container_port = manifest.ui.as_ref().map(|u| u.port).unwrap_or(80);
         let new_container_id = docker::create_container(
             &container_name,
             &manifest.image,
             port,
-            manifest.ui.port,
+            container_port,
             env_vars,
             labels,
             limits,
@@ -569,11 +575,12 @@ impl PluginManager {
                 .map(|mb| (mb * 1_048_576) as i64),
         };
 
+        let container_port = manifest.ui.as_ref().map(|u| u.port).unwrap_or(80);
         let new_container_id = docker::create_container(
             &container_name,
             &manifest.image,
             port,
-            manifest.ui.port,
+            container_port,
             env_vars,
             labels,
             limits,
@@ -603,7 +610,11 @@ impl PluginManager {
                 .health
                 .as_ref()
                 .map(|h| h.endpoint.clone())
-                .unwrap_or_else(|| updated_plugin.manifest.ui.path.clone());
+                .unwrap_or_else(|| {
+                    updated_plugin.manifest.ui.as_ref()
+                        .map(|u| u.path.clone())
+                        .unwrap_or_else(|| "/health".to_string())
+                });
 
             docker::start_container(&new_container_id).await?;
             docker::wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;

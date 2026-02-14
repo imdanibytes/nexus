@@ -47,7 +47,8 @@ pub struct PluginManifest {
     /// Verified after pull to guarantee content integrity.
     #[serde(default)]
     pub image_digest: Option<String>,
-    pub ui: UiConfig,
+    #[serde(default)]
+    pub ui: Option<UiConfig>,
     #[serde(default)]
     pub permissions: Vec<Permission>,
     pub health: Option<HealthConfig>,
@@ -126,8 +127,15 @@ impl PluginManifest {
         if self.image.is_empty() {
             return Err("Docker image is required".to_string());
         }
-        if self.ui.port == 0 {
-            return Err("UI port must be non-zero".to_string());
+        if let Some(ref ui) = self.ui {
+            if ui.port == 0 {
+                return Err("UI port must be non-zero".to_string());
+            }
+        } else {
+            // Headless plugins must declare a health endpoint
+            if self.health.is_none() {
+                return Err("Headless plugins (ui: null) must declare a health endpoint".to_string());
+            }
         }
 
         // Field length limits (prevent UI DoS / storage abuse)
@@ -185,13 +193,13 @@ impl PluginManifest {
             let tool_name_re = |name: &str| -> bool {
                 !name.is_empty()
                     && name.len() <= 100
-                    && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                    && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
             };
 
             for tool in &mcp.tools {
                 if !tool_name_re(&tool.name) {
                     return Err(format!(
-                        "MCP tool name '{}' is invalid (must be non-empty, max 100 chars, [a-z0-9_] only)",
+                        "MCP tool name '{}' is invalid (must be non-empty, max 100 chars, [a-z0-9_-] only)",
                         tool.name
                     ));
                 }
@@ -294,7 +302,7 @@ mod tests {
             icon: None,
             image: "test:latest".into(),
             image_digest: None,
-            ui: UiConfig { port: 80, path: "/".into() },
+            ui: Some(UiConfig { port: 80, path: "/".into() }),
             permissions: vec![],
             health: None,
             env: HashMap::new(),

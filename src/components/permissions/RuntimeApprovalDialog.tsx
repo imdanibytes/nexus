@@ -90,6 +90,18 @@ function resolveHeader(req: RuntimeApprovalRequest): {
     };
   }
 
+  // MCP tool invocation
+  if (req.category === "mcp_tool") {
+    const toolName = ctx.tool_name ?? "a tool";
+    return {
+      icon: ShieldAlert,
+      title: "MCP Tool Call",
+      subtitle: `${req.plugin_name} wants to run ${toolName}`,
+      iconBg: "bg-nx-warning-muted",
+      iconColor: "text-nx-warning",
+    };
+  }
+
   // Fallback
   return {
     icon: ShieldAlert,
@@ -116,23 +128,21 @@ export function RuntimeApprovalDialog() {
   const [queue, setQueue] = useState<RuntimeApprovalRequest[]>([]);
   const [cooldown, setCooldown] = useState(0);
   const { notify } = useOsNotification();
+  // Dedup set survives StrictMode mount/unmount/remount cycle and the
+  // async unlisten race that can leave two listeners briefly active.
+  const seenIds = useRef(new Set<string>());
 
   useEffect(() => {
     const unlisten = listen<RuntimeApprovalRequest>(
       "nexus://runtime-approval",
       (event) => {
-        setQueue((prev) => {
-          const next = [...prev, event.payload];
-          const header = resolveHeader(event.payload);
-          const pending =
-            next.length > 1 ? ` (+${next.length - 1} pending)` : "";
-          notify(
-            "Nexus — Approval Required",
-            header.subtitle + pending,
-            next.length
-          );
-          return next;
-        });
+        const id = event.payload.id;
+        if (seenIds.current.has(id)) return;
+        seenIds.current.add(id);
+
+        setQueue((prev) => [...prev, event.payload]);
+        const header = resolveHeader(event.payload);
+        notify("Nexus — Approval Required", header.subtitle, 1);
       }
     );
     return () => {
@@ -172,6 +182,7 @@ export function RuntimeApprovalDialog() {
         permission: current!.permission,
       }
     );
+    seenIds.current.delete(current!.id);
     setQueue((prev) => prev.slice(1));
   }
 
@@ -226,6 +237,8 @@ export function RuntimeApprovalDialog() {
               context={current.context}
               isHighRisk={isHighRisk}
             />
+          ) : current.category === "mcp_tool" ? (
+            <McpToolDetail context={current.context} />
           ) : (
             <GenericDetail context={current.context} />
           )}
@@ -451,13 +464,81 @@ function ExtensionDetail({
   );
 }
 
+function McpToolDetail({ context }: { context: Record<string, string> }) {
+  const [showFullDesc, setShowFullDesc] = useState(false);
+  const toolName = context.tool_name ?? "unknown";
+  const pluginName = context.plugin_name;
+  const description = context.description;
+
+  // Collect arg.* fields
+  const argEntries = Object.entries(context)
+    .filter(([k]) => k.startsWith("arg."))
+    .map(([k, v]) => [k.replace("arg.", ""), v] as const);
+
+  return (
+    <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+      {/* Tool name + plugin */}
+      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+        <p className="text-[11px] text-nx-text-muted mb-1">Tool</p>
+        <p className="text-[13px] text-nx-text font-mono font-medium">
+          {toolName}
+        </p>
+        {pluginName && (
+          <p className="text-[11px] text-nx-text-ghost mt-0.5">
+            via {pluginName}
+          </p>
+        )}
+      </div>
+
+      {/* Arguments */}
+      {argEntries.length > 0 && (
+        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5">
+          <p className="text-[11px] text-nx-text-muted">Arguments</p>
+          {argEntries.map(([key, value]) => (
+            <div key={key}>
+              <span className="text-[11px] text-nx-text-ghost font-mono">
+                {key}
+              </span>
+              <p className="text-[12px] text-nx-text font-mono break-all leading-relaxed">
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Description — truncated to 3 lines */}
+      {description && (
+        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+          <p className="text-[11px] text-nx-text-muted mb-1">Description</p>
+          <p
+            className={`text-[11px] text-nx-text-secondary leading-relaxed break-words ${
+              showFullDesc ? "" : "line-clamp-3"
+            }`}
+          >
+            {description}
+          </p>
+          {!showFullDesc && description.length > 150 && (
+            <button
+              onClick={() => setShowFullDesc(true)}
+              className="text-[11px] text-nx-accent hover:text-nx-accent-hover mt-1"
+            >
+              Show more
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GenericDetail({ context }: { context: Record<string, string> }) {
   const entries = Object.entries(context).filter(([k]) => k !== "permission");
 
   if (entries.length === 0) return null;
 
   return (
-    <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5">
+    <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5 max-h-[40vh] overflow-y-auto">
       {entries.map(([key, value]) => (
         <div key={key}>
           <p className="text-[11px] text-nx-text-muted">{key}</p>

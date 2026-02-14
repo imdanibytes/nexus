@@ -1,0 +1,12 @@
+{
+  "name": "mcp-wrap",
+  "version": "0.1.0",
+  "description": "CLI tool to wrap MCP servers as Nexus headless plugins with a permission overlay",
+  "type": "module",
+  "bin": {
+    "mcp-wrap": "./src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

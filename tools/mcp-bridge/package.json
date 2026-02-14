@@ -1,0 +1,13 @@
+{
+  "name": "nexus-mcp-bridge",
+  "version": "0.1.0",
+  "description": "Bridge server for wrapping MCP servers as Nexus headless plugins",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}

@@ -233,7 +233,7 @@ mod tests {
                 icon: None,
                 image: "test:latest".to_string(),
                 image_digest: digest.map(|d| d.to_string()),
-                ui: UiConfig { port: 80, path: "/".to_string() },
+                ui: Some(UiConfig { port: 80, path: "/".to_string() }),
                 permissions: vec![],
                 health: None,
                 env: HashMap::new(),

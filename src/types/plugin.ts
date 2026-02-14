@@ -32,7 +32,7 @@ export interface PluginManifest {
   icon?: string;
   image: string;
   image_digest?: string;
-  ui: UiConfig;
+  ui: UiConfig | null;
   permissions: string[];
   health?: HealthConfig;
   env: Record<string, string>;

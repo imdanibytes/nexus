@@ -1,5 +1,7 @@
+use std::path::Path;
+
 use crate::extensions::storage::InstalledExtension;
-use crate::plugin_manager::registry;
+use crate::plugin_manager::{docker, registry};
 use crate::plugin_manager::storage::InstalledPlugin;
 use crate::update_checker::{self, AvailableUpdate};
 use crate::AppState;
@@ -66,10 +68,21 @@ pub async fn update_plugin(
     state: tauri::State<'_, AppState>,
     manifest_url: String,
     expected_digest: Option<String>,
+    build_context: Option<String>,
 ) -> Result<InstalledPlugin, String> {
     let manifest = registry::fetch_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
+
+    if let Some(ref ctx) = build_context {
+        let ctx_path = Path::new(ctx);
+        if ctx_path.join("Dockerfile").exists() {
+            log::info!("Rebuilding image {} from {}", manifest.image, ctx_path.display());
+            docker::build_image(ctx_path, &manifest.image)
+                .await
+                .map_err(|e| format!("Docker build failed: {}", e))?;
+        }
+    }
 
     let mut mgr = state.write().await;
     let result = mgr
@@ -92,7 +105,7 @@ pub async fn update_extension(
         .map_err(|e| e.to_string())?;
 
     let mut mgr = state.write().await;
-    mgr.update_extension(manifest, false)
+    mgr.update_extension(manifest, false, Some(&manifest_url))
         .await
         .map_err(|e| e.to_string())
 }
@@ -108,7 +121,7 @@ pub async fn update_extension_force_key(
         .map_err(|e| e.to_string())?;
 
     let mut mgr = state.write().await;
-    mgr.update_extension(manifest, true)
+    mgr.update_extension(manifest, true, Some(&manifest_url))
         .await
         .map_err(|e| e.to_string())
 }

@@ -45,6 +45,9 @@ pub struct AvailableUpdate {
     pub security: Vec<UpdateSecurity>,
     pub new_image_digest: Option<String>,
     pub author_public_key: Option<String>,
+    /// When present, the image should be rebuilt from this directory on update.
+    #[serde(default)]
+    pub build_context: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -148,6 +151,7 @@ pub fn check_for_updates(
             security,
             new_image_digest: reg_entry.image_digest.clone(),
             author_public_key: None,
+            build_context: reg_entry.build_context.clone(),
         });
     }
 
@@ -201,6 +205,7 @@ pub fn check_for_updates(
             security,
             new_image_digest: None,
             author_public_key: reg_entry.author_public_key.clone(),
+            build_context: None,
         });
     }
 
@@ -266,6 +271,7 @@ mod tests {
             homepage: None,
             icon: None,
             status: None,
+            build_context: None,
         }
     }
 

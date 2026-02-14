@@ -139,7 +139,7 @@ pub async fn extension_install(
 
     let mut mgr = state.write().await;
     mgr.extension_loader
-        .install(manifest)
+        .install(manifest, Some(&manifest_url))
         .await
         .map_err(|e| e.to_string())
 }

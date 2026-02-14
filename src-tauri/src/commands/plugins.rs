@@ -50,10 +50,27 @@ pub async fn plugin_install(
     manifest_url: String,
     approved_permissions: Vec<Permission>,
     deferred_permissions: Option<Vec<Permission>>,
+    build_context: Option<String>,
 ) -> Result<InstalledPlugin, String> {
     let manifest = registry::fetch_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
+
+    // If a build_context is provided (local registry), build the image from source.
+    // Always rebuild so local dev changes are picked up on every install/update.
+    if let Some(ref ctx) = build_context {
+        let ctx_path = Path::new(ctx);
+        if ctx_path.join("Dockerfile").exists() {
+            log::info!(
+                "Building image {} from {}",
+                manifest.image,
+                ctx_path.display()
+            );
+            docker::build_image(ctx_path, &manifest.image)
+                .await
+                .map_err(|e| format!("Docker build failed: {}", e))?;
+        }
+    }
 
     let mut mgr = state.write().await;
     mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url))

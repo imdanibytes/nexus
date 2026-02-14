@@ -68,6 +68,7 @@ export interface RegistryEntry {
   categories: string[];
   status?: string;
   source?: string;
+  build_context?: string;
 }
 
 export type RegistryKind = "remote" | "local";

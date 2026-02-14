@@ -20,4 +20,5 @@ export interface AvailableUpdate {
   security: UpdateSecurity[];
   new_image_digest: string | null;
   author_public_key: string | null;
+  build_context: string | null;
 }

@@ -76,9 +76,9 @@ export function usePlugins() {
 
   // Step 2: Install with user-approved and deferred permissions
   const install = useCallback(
-    async (manifestUrl: string, approvedPermissions: Permission[], deferredPermissions?: Permission[]) => {
+    async (manifestUrl: string, approvedPermissions: Permission[], deferredPermissions?: Permission[], buildContext?: string) => {
       try {
-        await api.pluginInstall(manifestUrl, approvedPermissions, deferredPermissions);
+        await api.pluginInstall(manifestUrl, approvedPermissions, deferredPermissions, buildContext);
         addNotification("Plugin installed", "success");
         await refresh();
       } catch (e) {

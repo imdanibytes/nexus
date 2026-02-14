@@ -625,9 +625,10 @@ impl PluginManager {
         &mut self,
         manifest: crate::extensions::manifest::ExtensionManifest,
         force_key: bool,
+        manifest_url: Option<&str>,
     ) -> Result<crate::extensions::storage::InstalledExtension, crate::extensions::ExtensionError> {
         self.extension_loader
-            .update(manifest, &mut self.extensions, force_key)
+            .update(manifest, &mut self.extensions, force_key, manifest_url)
             .await
     }
 

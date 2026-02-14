@@ -4,7 +4,7 @@ import type { Permission } from "../../types/permissions";
 import { PermissionDialog } from "../permissions/PermissionDialog";
 import { usePlugins } from "../../hooks/usePlugins";
 import { checkImageAvailable } from "../../lib/tauri";
-import { ArrowLeft, Download, Check, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale } from "lucide-react";
+import { ArrowLeft, Download, Check, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale, Hammer } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
 
 interface Props {
@@ -19,14 +19,21 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
   const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
   const [imageAvailable, setImageAvailable] = useState<boolean | null>(null);
 
+  const canBuild = !!entry.build_context;
+
   useEffect(() => {
     if (isInstalled) return;
+    if (canBuild) {
+      // Local registry with build context — always installable
+      setImageAvailable(true);
+      return;
+    }
     let cancelled = false;
     checkImageAvailable(entry.image).then((available) => {
       if (!cancelled) setImageAvailable(available);
     });
     return () => { cancelled = true; };
-  }, [entry.image, isInstalled]);
+  }, [entry.image, isInstalled, canBuild]);
 
   async function handleInstallClick() {
     setLoading(true);
@@ -39,7 +46,7 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
 
   async function handleApprove(approvedPermissions: Permission[], deferredPermissions: Permission[]) {
     setPendingManifest(null);
-    await install(entry.manifest_url, approvedPermissions, deferredPermissions);
+    await install(entry.manifest_url, approvedPermissions, deferredPermissions, entry.build_context);
     onBack();
   }
 
@@ -79,10 +86,12 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
             >
               {loading || imageAvailable === null ? (
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+              ) : canBuild ? (
+                <Hammer size={14} strokeWidth={1.5} />
               ) : (
                 <Download size={14} strokeWidth={1.5} />
               )}
-              {imageAvailable === null ? "Checking..." : loading ? "Loading..." : "Install"}
+              {imageAvailable === null ? "Checking..." : loading ? "Building..." : canBuild ? "Build & Install" : "Install"}
             </button>
           )}
         </div>
@@ -141,6 +150,11 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
             <code className="text-[12px] bg-nx-deep text-nx-text-secondary px-2.5 py-1 rounded-[var(--radius-tag)] font-mono">
               {entry.image}
             </code>
+            {canBuild && (
+              <span className="ml-2 text-[10px] text-nx-text-muted">
+                (built from source)
+              </span>
+            )}
           </div>
 
           {entry.image_digest && (

@@ -153,7 +153,7 @@ export function UpdatesTab() {
     setUpdatingId(update.item_id);
     try {
       if (update.item_type === "plugin") {
-        await updatePlugin(update.manifest_url, update.new_image_digest);
+        await updatePlugin(update.manifest_url, update.new_image_digest, update.build_context);
       } else {
         await updateExtension(update.manifest_url);
       }

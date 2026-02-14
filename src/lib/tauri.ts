@@ -23,12 +23,14 @@ export async function pluginPreviewLocal(
 export async function pluginInstall(
   manifestUrl: string,
   approvedPermissions: string[],
-  deferredPermissions?: string[]
+  deferredPermissions?: string[],
+  buildContext?: string
 ): Promise<InstalledPlugin> {
   return invoke("plugin_install", {
     manifestUrl,
     approvedPermissions,
     deferredPermissions: deferredPermissions ?? [],
+    buildContext: buildContext ?? null,
   });
 }
 
@@ -322,9 +324,14 @@ export async function dismissUpdate(itemId: string, version: string): Promise<vo
 
 export async function updatePlugin(
   manifestUrl: string,
-  expectedDigest: string | null
+  expectedDigest: string | null,
+  buildContext?: string | null
 ): Promise<InstalledPlugin> {
-  return invoke("update_plugin", { manifestUrl, expectedDigest });
+  return invoke("update_plugin", {
+    manifestUrl,
+    expectedDigest,
+    buildContext: buildContext ?? null,
+  });
 }
 
 export async function updateExtension(

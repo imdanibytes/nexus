@@ -7,6 +7,77 @@ use super::signing::{self, KeyConsistency, TrustedKeyStore};
 use super::storage::{ExtensionStorage, InstalledExtension};
 use super::ExtensionError;
 
+/// Fetch binary data from a URL. Supports `file://` (absolute or relative to manifest)
+/// and `http(s)://` URLs.
+async fn fetch_binary(
+    binary_url: &str,
+    manifest_url: Option<&str>,
+    ext_id: &str,
+) -> Result<Vec<u8>, ExtensionError> {
+    if let Some(file_path) = binary_url.strip_prefix("file://") {
+        let source = if Path::new(file_path).is_absolute() {
+            PathBuf::from(file_path)
+        } else if let Some(url) = manifest_url {
+            if let Some(manifest_file) = url.strip_prefix("file://") {
+                Path::new(manifest_file)
+                    .parent()
+                    .unwrap_or(Path::new("."))
+                    .join(file_path)
+            } else {
+                PathBuf::from(file_path)
+            }
+        } else {
+            PathBuf::from(file_path)
+        };
+
+        log::info!(
+            "Copying extension binary for '{}' from {}",
+            ext_id,
+            source.display()
+        );
+
+        if !source.exists() {
+            return Err(ExtensionError::Other(format!(
+                "Binary not found: {}",
+                source.display()
+            )));
+        }
+
+        Ok(std::fs::read(&source)?)
+    } else {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .map_err(|e| ExtensionError::Other(format!("HTTP client error: {}", e)))?;
+
+        log::info!(
+            "Downloading extension binary for '{}' from {}",
+            ext_id,
+            binary_url
+        );
+
+        let response = client
+            .get(binary_url)
+            .send()
+            .await
+            .map_err(|e| ExtensionError::Other(format!("Download failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ExtensionError::Other(format!(
+                "Binary download returned status {}",
+                response.status()
+            )));
+        }
+
+        let data = response
+            .bytes()
+            .await
+            .map_err(|e| ExtensionError::Other(format!("Failed to read binary: {}", e)))?;
+        Ok(data.to_vec())
+    }
+}
+
 /// Manages the lifecycle of host extensions: install, enable, disable, remove.
 pub struct ExtensionLoader {
     /// Root directory for extension packages: ~/.nexus/extensions/
@@ -71,9 +142,11 @@ impl ExtensionLoader {
     }
 
     /// Install an extension from a manifest. Downloads and verifies the binary.
+    /// `manifest_url` is used to resolve relative `file://` binary paths.
     pub async fn install(
         &mut self,
         manifest: ExtensionManifest,
+        manifest_url: Option<&str>,
     ) -> Result<InstalledExtension, ExtensionError> {
         // Validate manifest
         manifest
@@ -98,49 +171,27 @@ impl ExtensionLoader {
                 ))
             })?;
 
-        // Download binary
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
-            .redirect(reqwest::redirect::Policy::limited(5))
-            .build()
-            .map_err(|e| ExtensionError::Other(format!("HTTP client error: {}", e)))?;
+        let binary_data = fetch_binary(&binary_entry.url, manifest_url, &manifest.id).await?;
 
-        log::info!(
-            "Downloading extension binary for '{}' from {}",
-            manifest.id,
-            binary_entry.url
-        );
+        // Skip signature verification for local file:// binaries (dev workflow)
+        if binary_entry.url.starts_with("file://") {
+            log::info!(
+                "Skipping signature verification for local binary '{}'",
+                manifest.id
+            );
+        } else {
+            signing::verify_binary(
+                &manifest.author_public_key,
+                &binary_data,
+                &binary_entry.signature,
+                &binary_entry.sha256,
+            )?;
 
-        let response = client
-            .get(&binary_entry.url)
-            .send()
-            .await
-            .map_err(|e| ExtensionError::Other(format!("Download failed: {}", e)))?;
-
-        if !response.status().is_success() {
-            return Err(ExtensionError::Other(format!(
-                "Binary download returned status {}",
-                response.status()
-            )));
+            log::info!(
+                "Signature verified for extension '{}'",
+                manifest.id
+            );
         }
-
-        let binary_data = response
-            .bytes()
-            .await
-            .map_err(|e| ExtensionError::Other(format!("Failed to read binary: {}", e)))?;
-
-        // Verify signature
-        signing::verify_binary(
-            &manifest.author_public_key,
-            &binary_data,
-            &binary_entry.signature,
-            &binary_entry.sha256,
-        )?;
-
-        log::info!(
-            "Signature verified for extension '{}'",
-            manifest.id
-        );
 
         // Check author key consistency (TOFU)
         match self
@@ -293,6 +344,7 @@ impl ExtensionLoader {
         manifest: ExtensionManifest,
         registry: &mut ExtensionRegistry,
         force_key: bool,
+        manifest_url: Option<&str>,
     ) -> Result<InstalledExtension, ExtensionError> {
         manifest
             .validate()
@@ -353,46 +405,23 @@ impl ExtensionLoader {
                 ))
             })?;
 
-        // Download binary
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
-            .redirect(reqwest::redirect::Policy::limited(5))
-            .build()
-            .map_err(|e| ExtensionError::Other(format!("HTTP client error: {}", e)))?;
+        let binary_data = fetch_binary(&binary_entry.url, manifest_url, &manifest.id).await?;
 
-        log::info!(
-            "Downloading updated binary for '{}' from {}",
-            manifest.id,
-            binary_entry.url
-        );
+        if binary_entry.url.starts_with("file://") {
+            log::info!(
+                "Skipping signature verification for local binary '{}'",
+                manifest.id
+            );
+        } else {
+            signing::verify_binary(
+                &manifest.author_public_key,
+                &binary_data,
+                &binary_entry.signature,
+                &binary_entry.sha256,
+            )?;
 
-        let response = client
-            .get(&binary_entry.url)
-            .send()
-            .await
-            .map_err(|e| ExtensionError::Other(format!("Download failed: {}", e)))?;
-
-        if !response.status().is_success() {
-            return Err(ExtensionError::Other(format!(
-                "Binary download returned status {}",
-                response.status()
-            )));
+            log::info!("Signature verified for updated extension '{}'", manifest.id);
         }
-
-        let binary_data = response
-            .bytes()
-            .await
-            .map_err(|e| ExtensionError::Other(format!("Failed to read binary: {}", e)))?;
-
-        // Verify signature
-        signing::verify_binary(
-            &manifest.author_public_key,
-            &binary_data,
-            &binary_entry.signature,
-            &binary_entry.sha256,
-        )?;
-
-        log::info!("Signature verified for updated extension '{}'", manifest.id);
 
         // Write binary to disk
         let ext_dir = self.extensions_dir.join(&manifest.id);

@@ -58,12 +58,22 @@ pub async fn image_exists(image: &str) -> NexusResult<bool> {
     }
 }
 
-/// Check if a Docker image exists in a remote registry without pulling it.
+/// Check if a Docker image is available — locally first, then in its remote registry.
 ///
-/// Supports ghcr.io and Docker Hub. Returns false for unrecognized registries
-/// or network errors (fail-open: install button still enabled, pull will fail
-/// with a clear error message instead).
+/// Supports ghcr.io and Docker Hub for remote checks. Returns false for unrecognized
+/// registries or network errors (fail-open: install button still enabled, pull will
+/// fail with a clear error message instead).
 pub async fn check_image_available(image: &str) -> bool {
+    // Check local Docker first — handles locally-built images (e.g. from local registries)
+    match image_exists(image).await {
+        Ok(true) => return true,
+        Ok(false) => {}
+        Err(e) => {
+            log::warn!("Local image check failed for {}: {}", image, e);
+            // Fall through to remote check
+        }
+    }
+
     match check_image_available_inner(image).await {
         Ok(available) => available,
         Err(e) => {

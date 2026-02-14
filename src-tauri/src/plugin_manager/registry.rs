@@ -249,6 +249,11 @@ pub struct RegistryEntry {
     pub icon: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
+    /// Absolute path to a directory containing a Dockerfile.
+    /// Set automatically for local registry entries that declare `build_context`.
+    /// When present, Nexus can build the image from source instead of pulling.
+    #[serde(default)]
+    pub build_context: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -325,11 +330,30 @@ fn fetch_local(path_str: &str) -> NexusResult<Registry> {
         scan_yaml_registry(&dir)?
     };
 
-    // Resolve relative manifest_url paths to absolute file paths
+    // Resolve relative paths to absolute file paths
     for entry in &mut registry.plugins {
         if !entry.manifest_url.starts_with("http://") && !entry.manifest_url.starts_with("https://") {
             let resolved = dir.join(&entry.manifest_url);
             entry.manifest_url = format!("file://{}", resolved.display());
+        }
+        // Resolve build_context to absolute path
+        if let Some(ref ctx) = entry.build_context {
+            if !ctx.starts_with('/') {
+                let resolved = dir.join(ctx);
+                entry.build_context = Some(resolved.display().to_string());
+            }
+        } else {
+            // Auto-detect: if a Dockerfile sits next to the manifest, set build_context
+            let manifest_path = if let Some(fp) = entry.manifest_url.strip_prefix("file://") {
+                std::path::PathBuf::from(fp)
+            } else {
+                dir.join(&entry.manifest_url)
+            };
+            if let Some(manifest_dir) = manifest_path.parent() {
+                if manifest_dir.join("Dockerfile").exists() {
+                    entry.build_context = Some(manifest_dir.display().to_string());
+                }
+            }
         }
     }
 

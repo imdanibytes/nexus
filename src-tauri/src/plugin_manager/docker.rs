@@ -237,17 +237,118 @@ pub async fn get_image_digest(image: &str) -> NexusResult<Option<String>> {
     Ok(None)
 }
 
+/// Parse a .dockerignore file into a list of glob patterns.
+/// Supports comment lines (#), negation (!), and trims whitespace.
+fn parse_dockerignore(context_dir: &Path) -> Vec<(String, bool)> {
+    let ignore_path = context_dir.join(".dockerignore");
+    let content = match std::fs::read_to_string(&ignore_path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    content
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                return None;
+            }
+            if let Some(pattern) = trimmed.strip_prefix('!') {
+                Some((pattern.to_string(), true)) // negation
+            } else {
+                Some((trimmed.to_string(), false))
+            }
+        })
+        .collect()
+}
+
+/// Check whether a relative path is excluded by .dockerignore patterns.
+fn is_ignored(rel_path: &str, rules: &[(String, bool)]) -> bool {
+    let mut ignored = false;
+    for (pattern, negated) in rules {
+        // Match against the path or any component prefix
+        let matches = glob_match(pattern, rel_path)
+            || rel_path.starts_with(&format!("{}/", pattern));
+        if matches {
+            ignored = !negated;
+        }
+    }
+    ignored
+}
+
+/// Simple glob matcher supporting * and ? (no ** needed for .dockerignore top-level patterns).
+fn glob_match(pattern: &str, text: &str) -> bool {
+    // Convert to regex for reliable matching
+    let mut regex_str = String::from("^");
+    for ch in pattern.chars() {
+        match ch {
+            '*' => regex_str.push_str(".*"),
+            '?' => regex_str.push('.'),
+            '.' | '+' | '(' | ')' | '{' | '}' | '[' | ']' | '^' | '$' | '|' | '\\' => {
+                regex_str.push('\\');
+                regex_str.push(ch);
+            }
+            _ => regex_str.push(ch),
+        }
+    }
+    regex_str.push('$');
+    regex::Regex::new(&regex_str)
+        .map(|re| re.is_match(text))
+        .unwrap_or(false)
+}
+
+/// Create a tar archive of the build context, respecting .dockerignore.
+fn create_build_context(context_dir: &Path) -> NexusResult<Vec<u8>> {
+    let rules = parse_dockerignore(context_dir);
+    let mut archive = tar::Builder::new(Vec::new());
+
+    fn walk_dir(
+        dir: &Path,
+        base: &Path,
+        rules: &[(String, bool)],
+        archive: &mut tar::Builder<Vec<u8>>,
+    ) -> Result<(), NexusError> {
+        let entries = std::fs::read_dir(dir)
+            .map_err(|e| NexusError::Other(format!("Failed to read dir {}: {}", dir.display(), e)))?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| NexusError::Other(e.to_string()))?;
+            let abs_path = entry.path();
+            let rel_path = abs_path
+                .strip_prefix(base)
+                .unwrap_or(&abs_path)
+                .to_string_lossy();
+
+            if is_ignored(&rel_path, rules) {
+                continue;
+            }
+
+            if abs_path.is_dir() {
+                walk_dir(&abs_path, base, rules, archive)?;
+            } else {
+                archive
+                    .append_path_with_name(&abs_path, &*rel_path)
+                    .map_err(|e| NexusError::Other(format!(
+                        "Failed to add {} to build context: {}",
+                        rel_path, e
+                    )))?;
+            }
+        }
+        Ok(())
+    }
+
+    walk_dir(context_dir, context_dir, &rules, &mut archive)?;
+
+    archive
+        .into_inner()
+        .map_err(|e| NexusError::Other(format!("Failed to finalize build context: {}", e)))
+}
+
 pub async fn build_image(context_dir: &Path, tag: &str) -> NexusResult<()> {
     let docker = connect()?;
 
-    // Create a tar archive of the build context
-    let mut archive = tar::Builder::new(Vec::new());
-    archive
-        .append_dir_all(".", context_dir)
-        .map_err(|e| NexusError::Other(format!("Failed to create build context: {}", e)))?;
-    let tar_bytes = archive
-        .into_inner()
-        .map_err(|e| NexusError::Other(format!("Failed to finalize build context: {}", e)))?;
+    // Create a tar archive of the build context, respecting .dockerignore
+    let tar_bytes = create_build_context(context_dir)?;
 
     let opts = BuildImageOptions {
         t: Some(tag.to_string()),

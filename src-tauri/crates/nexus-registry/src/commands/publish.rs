@@ -111,8 +111,22 @@ pub fn run(registry_url: &str, package_path: &Path) -> Result<()> {
 
         match pr_result {
             Ok(output) if output.status.success() => {
-                let url = String::from_utf8_lossy(&output.stdout);
-                println!("Pull request created: {}", url.trim());
+                let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                println!("Pull request created: {url}");
+
+                // Enable auto-merge so it merges once checks pass
+                let merge_result = Command::new("gh")
+                    .args(["pr", "merge", "--auto", "--squash", "--delete-branch", &url])
+                    .current_dir(&clone_path)
+                    .output();
+                match merge_result {
+                    Ok(o) if o.status.success() => {
+                        println!("Auto-merge enabled — will merge when checks pass.");
+                    }
+                    _ => {
+                        println!("Note: could not enable auto-merge (repo may not have it configured).");
+                    }
+                }
             }
             _ => {
                 println!("Could not create PR automatically.");

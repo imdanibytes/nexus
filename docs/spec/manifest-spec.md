@@ -62,6 +62,22 @@ registry before publishing.
   // Optional — minimum Nexus version required
   "min_nexus_version": "0.2.0",
 
+  // Optional — MCP tools exposed to AI assistants
+  "mcp": {
+    "tools": [
+      {
+        "name": "tool_name",
+        "description": "What this tool does.",
+        "permissions": [],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    ]
+  },
+
   // Optional — configurable settings (rendered as forms in Nexus shell)
   "settings": [
     {
@@ -124,6 +140,21 @@ The following Unicode code points are rejected in display fields:
 - U+200E, U+200F (LRM, RLM)
 - U+202A–U+202E (LRE, RLE, PDF, LRO, RLO)
 - U+2066–U+2069 (LRI, RLI, FSI, PDI)
+
+### MCP Tools Schema
+
+Each entry in the `mcp.tools` array must have:
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `name` | Yes | string | Tool name (used in `tools/call` requests) |
+| `description` | Yes | string | What the tool does (shown to AI assistants) |
+| `permissions` | No | string[] | Permissions required to call this tool |
+| `input_schema` | Yes | object | JSON Schema for the tool's input arguments |
+
+The `input_schema` must be a valid JSON Schema object with `type: "object"`.
+Nexus routes `tools/call` MCP requests to `POST /mcp/call` on the plugin's
+container, passing `{ "tool_name": "...", "arguments": { ... } }`.
 
 ### Settings Schema
 

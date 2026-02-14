@@ -536,26 +536,139 @@ Import it into Postman or similar tools for interactive testing.
 
 ---
 
-## Publishing
+## MCP Tools
 
-To publish a plugin to a registry:
-
-1. Push your Docker image to a container registry (Docker Hub, GHCR, etc.)
-2. Host your `plugin.json` manifest at a public URL
-3. Add the manifest URL to a Nexus registry's `registry.json`
-
-Registry format:
+Plugins can expose tools to AI assistants via the Model Context Protocol. Declare
+tools in your manifest:
 
 ```json
-[
-  {
-    "manifest_url": "https://raw.githubusercontent.com/you/plugin/main/plugin.json",
-    "name": "My Plugin",
-    "description": "What it does",
-    "author": "Your Name",
-    "version": "1.0.0"
+{
+  "mcp": {
+    "tools": [
+      {
+        "name": "do_something",
+        "description": "What this tool does and when to use it.",
+        "permissions": ["network:internet"],
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query"
+            }
+          },
+          "required": ["query"]
+        }
+      }
+    ]
   }
-]
+}
+```
+
+Nexus routes MCP `tools/call` requests to your plugin's `POST /mcp/call`
+endpoint with the body:
+
+```json
+{ "tool_name": "do_something", "arguments": { "query": "..." } }
+```
+
+Your handler returns an MCP-compatible result:
+
+```json
+{
+  "content": [{ "type": "text", "text": "Result here" }],
+  "is_error": false
+}
+```
+
+Each tool can declare its own `permissions` array. A tool with
+`"permissions": ["network:internet"]` requires the plugin to have that
+permission approved before the tool can be called.
+
+---
+
+## Publishing
+
+Use the **nexus-plugin-cli** to publish plugins to a registry.
+
+### Prerequisites
+
+1. A GitHub account (the CLI uses `gh` for authentication)
+2. Docker image pushed to a container registry (GHCR, Docker Hub, etc.)
+3. `plugin.json` hosted at a public URL (e.g., GitHub raw URL)
+
+### Install the CLI
+
+```bash
+# From the repository
+git clone https://github.com/imdanibytes/nexus-plugin-cli.git
+cd nexus-plugin-cli
+npm link
+```
+
+### Publish
+
+```bash
+# Interactive mode — prompts for categories and metadata
+nexus-plugin publish .
+
+# Non-interactive (CI-friendly)
+nexus-plugin publish . \
+  --manifest-url "https://raw.githubusercontent.com/you/plugin/main/plugin.json" \
+  --categories "productivity,ai-tools" \
+  --yes
+```
+
+The CLI will:
+
+1. **Validate** your `plugin.json` against the manifest spec
+2. **Compute `manifest_sha256`** — SHA-256 hash of the manifest content
+3. **Resolve `image_digest`** — SHA-256 of the Docker image via `docker inspect`
+4. **Create a registry entry** — per-plugin YAML file with all metadata
+5. **Open a PR** to the registry repository
+6. **Auto-merge** (if you're the registry owner)
+
+Both `image_digest` and `manifest_sha256` are **required**. The CLI will fail
+if the Docker image isn't available locally or in the remote registry.
+
+### Validate Only
+
+```bash
+nexus-plugin validate .
+nexus-plugin validate . --json   # Machine-readable output
+```
+
+### Scaffold a New Plugin
+
+```bash
+nexus-plugin init
+```
+
+Generates a starter project with `plugin.json`, `Dockerfile`, server, UI,
+and a GitHub Actions workflow for Docker image builds.
+
+### Registry Format
+
+The registry uses per-plugin YAML files compiled into `index.json` by CI:
+
+```yaml
+# plugins/com.example.my-plugin.yaml
+id: com.example.my-plugin
+name: My Plugin
+version: "1.0.0"
+description: What it does
+author: yourname
+author_url: https://github.com/yourname
+manifest_url: https://raw.githubusercontent.com/yourname/plugin/main/plugin.json
+image: ghcr.io/yourname/plugin:1.0.0
+image_digest: "sha256:abc123..."
+manifest_sha256: def456...
+license: MIT
+homepage: https://github.com/yourname/plugin
+categories:
+  - productivity
+created_at: "2026-01-15T10:00:00Z"
+status: active
 ```
 
 Users can add custom registries in **Settings > Registries**.

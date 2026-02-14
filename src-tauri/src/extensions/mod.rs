@@ -1,4 +1,5 @@
 pub mod capability;
+pub mod ipc;
 pub mod loader;
 pub mod manifest;
 pub mod process;
@@ -7,11 +8,14 @@ pub mod signing;
 pub mod storage;
 pub mod validation;
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub use capability::Capability;
+pub use ipc::IpcRouter;
 
 /// Risk level for an extension operation, determining whether runtime approval is needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,4 +123,8 @@ pub trait Extension: Send + Sync + 'static {
     /// Execute a named operation with the given JSON input.
     /// Input will already be validated against the operation's input_schema before this is called.
     async fn execute(&self, operation: &str, input: Value) -> Result<OperationResult, ExtensionError>;
+
+    /// Inject an IPC router so this extension can call other extensions.
+    /// Default no-op — only ProcessExtension overrides this.
+    fn set_ipc_router(&self, _router: Arc<dyn IpcRouter>) {}
 }

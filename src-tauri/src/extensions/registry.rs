@@ -1,10 +1,16 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+
 use serde::Serialize;
+
+use super::ipc::IpcRouter;
 use super::{Capability, Extension, OperationDef};
 
 /// Stores all registered extensions, built at startup.
 pub struct ExtensionRegistry {
-    extensions: HashMap<String, Box<dyn Extension>>,
+    extensions: HashMap<String, Arc<dyn Extension>>,
+    /// Stored so newly registered extensions get the router automatically.
+    ipc_router: Option<Arc<dyn IpcRouter>>,
 }
 
 /// Serializable summary of an extension for the list API.
@@ -21,14 +27,19 @@ impl ExtensionRegistry {
     pub fn new() -> Self {
         Self {
             extensions: HashMap::new(),
+            ipc_router: None,
         }
     }
 
     /// Register an extension. Panics if an extension with the same ID is already registered.
-    pub fn register(&mut self, ext: Box<dyn Extension>) {
+    pub fn register(&mut self, ext: Arc<dyn Extension>) {
         let id = ext.id().to_string();
         if self.extensions.contains_key(&id) {
             panic!("Duplicate extension ID: {}", id);
+        }
+        // Inject IPC router if we have one
+        if let Some(ref router) = self.ipc_router {
+            ext.set_ipc_router(router.clone());
         }
         log::info!("Registered extension: {} ({})", ext.display_name(), id);
         self.extensions.insert(id, ext);
@@ -41,7 +52,20 @@ impl ExtensionRegistry {
 
     /// Look up an extension by ID.
     pub fn get(&self, id: &str) -> Option<&dyn Extension> {
-        self.extensions.get(id).map(|b| b.as_ref())
+        self.extensions.get(id).map(|a| a.as_ref())
+    }
+
+    /// Get a cloneable Arc reference to an extension (for lock-free execution).
+    pub fn get_arc(&self, id: &str) -> Option<Arc<dyn Extension>> {
+        self.extensions.get(id).cloned()
+    }
+
+    /// Store the IPC router and propagate it to all registered extensions.
+    pub fn set_ipc_router(&mut self, router: Arc<dyn IpcRouter>) {
+        for ext in self.extensions.values() {
+            ext.set_ipc_router(router.clone());
+        }
+        self.ipc_router = Some(router);
     }
 
     /// List all registered extensions with their operations.

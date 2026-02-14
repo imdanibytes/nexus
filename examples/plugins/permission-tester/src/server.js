@@ -415,6 +415,63 @@ async function runSecurityAudit() {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // 14. Extension IPC — Plugin → Extension → IPC → Extension
+  // ─────────────────────────────────────────────────────────────
+  section("Extension IPC");
+
+  // Direct call to ipc-provider (simple extension call)
+  await expectAllow(
+    "ipc-provider:list_keys → direct extension call",
+    "POST", "/extensions/ipc-provider/list_keys",
+    { input: {} }
+  );
+
+  await expectAllow(
+    "ipc-provider:get_record(alpha) → direct extension call",
+    "POST", "/extensions/ipc-provider/get_record",
+    { input: { key: "alpha" } }
+  );
+
+  // Call ipc-consumer which internally calls ipc-provider via IPC (full chain)
+  await expectAllow(
+    "ipc-consumer:fetch_record(alpha) → IPC chain test",
+    "POST", "/extensions/ipc-consumer/fetch_record",
+    { input: { key: "alpha" } }
+  );
+
+  await expectAllow(
+    "ipc-consumer:fetch_all_keys → IPC chain test",
+    "POST", "/extensions/ipc-consumer/fetch_all_keys",
+    { input: {} }
+  );
+
+  await expectAllow(
+    "ipc-consumer:aggregate([alpha,beta]) → multi-IPC chain test",
+    "POST", "/extensions/ipc-consumer/aggregate",
+    { input: { keys: ["alpha", "beta"] } }
+  );
+
+  await expectAllow(
+    "ipc-consumer:discover → IPC list_extensions",
+    "POST", "/extensions/ipc-consumer/discover",
+    { input: {} }
+  );
+
+  // Permission boundary: undeclared extension should be denied
+  await expectDeny(
+    "Undeclared extension → should be 403",
+    "POST", "/extensions/nonexistent-ext/some_op",
+    { input: {} }
+  );
+
+  // Undeclared operation on a declared extension
+  await expectDeny(
+    "Undeclared operation on ipc-provider → should be denied",
+    "POST", "/extensions/ipc-provider/secret_operation",
+    { input: {} }
+  );
+
+  // ─────────────────────────────────────────────────────────────
   // Summary
   // ─────────────────────────────────────────────────────────────
 

@@ -58,6 +58,7 @@ pub fn run() {
             let mgr = PluginManager::new(data_dir.clone());
 
             let state = Arc::new(RwLock::new(mgr));
+            PluginManager::wire_extension_ipc(&state);
             app.manage(state.clone());
 
             let approval_bridge = Arc::new(ApprovalBridge::new(app_handle.clone()));

@@ -9,7 +9,7 @@ import { FolderOpen, RefreshCw, Blocks } from "lucide-react";
 
 export function ExtensionMarketplacePage() {
   const { extensions, isLoading, refresh, search } = useExtensionMarketplace();
-  const { selectExtensionEntry, setView, addNotification } = useAppStore();
+  const { selectExtensionEntry, setView, addNotification, setInstallStatus } = useAppStore();
   const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
@@ -25,6 +25,7 @@ export function ExtensionMarketplacePage() {
     if (!manifestPath) return;
 
     setInstalling(true);
+    setInstallStatus("Installing extension...");
     try {
       await extensionInstallLocal(manifestPath);
       addNotification("Extension installed from local manifest", "success");
@@ -33,6 +34,7 @@ export function ExtensionMarketplacePage() {
       addNotification(`Local install failed: ${e}`, "error");
     } finally {
       setInstalling(false);
+      setInstallStatus(null);
     }
   }
 

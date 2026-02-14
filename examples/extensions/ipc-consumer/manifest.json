@@ -1,0 +1,68 @@
+{
+  "id": "ipc-consumer",
+  "display_name": "IPC Test Consumer",
+  "version": "0.1.0",
+  "description": "Test extension that fetches data from ipc-provider via IPC",
+  "author": "danibytes",
+  "author_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0=",
+  "operations": [
+    {
+      "name": "fetch_record",
+      "description": "Fetches a record from ipc-provider via IPC",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Record key to fetch from the provider"
+          }
+        },
+        "required": ["key"]
+      }
+    },
+    {
+      "name": "fetch_all_keys",
+      "description": "Fetches all available keys from ipc-provider via IPC",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "aggregate",
+      "description": "Fetches multiple records from ipc-provider and sums their values",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Array of record keys to aggregate"
+          }
+        },
+        "required": ["keys"]
+      }
+    },
+    {
+      "name": "discover",
+      "description": "Lists all available extensions via IPC discovery",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "capabilities": [],
+  "binaries": {
+    "aarch64-apple-darwin": {
+      "url": "file:///Users/danibytes/workspace/nexus/examples/extensions/ipc-consumer/target/release/ipc-consumer",
+      "signature": "dev",
+      "sha256": "dev"
+    }
+  },
+  "extension_dependencies": ["ipc-provider"]
+}

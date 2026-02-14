@@ -12,6 +12,7 @@ import { usePlugins } from "./hooks/usePlugins";
 import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { InstallOverlay } from "./components/InstallOverlay";
 
 function PluginsView() {
   const { plugins, selectedPlugin, busyPlugins, start, stop, remove, getLogs } =
@@ -137,6 +138,7 @@ function App() {
 
   return (
     <Shell>
+      <InstallOverlay />
       {currentView === "plugins" && (
         <ErrorBoundary label="Plugins">
           <PluginsView />

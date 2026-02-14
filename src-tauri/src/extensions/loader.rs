@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::manifest::ExtensionManifest;
 use super::process::ProcessExtension;
@@ -6,6 +7,43 @@ use super::registry::ExtensionRegistry;
 use super::signing::{self, KeyConsistency, TrustedKeyStore};
 use super::storage::{ExtensionStorage, InstalledExtension};
 use super::ExtensionError;
+
+/// Make an installed binary executable and properly signed for the current platform.
+/// On macOS (Apple Silicon), binaries must have a valid code signature or the kernel
+/// will SIGKILL them. Re-signing with an ad-hoc signature after copy/write ensures this.
+fn prepare_binary(path: &Path) -> Result<(), ExtensionError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(path)?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(path, perms)?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("codesign")
+            .args(["--force", "--sign", "-", path.to_str().unwrap_or_default()])
+            .output();
+        match status {
+            Ok(output) if output.status.success() => {
+                log::debug!("Ad-hoc signed binary: {}", path.display());
+            }
+            Ok(output) => {
+                log::warn!(
+                    "codesign failed for '{}': {}",
+                    path.display(),
+                    String::from_utf8_lossy(&output.stderr).trim()
+                );
+            }
+            Err(e) => {
+                log::warn!("codesign not available: {}", e);
+            }
+        }
+    }
+
+    Ok(())
+}
 
 /// Fetch binary data from a URL. Supports `file://` (absolute or relative to manifest)
 /// and `http(s)://` URLs.
@@ -128,7 +166,7 @@ impl ExtensionLoader {
             match ext.start() {
                 Ok(()) => {
                     log::info!("Loaded extension: {}", installed.manifest.id);
-                    registry.register(Box::new(ext));
+                    registry.register(Arc::new(ext));
                 }
                 Err(e) => {
                     log::error!(
@@ -234,15 +272,7 @@ impl ExtensionLoader {
 
         let binary_path = ext_dir.join(&binary_name);
         std::fs::write(&binary_path, &binary_data)?;
-
-        // Set executable permission on Unix
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&binary_path)?.permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&binary_path, perms)?;
-        }
+        prepare_binary(&binary_path)?;
 
         // Write manifest
         let manifest_path = ext_dir.join("manifest.json");
@@ -293,7 +323,7 @@ impl ExtensionLoader {
 
         let ext = ProcessExtension::new(installed.manifest.clone(), binary_path);
         ext.start()?;
-        registry.register(Box::new(ext));
+        registry.register(Arc::new(ext));
 
         self.storage.set_enabled(ext_id, true)?;
         log::info!("Enabled extension: {}", ext_id);
@@ -435,14 +465,7 @@ impl ExtensionLoader {
 
         let binary_path = ext_dir.join(&binary_name);
         std::fs::write(&binary_path, &binary_data)?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&binary_path)?.permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&binary_path, perms)?;
-        }
+        prepare_binary(&binary_path)?;
 
         // Write manifest
         let manifest_path = ext_dir.join("manifest.json");
@@ -473,10 +496,13 @@ impl ExtensionLoader {
     }
 
     /// Install from a local manifest file (for development/testing).
-    /// Resolves the binary path from the manifest's `binaries` field.
+    /// Idempotent: if already installed, stops the running process, swaps the
+    /// binary and manifest in place, and updates storage. The extension is left
+    /// disabled so the caller can re-enable it with the new binary.
     pub fn install_local(
         &mut self,
         manifest_path: &Path,
+        registry: &mut ExtensionRegistry,
     ) -> Result<InstalledExtension, ExtensionError> {
         let manifest_data = std::fs::read_to_string(manifest_path)?;
         let manifest: ExtensionManifest = serde_json::from_str(&manifest_data)
@@ -486,11 +512,12 @@ impl ExtensionLoader {
             .validate()
             .map_err(|e| ExtensionError::Other(format!("Invalid manifest: {}", e)))?;
 
-        if self.storage.get(&manifest.id).is_some() {
-            return Err(ExtensionError::Other(format!(
-                "Extension '{}' is already installed",
-                manifest.id
-            )));
+        let reinstall = self.storage.get(&manifest.id).is_some();
+        if reinstall {
+            // Stop running process and unregister
+            registry.unregister(&manifest.id);
+            self.storage.remove(&manifest.id)?;
+            log::info!("Reinstalling extension '{}' (replacing existing)", manifest.id);
         }
 
         // Resolve binary from manifest
@@ -504,7 +531,14 @@ impl ExtensionLoader {
             })?;
 
         let binary_source = if let Some(path) = binary_entry.url.strip_prefix("file://") {
-            PathBuf::from(path)
+            let p = PathBuf::from(path);
+            if p.is_absolute() {
+                p
+            } else {
+                // Resolve relative file:// paths against the manifest directory
+                let manifest_dir = manifest_path.parent().unwrap_or(Path::new("."));
+                manifest_dir.join(path)
+            }
         } else {
             // Treat as a path relative to the manifest directory
             let manifest_dir = manifest_path.parent().unwrap_or(Path::new("."));
@@ -530,14 +564,7 @@ impl ExtensionLoader {
 
         let dest_path = ext_dir.join(&binary_name);
         std::fs::copy(&binary_source, &dest_path)?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&dest_path)?.permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&dest_path, perms)?;
-        }
+        prepare_binary(&dest_path)?;
 
         // Copy manifest
         let manifest_dest = ext_dir.join("manifest.json");
@@ -551,6 +578,11 @@ impl ExtensionLoader {
         };
 
         self.storage.add(installed.clone())?;
+
+        if reinstall {
+            log::info!("Reinstalled extension '{}'", installed.manifest.id);
+        }
+
         Ok(installed)
     }
 }

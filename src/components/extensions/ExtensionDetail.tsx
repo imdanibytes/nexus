@@ -70,7 +70,7 @@ interface Props {
 }
 
 export function ExtensionDetail({ entry, onBack }: Props) {
-  const { addNotification } = useAppStore();
+  const { addNotification, setInstallStatus } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [manifest, setManifest] = useState<ExtensionManifest | null>(null);
@@ -98,6 +98,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
 
   async function handleInstall() {
     setInstalling(true);
+    setInstallStatus("Installing extension...");
     try {
       await extensionInstall(entry.manifest_url);
       addNotification(`Extension "${entry.name}" installed`, "success");
@@ -106,6 +107,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
       addNotification(`Install failed: ${e}`, "error");
     } finally {
       setInstalling(false);
+      setInstallStatus(null);
     }
   }
 

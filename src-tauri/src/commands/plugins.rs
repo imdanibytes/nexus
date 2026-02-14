@@ -93,26 +93,21 @@ pub async fn plugin_install_local(
         .validate()
         .map_err(|e| format!("Invalid manifest: {}", e))?;
 
-    // Auto-build: if the image doesn't exist locally and a Dockerfile sits
-    // next to the manifest, build it before installing.
-    let image_exists = docker::image_exists(&manifest.image)
-        .await
-        .unwrap_or(false);
-    if !image_exists {
-        let manifest_dir = Path::new(&manifest_path)
-            .parent()
-            .ok_or("Invalid manifest path")?;
-        let dockerfile = manifest_dir.join("Dockerfile");
-        if dockerfile.exists() {
-            log::info!(
-                "Image {} not found, building from {}",
-                manifest.image,
-                manifest_dir.display()
-            );
-            docker::build_image(manifest_dir, &manifest.image)
-                .await
-                .map_err(|e| format!("Docker build failed: {}", e))?;
-        }
+    // Auto-build: if a Dockerfile sits next to the manifest, always rebuild.
+    // Local installs are a dev workflow — always pick up the latest code.
+    let manifest_dir = Path::new(&manifest_path)
+        .parent()
+        .ok_or("Invalid manifest path")?;
+    let dockerfile = manifest_dir.join("Dockerfile");
+    if dockerfile.exists() {
+        log::info!(
+            "Building image {} from {}",
+            manifest.image,
+            manifest_dir.display()
+        );
+        docker::build_image(manifest_dir, &manifest.image)
+            .await
+            .map_err(|e| format!("Docker build failed: {}", e))?;
     }
 
     let mut mgr = state.write().await;

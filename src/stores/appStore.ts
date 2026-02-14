@@ -12,6 +12,11 @@ interface Notification {
   type: "info" | "success" | "error";
 }
 
+interface InstallStatus {
+  active: boolean;
+  message: string;
+}
+
 interface AppState {
   currentView: View;
   installedPlugins: InstalledPlugin[];
@@ -26,6 +31,7 @@ interface AppState {
   selectedExtensionEntry: ExtensionRegistryEntry | null;
   availableUpdates: AvailableUpdate[];
   updateCheckInterval: number;
+  installStatus: InstallStatus;
 
   setView: (view: View) => void;
   setPlugins: (plugins: InstalledPlugin[]) => void;
@@ -43,6 +49,7 @@ interface AppState {
   selectExtensionEntry: (entry: ExtensionRegistryEntry | null) => void;
   setAvailableUpdates: (updates: AvailableUpdate[]) => void;
   setUpdateCheckInterval: (minutes: number) => void;
+  setInstallStatus: (message: string | null) => void;
 }
 
 let notifCounter = 0;
@@ -61,6 +68,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedExtensionEntry: null,
   availableUpdates: [],
   updateCheckInterval: 30,
+  installStatus: { active: false, message: "" },
 
   setView: (view) => set({ currentView: view }),
   setPlugins: (plugins) => set({ installedPlugins: plugins }),
@@ -112,4 +120,10 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     })),
+  setInstallStatus: (message) =>
+    set({
+      installStatus: message
+        ? { active: true, message }
+        : { active: false, message: "" },
+    }),
 }));

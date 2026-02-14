@@ -35,6 +35,10 @@ pub struct ExtensionManifest {
     pub author_public_key: String,
     /// Per target-triple binary info (e.g. "aarch64-apple-darwin" → BinaryEntry)
     pub binaries: HashMap<String, BinaryEntry>,
+    /// Other extensions this extension can call via IPC.
+    /// IPC calls to undeclared targets are rejected at runtime.
+    #[serde(default)]
+    pub extension_dependencies: Vec<String>,
 }
 
 impl ExtensionManifest {
@@ -111,6 +115,22 @@ impl ExtensionManifest {
             }
             if entry.sha256.is_empty() {
                 return Err(format!("binary sha256 is empty for platform '{}'", platform));
+            }
+        }
+
+        // Validate extension_dependencies
+        for dep in &self.extension_dependencies {
+            if dep.is_empty() || dep.len() > 100 {
+                return Err(format!("extension_dependencies entry must be 1-100 characters: '{}'", dep));
+            }
+            if !dep.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-') {
+                return Err(format!(
+                    "extension_dependencies entry must contain only lowercase letters, digits, underscores, and hyphens: '{}'",
+                    dep
+                ));
+            }
+            if dep == &self.id {
+                return Err("extension_dependencies must not include self".into());
             }
         }
 

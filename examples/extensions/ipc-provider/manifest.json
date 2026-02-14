@@ -1,0 +1,43 @@
+{
+  "id": "ipc-provider",
+  "display_name": "IPC Test Provider",
+  "version": "0.1.0",
+  "description": "Test extension that provides data for IPC consumers",
+  "author": "danibytes",
+  "author_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0=",
+  "operations": [
+    {
+      "name": "get_record",
+      "description": "Returns a record by key (alpha, beta, gamma)",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Record key to look up"
+          }
+        },
+        "required": ["key"]
+      }
+    },
+    {
+      "name": "list_keys",
+      "description": "Returns all available record keys",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "capabilities": [],
+  "binaries": {
+    "aarch64-apple-darwin": {
+      "url": "file:///Users/danibytes/workspace/nexus/examples/extensions/ipc-provider/target/release/ipc-provider",
+      "signature": "dev",
+      "sha256": "dev"
+    }
+  },
+  "extension_dependencies": []
+}

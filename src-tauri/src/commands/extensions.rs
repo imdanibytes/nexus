@@ -221,8 +221,7 @@ pub async fn extension_install_local(
     manifest_path: String,
 ) -> Result<InstalledExtension, String> {
     let mut mgr = state.write().await;
-    mgr.extension_loader
-        .install_local(std::path::Path::new(&manifest_path))
+    mgr.install_extension_local(std::path::Path::new(&manifest_path))
         .map_err(|e| e.to_string())
 }
 

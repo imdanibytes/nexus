@@ -16,6 +16,7 @@ export function usePlugins() {
     removePlugin: removeFromStore,
     setBusy,
     addNotification,
+    setInstallStatus,
   } = useAppStore();
 
   const selectedPlugin = installedPlugins.find(
@@ -77,28 +78,34 @@ export function usePlugins() {
   // Step 2: Install with user-approved and deferred permissions
   const install = useCallback(
     async (manifestUrl: string, approvedPermissions: Permission[], deferredPermissions?: Permission[], buildContext?: string) => {
+      setInstallStatus(buildContext ? "Building & installing plugin..." : "Installing plugin...");
       try {
         await api.pluginInstall(manifestUrl, approvedPermissions, deferredPermissions, buildContext);
         addNotification("Plugin installed", "success");
         await refresh();
       } catch (e) {
         addNotification(`Install failed: ${e}`, "error");
+      } finally {
+        setInstallStatus(null);
       }
     },
-    [refresh, addNotification]
+    [refresh, addNotification, setInstallStatus]
   );
 
   const installLocal = useCallback(
     async (manifestPath: string, approvedPermissions: Permission[], deferredPermissions?: Permission[]) => {
+      setInstallStatus("Building & installing plugin...");
       try {
         await api.pluginInstallLocal(manifestPath, approvedPermissions, deferredPermissions);
         addNotification("Plugin installed from local manifest", "success");
         await refresh();
       } catch (e) {
         addNotification(`Local install failed: ${e}`, "error");
+      } finally {
+        setInstallStatus(null);
       }
     },
-    [refresh, addNotification]
+    [refresh, addNotification, setInstallStatus]
   );
 
   const start = useCallback(

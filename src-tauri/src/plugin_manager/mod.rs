@@ -5,10 +5,12 @@ pub mod registry;
 pub mod storage;
 
 use crate::error::{NexusError, NexusResult};
+use crate::extensions::ipc::AppIpcRouter;
 use crate::extensions::loader::ExtensionLoader;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::permissions::PermissionStore;
 use crate::update_checker::UpdateCheckState;
+use crate::AppState;
 use manifest::PluginManifest;
 use storage::{
     hash_token, InstalledPlugin, McpSettings, NexusSettings, PluginSettingsStore, PluginStatus,
@@ -18,6 +20,7 @@ use storage::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Generate a Docker volume name for a plugin's persistent data.
 fn data_volume_name(plugin_id: &str) -> String {
@@ -142,13 +145,28 @@ impl PluginManager {
 
         check_min_nexus_version(&manifest)?;
 
-        if self.storage.get(&manifest.id).is_some() {
-            return Err(NexusError::PluginAlreadyExists(manifest.id.clone()));
+        if let Some(existing) = self.storage.get(&manifest.id) {
+            log::info!("Reinstalling plugin '{}' (replacing existing)", manifest.id);
+
+            // Stop and remove old container, but keep volume (data) and permissions
+            if let Some(container_id) = &existing.container_id {
+                if existing.status == PluginStatus::Running {
+                    let _ = docker::stop_container(container_id).await;
+                }
+                let _ = docker::remove_container(container_id).await;
+            }
+
+            self.storage.remove(&manifest.id)?;
         }
 
-        // Pull the Docker image
-        log::info!("Pulling image: {}", manifest.image);
-        docker::pull_image(&manifest.image).await?;
+        // Pull the Docker image (skip if already present — e.g. locally built)
+        let image_exists = docker::image_exists(&manifest.image).await.unwrap_or(false);
+        if image_exists {
+            log::info!("Image already exists locally: {}", manifest.image);
+        } else {
+            log::info!("Pulling image: {}", manifest.image);
+            docker::pull_image(&manifest.image).await?;
+        }
 
         // Verify image digest if declared in manifest
         if let Some(ref expected_digest) = manifest.image_digest {
@@ -635,5 +653,24 @@ impl PluginManager {
     /// Remove a host extension (stop, delete files, unregister).
     pub fn remove_extension(&mut self, ext_id: &str) -> Result<(), crate::extensions::ExtensionError> {
         self.extension_loader.remove(ext_id, &mut self.extensions)
+    }
+
+    /// Install (or reinstall) an extension from a local manifest.
+    /// Idempotent: if already installed, hot-swaps the binary in place.
+    pub fn install_extension_local(
+        &mut self,
+        manifest_path: &std::path::Path,
+    ) -> Result<crate::extensions::storage::InstalledExtension, crate::extensions::ExtensionError> {
+        self.extension_loader.install_local(manifest_path, &mut self.extensions)
+    }
+
+    /// Create the IPC router and inject it into all registered extensions.
+    /// Must be called after the AppState Arc is constructed (needs the Arc for the router).
+    pub fn wire_extension_ipc(state: &AppState) {
+        let router = Arc::new(AppIpcRouter::new(state.clone()));
+        // Called during setup before the state is shared — no contention, no runtime needed
+        let mut mgr = state.try_write().expect("state not yet shared, try_write must succeed");
+        mgr.extensions.set_ipc_router(router);
+        log::info!("Extension IPC router wired");
     }
 }

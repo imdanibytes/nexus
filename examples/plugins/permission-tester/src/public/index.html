@@ -296,6 +296,29 @@
       <div id="ext-result" class="result result-empty">Click a button to test host extension operations</div>
     </div>
 
+    <!-- Extension IPC -->
+    <div class="card full-width">
+      <h2>Extension IPC <span class="badge badge-low">ipc chain</span></h2>
+      <p style="font-size: 0.75rem; color: var(--color-nx-text-secondary); margin: 0 0 1rem;">
+        Tests the full IPC chain: Plugin &rarr; Host API &rarr; ipc-consumer &rarr; IPC &rarr; ipc-provider.
+        Both IPC extensions must be installed and enabled.
+      </p>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+        <button class="btn-secondary" onclick="testIpcListKeys()">list_keys (direct)</button>
+        <button class="btn-primary" onclick="testIpcFetchRecord('alpha')">fetch alpha (IPC)</button>
+        <button class="btn-primary" onclick="testIpcFetchRecord('beta')">fetch beta (IPC)</button>
+        <button class="btn-primary" onclick="testIpcFetchRecord('gamma')">fetch gamma (IPC)</button>
+        <button class="btn-primary" onclick="testIpcFetchAllKeys()">fetch_all_keys (IPC)</button>
+        <button class="btn-primary" onclick="testIpcAggregate()">aggregate all (IPC)</button>
+        <button class="btn-secondary" onclick="testIpcDiscover()">discover extensions</button>
+      </div>
+      <div class="input-group">
+        <input type="text" id="ipc-key" placeholder="Custom record key..." />
+        <button class="btn-primary" onclick="testIpcFetchRecord(document.getElementById('ipc-key').value)">Fetch via IPC</button>
+      </div>
+      <div id="ipc-result" class="result result-empty">Click a button to test extension-to-extension IPC</div>
+    </div>
+
     <!-- Security Tests -->
     <div class="card full-width">
       <h2>Security Tests <span class="badge badge-high">adversarial</span></h2>
@@ -552,6 +575,61 @@
         setResult('ext-result', 'error', `Network error: ${e.message}`);
       }
     }
+
+    // ── Extension IPC Tests ─────────────────────────────────────
+
+    async function testIpcListKeys() {
+      setResult('ipc-result', 'pending', 'Calling ipc-provider > list_keys (direct)...');
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/ipc-provider/list_keys', { input: {} });
+        setResult('ipc-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ipc-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testIpcFetchRecord(key) {
+      if (!key) return;
+      setResult('ipc-result', 'pending', `Calling ipc-consumer > fetch_record (${key})...\nPlugin \u2192 Host API \u2192 ipc-consumer \u2192 IPC \u2192 ipc-provider`);
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/ipc-consumer/fetch_record', { input: { key } });
+        setResult('ipc-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ipc-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testIpcFetchAllKeys() {
+      setResult('ipc-result', 'pending', 'Calling ipc-consumer > fetch_all_keys...\nPlugin \u2192 Host API \u2192 ipc-consumer \u2192 IPC \u2192 ipc-provider');
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/ipc-consumer/fetch_all_keys', { input: {} });
+        setResult('ipc-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ipc-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testIpcAggregate() {
+      setResult('ipc-result', 'pending', 'Calling ipc-consumer > aggregate([alpha, beta, gamma])...\nPlugin \u2192 Host API \u2192 ipc-consumer \u2192 3x IPC \u2192 ipc-provider');
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/ipc-consumer/aggregate', { input: { keys: ['alpha', 'beta', 'gamma'] } });
+        setResult('ipc-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ipc-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    async function testIpcDiscover() {
+      setResult('ipc-result', 'pending', 'Calling ipc-consumer > discover...\nPlugin \u2192 Host API \u2192 ipc-consumer \u2192 IPC list_extensions');
+      try {
+        const result = await apiCall('POST', '/api/v1/extensions/ipc-consumer/discover', { input: {} });
+        setResult('ipc-result', result.ok ? 'success' : 'error', formatResult(result));
+      } catch (e) {
+        setResult('ipc-result', 'error', `Network error: ${e.message}`);
+      }
+    }
+
+    // ── Security Tests ────────────────────────────────────────
 
     async function runSecurityTests() {
       const el = document.getElementById('security-result');
@@ -1057,6 +1135,18 @@
         lines.push(`   \u{1f6e1}\ufe0f Request 1: ${r1.status}, Request 2: ${r2.status} (both should be non-2xx)`);
         lines.push('');
       }
+
+      // --- Extension IPC permission boundaries ---
+
+      await expectDeny(
+        'Undeclared extension: nonexistent-ext/some_op',
+        'POST', '/api/v1/extensions/nonexistent-ext/some_op', { input: {} }
+      );
+
+      await expectDeny(
+        'Undeclared operation: ipc-provider/secret_operation',
+        'POST', '/api/v1/extensions/ipc-provider/secret_operation', { input: {} }
+      );
 
       // --- Summary ---
 

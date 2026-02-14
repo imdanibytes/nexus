@@ -217,31 +217,33 @@ pub async fn call_extension(
                     let _ = mgr.permissions.activate(&auth.plugin_id, &required_perm);
                     drop(mgr);
 
-                    // Re-acquire read lock and re-resolve references
+                    // Clone Arc, drop lock, execute lock-free
                     let mgr = state.read().await;
-                    let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                    let ext_arc = mgr.extensions.get_arc(&ext_id).ok_or_else(|| {
                         error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
                     })?;
-                    let op_def = ext.operations().into_iter().find(|op| op.name == operation).ok_or_else(|| {
+                    let op_def = ext_arc.operations().into_iter().find(|op| op.name == operation).ok_or_else(|| {
                         error_response(StatusCode::INTERNAL_SERVER_ERROR, "Operation disappeared", None)
                     })?;
+                    drop(mgr);
 
                     return execute_and_respond(
-                        ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                        ext_arc, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
                     ).await;
                 }
                 super::approval::ApprovalDecision::ApproveOnce => {
                     // One-time: don't persist, state stays Deferred
                     let mgr = state.read().await;
-                    let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                    let ext_arc = mgr.extensions.get_arc(&ext_id).ok_or_else(|| {
                         error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
                     })?;
-                    let op_def = ext.operations().into_iter().find(|op| op.name == operation).ok_or_else(|| {
+                    let op_def = ext_arc.operations().into_iter().find(|op| op.name == operation).ok_or_else(|| {
                         error_response(StatusCode::INTERNAL_SERVER_ERROR, "Operation disappeared", None)
                     })?;
+                    drop(mgr);
 
                     return execute_and_respond(
-                        ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                        ext_arc, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
                     ).await;
                 }
                 super::approval::ApprovalDecision::Deny => {
@@ -333,25 +335,27 @@ pub async fn call_extension(
                                 );
                                 drop(mgr);
 
-                                // Re-acquire read lock and continue execution below
+                                // Clone Arc, drop lock, execute lock-free
                                 let mgr = state.read().await;
-                                let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                                let ext_arc = mgr.extensions.get_arc(&ext_id).ok_or_else(|| {
                                     error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
                                 })?;
+                                drop(mgr);
 
                                 return execute_and_respond(
-                                    ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                                    ext_arc, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
                                 ).await;
                             }
                             super::approval::ApprovalDecision::ApproveOnce => {
                                 // One-time approval — don't persist, just continue
                                 let mgr = state.read().await;
-                                let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                                let ext_arc = mgr.extensions.get_arc(&ext_id).ok_or_else(|| {
                                     error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
                                 })?;
+                                drop(mgr);
 
                                 return execute_and_respond(
-                                    ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                                    ext_arc, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
                                 ).await;
                             }
                             super::approval::ApprovalDecision::Deny => {
@@ -371,16 +375,22 @@ pub async fn call_extension(
         }
     }
 
-    // 6. LAYER 3 — RISK: Runtime approval for high-risk operations
+    // 6. LAYER 3 — RISK: Clone Arc, drop lock, execute lock-free
+    let ext_arc = mgr.extensions.get_arc(&ext_id).ok_or_else(|| {
+        error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
+    })?;
+    drop(mgr);
+
     execute_and_respond(
-        ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+        ext_arc, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
     ).await
 }
 
 /// Execute the extension operation, handling high-risk runtime approval.
+/// Takes an Arc so the read lock can be dropped before execution.
 #[allow(clippy::too_many_arguments)]
 async fn execute_and_respond(
-    ext: &dyn crate::extensions::Extension,
+    ext: Arc<dyn crate::extensions::Extension>,
     ext_id: &str,
     operation: &str,
     plugin_id: &str,
@@ -420,18 +430,10 @@ async fn execute_and_respond(
             context,
         };
 
-        // Note: we may or may not still hold the read lock. The caller is responsible
-        // for ensuring we have a valid `ext` reference. For high-risk approval, we
-        // need to re-acquire after dropping.
         match bridge.request_approval(request).await {
             super::approval::ApprovalDecision::Approve
             | super::approval::ApprovalDecision::ApproveOnce => {
-                // Re-acquire read lock
-                let mgr = state.read().await;
-                let ext = mgr.extensions.get(ext_id).ok_or_else(|| {
-                    error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
-                })?;
-
+                // We already have the Arc — execute directly, no lock needed
                 let result = ext.execute(operation, input).await.map_err(|e| {
                     log::error!(
                         "Extension error: ext={} op={} plugin={} error={}",
@@ -465,7 +467,7 @@ async fn execute_and_respond(
         }
     }
 
-    // Non-high-risk: execute directly
+    // Non-high-risk: execute directly (lock already dropped by caller)
     let result = ext.execute(operation, input).await.map_err(|e| {
         log::error!(
             "Extension error: ext={} op={} plugin={} error={}",

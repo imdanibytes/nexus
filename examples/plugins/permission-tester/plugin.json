@@ -38,7 +38,9 @@
     ]
   },
   "extensions": {
-    "system-info": ["get_info", "read_env", "shutdown_host"]
+    "system-info": ["get_info", "read_env", "shutdown_host"],
+    "ipc-provider": ["get_record", "list_keys"],
+    "ipc-consumer": ["fetch_record", "fetch_all_keys", "aggregate", "discover"]
   },
   "env": {},
   "min_nexus_version": "0.1.0",

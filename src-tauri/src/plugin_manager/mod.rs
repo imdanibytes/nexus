@@ -24,6 +24,25 @@ fn data_volume_name(plugin_id: &str) -> String {
     format!("nexus-data-{}", plugin_id.replace('.', "-"))
 }
 
+/// Reject install/update if the plugin requires a newer Nexus version.
+fn check_min_nexus_version(manifest: &PluginManifest) -> NexusResult<()> {
+    if let Some(ref required) = manifest.min_nexus_version {
+        let current = semver::Version::parse(env!("CARGO_PKG_VERSION"))
+            .expect("CARGO_PKG_VERSION is valid semver");
+        let minimum = semver::Version::parse(required).map_err(|e| {
+            NexusError::InvalidManifest(format!("invalid min_nexus_version \"{required}\": {e}"))
+        })?;
+        if current < minimum {
+            return Err(NexusError::Other(format!(
+                "Plugin \"{}\" requires Nexus >= {minimum}, but this is Nexus {current}. \
+                 Please update Nexus first.",
+                manifest.id,
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub struct PluginManager {
     pub storage: PluginStorage,
     pub permissions: PermissionStore,
@@ -120,6 +139,8 @@ impl PluginManager {
         manifest
             .validate()
             .map_err(NexusError::InvalidManifest)?;
+
+        check_min_nexus_version(&manifest)?;
 
         if self.storage.get(&manifest.id).is_some() {
             return Err(NexusError::PluginAlreadyExists(manifest.id.clone()));
@@ -431,6 +452,8 @@ impl PluginManager {
         manifest
             .validate()
             .map_err(NexusError::InvalidManifest)?;
+
+        check_min_nexus_version(&manifest)?;
 
         let plugin = self
             .storage

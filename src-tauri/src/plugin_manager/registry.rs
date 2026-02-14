@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 const DEFAULT_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/imdanibytes/registry/main/registry.json";
+    "https://raw.githubusercontent.com/imdanibytes/registry/main/index.json";
 
 // ---------------------------------------------------------------------------
 // Registry source — where plugins come from
@@ -16,6 +16,14 @@ pub enum RegistryKind {
     Local,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistryTrust {
+    #[default]
+    Official,
+    Community,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistrySource {
     pub id: String,
@@ -24,6 +32,8 @@ pub struct RegistrySource {
     /// URL for Remote registries, filesystem path for Local registries
     pub url: String,
     pub enabled: bool,
+    #[serde(default)]
+    pub trust: RegistryTrust,
 }
 
 // ---------------------------------------------------------------------------
@@ -46,6 +56,7 @@ impl Default for RegistryStore {
                 kind: RegistryKind::Remote,
                 url: DEFAULT_REGISTRY_URL.to_string(),
                 enabled: true,
+                trust: RegistryTrust::Official,
             }],
             path: PathBuf::new(),
         }
@@ -110,11 +121,31 @@ impl RegistryStore {
     pub fn enabled_sources(&self) -> Vec<&RegistrySource> {
         self.sources.iter().filter(|s| s.enabled).collect()
     }
+
+    /// Look up the trust level for a registry by its name.
+    /// Returns `Community` if the source is not found.
+    pub fn source_trust(&self, source_name: &str) -> RegistryTrust {
+        self.sources
+            .iter()
+            .find(|s| s.name == source_name)
+            .map(|s| s.trust.clone())
+            .unwrap_or(RegistryTrust::Community)
+    }
 }
 
 // ---------------------------------------------------------------------------
 // Registry data types
 // ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RegistryMeta {
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    #[serde(default)]
+    pub maintainer: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Registry {
@@ -124,6 +155,9 @@ pub struct Registry {
     /// Host extensions available in this registry (optional — old registries don't have this).
     #[serde(default)]
     pub extensions: Vec<ExtensionRegistryEntry>,
+    /// Registry-level metadata (v2+).
+    #[serde(default)]
+    pub registry: Option<RegistryMeta>,
 }
 
 /// A host extension listed in a registry.
@@ -137,9 +171,16 @@ pub struct ExtensionRegistryEntry {
     #[serde(default)]
     pub categories: Vec<String>,
     #[serde(default)]
-    pub downloads: u64,
-    #[serde(default)]
     pub source: String,
+    /// Author public key (base64-encoded Ed25519), used for key consistency checks
+    #[serde(default)]
+    pub author_public_key: Option<String>,
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub platforms: Vec<String>,
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,11 +197,22 @@ pub struct RegistryEntry {
     pub manifest_url: String,
     #[serde(default)]
     pub categories: Vec<String>,
-    #[serde(default)]
-    pub downloads: u64,
     /// Which registry this entry came from (populated at fetch time)
     #[serde(default)]
     pub source: String,
+    /// Trust level of the registry this entry came from
+    #[serde(default)]
+    pub source_trust: Option<String>,
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub license: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -221,17 +273,21 @@ async fn fetch_remote(url: &str) -> NexusResult<Registry> {
 
 fn fetch_local(path_str: &str) -> NexusResult<Registry> {
     let dir = PathBuf::from(path_str);
-    let registry_file = dir.join("registry.json");
 
-    if !registry_file.exists() {
-        return Err(NexusError::Other(format!(
-            "No registry.json found at {}",
-            registry_file.display()
-        )));
-    }
+    // Try index.json first (v2 format), then legacy registry.json
+    let index_file = dir.join("index.json");
+    let legacy_file = dir.join("registry.json");
 
-    let data = std::fs::read_to_string(&registry_file)?;
-    let mut registry: Registry = serde_json::from_str(&data)?;
+    let mut registry = if index_file.exists() {
+        let data = std::fs::read_to_string(&index_file)?;
+        serde_json::from_str::<Registry>(&data)?
+    } else if legacy_file.exists() {
+        let data = std::fs::read_to_string(&legacy_file)?;
+        serde_json::from_str::<Registry>(&data)?
+    } else {
+        // Scan YAML files as a fallback
+        scan_yaml_registry(&dir)?
+    };
 
     // Resolve relative manifest_url paths to absolute file paths
     for entry in &mut registry.plugins {
@@ -241,7 +297,74 @@ fn fetch_local(path_str: &str) -> NexusResult<Registry> {
         }
     }
 
+    for entry in &mut registry.extensions {
+        if !entry.manifest_url.starts_with("http://") && !entry.manifest_url.starts_with("https://") {
+            let resolved = dir.join(&entry.manifest_url);
+            entry.manifest_url = format!("file://{}", resolved.display());
+        }
+    }
+
     Ok(registry)
+}
+
+/// Scan a local directory for YAML-based registry entries.
+/// Expects: registry.yaml (metadata), plugins/*.yaml, extensions/*.yaml
+fn scan_yaml_registry(dir: &Path) -> NexusResult<Registry> {
+    let meta_file = dir.join("registry.yaml");
+    let registry_meta = if meta_file.exists() {
+        let data = std::fs::read_to_string(&meta_file)?;
+        let meta: RegistryMeta = serde_yaml::from_str(&data)
+            .map_err(|e| NexusError::Other(format!("Invalid registry.yaml: {}", e)))?;
+        Some(meta)
+    } else {
+        None
+    };
+
+    let mut plugins = Vec::new();
+    let plugins_dir = dir.join("plugins");
+    if plugins_dir.is_dir() {
+        for entry in std::fs::read_dir(&plugins_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("yaml")
+                || path.extension().and_then(|e| e.to_str()) == Some("yml")
+            {
+                let data = std::fs::read_to_string(&path)?;
+                let plugin: RegistryEntry = serde_yaml::from_str(&data)
+                    .map_err(|e| NexusError::Other(format!(
+                        "Invalid plugin YAML {}: {}", path.display(), e
+                    )))?;
+                plugins.push(plugin);
+            }
+        }
+    }
+
+    let mut extensions = Vec::new();
+    let extensions_dir = dir.join("extensions");
+    if extensions_dir.is_dir() {
+        for entry in std::fs::read_dir(&extensions_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("yaml")
+                || path.extension().and_then(|e| e.to_str()) == Some("yml")
+            {
+                let data = std::fs::read_to_string(&path)?;
+                let ext: ExtensionRegistryEntry = serde_yaml::from_str(&data)
+                    .map_err(|e| NexusError::Other(format!(
+                        "Invalid extension YAML {}: {}", path.display(), e
+                    )))?;
+                extensions.push(ext);
+            }
+        }
+    }
+
+    Ok(Registry {
+        version: 2,
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        plugins,
+        extensions,
+        registry: registry_meta,
+    })
 }
 
 /// Result of fetching all registries — both plugin and extension entries.
@@ -358,6 +481,7 @@ pub fn search_entries(entries: &[RegistryEntry], query: &str) -> Vec<RegistryEnt
                     .iter()
                     .any(|c| c.to_lowercase().contains(&query_lower))
                 || p.source.to_lowercase().contains(&query_lower)
+                || p.author.as_deref().unwrap_or("").to_lowercase().contains(&query_lower)
         })
         .cloned()
         .collect()
@@ -378,6 +502,7 @@ pub fn search_extension_entries(entries: &[ExtensionRegistryEntry], query: &str)
                     .iter()
                     .any(|c| c.to_lowercase().contains(&query_lower))
                 || e.source.to_lowercase().contains(&query_lower)
+                || e.author.as_deref().unwrap_or("").to_lowercase().contains(&query_lower)
         })
         .cloned()
         .collect()

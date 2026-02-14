@@ -69,8 +69,11 @@ export interface ExtensionRegistryEntry {
   name: string;
   version: string;
   description: string;
+  author?: string;
+  author_public_key?: string;
   manifest_url: string;
+  platforms?: string[];
   categories: string[];
-  downloads: number;
-  source: string;
+  status?: string;
+  source?: string;
 }

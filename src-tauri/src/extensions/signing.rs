@@ -51,6 +51,26 @@ impl TrustedKeyStore {
         self.save()
     }
 
+    /// Rotate an author's trusted public key. Logs the rotation with fingerprints.
+    pub fn rotate_key(&mut self, author_id: &str, new_public_key: &str) -> Result<(), ExtensionError> {
+        let old_fingerprint = self
+            .keys
+            .get(author_id)
+            .map(|k| key_fingerprint(k))
+            .unwrap_or_else(|| "(none)".to_string());
+        let new_fingerprint = key_fingerprint(new_public_key);
+
+        log::warn!(
+            "SECURITY: Rotating trusted key for author '{}'. Old fingerprint: {}, New fingerprint: {}",
+            author_id,
+            old_fingerprint,
+            new_fingerprint
+        );
+
+        self.keys.insert(author_id.to_string(), new_public_key.to_string());
+        self.save()
+    }
+
     /// Check if the author's key has changed (possible supply chain attack).
     pub fn check_key_consistency(&self, author_id: &str, public_key_b64: &str) -> KeyConsistency {
         match self.keys.get(author_id) {

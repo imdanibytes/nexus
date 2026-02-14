@@ -56,7 +56,7 @@ pub async fn plugin_install(
         .map_err(|e| e.to_string())?;
 
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default())
+    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url))
         .await
         .map_err(|e| e.to_string())
 }
@@ -99,7 +99,7 @@ pub async fn plugin_install_local(
     }
 
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default())
+    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), None)
         .await
         .map_err(|e| e.to_string())
 }

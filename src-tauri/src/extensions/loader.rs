@@ -285,6 +285,164 @@ impl ExtensionLoader {
         Ok(())
     }
 
+    /// Update an installed extension to a new version.
+    /// If `force_key` is true and the author key changed, the key is rotated.
+    /// Otherwise, a key change is treated as an error.
+    pub async fn update(
+        &mut self,
+        manifest: ExtensionManifest,
+        registry: &mut ExtensionRegistry,
+        force_key: bool,
+    ) -> Result<InstalledExtension, ExtensionError> {
+        manifest
+            .validate()
+            .map_err(|e| ExtensionError::Other(format!("Invalid manifest: {}", e)))?;
+
+        let installed = self
+            .storage
+            .get(&manifest.id)
+            .ok_or_else(|| ExtensionError::Other(format!("Extension '{}' not found", manifest.id)))?;
+
+        let was_enabled = installed.enabled;
+        let ext_id = manifest.id.clone();
+
+        // Key consistency check
+        match self
+            .trusted_keys
+            .check_key_consistency(&manifest.author, &manifest.author_public_key)
+        {
+            KeyConsistency::NewAuthor => {
+                log::info!(
+                    "New author '{}' for extension '{}', trusting key",
+                    manifest.author,
+                    manifest.id
+                );
+                self.trusted_keys
+                    .trust(&manifest.author, &manifest.author_public_key)?;
+            }
+            KeyConsistency::Matches => {
+                log::debug!("Author key matches for '{}'", manifest.author);
+            }
+            KeyConsistency::Changed => {
+                if force_key {
+                    self.trusted_keys
+                        .rotate_key(&manifest.author, &manifest.author_public_key)?;
+                } else {
+                    return Err(ExtensionError::Other(format!(
+                        "Author key changed for '{}'. This could indicate a supply chain attack. \
+                         Use force_key to accept the new key.",
+                        manifest.author
+                    )));
+                }
+            }
+        }
+
+        // Disable if running
+        if was_enabled {
+            registry.unregister(&ext_id);
+            self.storage.set_enabled(&ext_id, false)?;
+        }
+
+        // Get binary for current platform
+        let binary_entry = manifest
+            .binary_for_current_platform()
+            .ok_or_else(|| {
+                ExtensionError::Other(format!(
+                    "No binary available for platform '{}'",
+                    ExtensionManifest::current_platform()
+                ))
+            })?;
+
+        // Download binary
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .map_err(|e| ExtensionError::Other(format!("HTTP client error: {}", e)))?;
+
+        log::info!(
+            "Downloading updated binary for '{}' from {}",
+            manifest.id,
+            binary_entry.url
+        );
+
+        let response = client
+            .get(&binary_entry.url)
+            .send()
+            .await
+            .map_err(|e| ExtensionError::Other(format!("Download failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ExtensionError::Other(format!(
+                "Binary download returned status {}",
+                response.status()
+            )));
+        }
+
+        let binary_data = response
+            .bytes()
+            .await
+            .map_err(|e| ExtensionError::Other(format!("Failed to read binary: {}", e)))?;
+
+        // Verify signature
+        signing::verify_binary(
+            &manifest.author_public_key,
+            &binary_data,
+            &binary_entry.signature,
+            &binary_entry.sha256,
+        )?;
+
+        log::info!("Signature verified for updated extension '{}'", manifest.id);
+
+        // Write binary to disk
+        let ext_dir = self.extensions_dir.join(&manifest.id);
+        std::fs::create_dir_all(&ext_dir)?;
+
+        let binary_name = if cfg!(target_os = "windows") {
+            "extension.exe".to_string()
+        } else {
+            "extension".to_string()
+        };
+
+        let binary_path = ext_dir.join(&binary_name);
+        std::fs::write(&binary_path, &binary_data)?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&binary_path)?.permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&binary_path, perms)?;
+        }
+
+        // Write manifest
+        let manifest_path = ext_dir.join("manifest.json");
+        let manifest_json = serde_json::to_string_pretty(&manifest)
+            .map_err(|e| ExtensionError::Other(format!("Failed to serialize manifest: {}", e)))?;
+        std::fs::write(&manifest_path, manifest_json)?;
+
+        // Update storage
+        let updated = InstalledExtension {
+            manifest,
+            enabled: false,
+            installed_at: chrono::Utc::now(),
+            binary_name,
+        };
+
+        if let Some(existing) = self.storage.get_mut(&ext_id) {
+            *existing = updated.clone();
+        }
+        self.storage.save()?;
+
+        // Re-enable if it was enabled
+        if was_enabled {
+            self.enable(&ext_id, registry)?;
+        }
+
+        log::info!("Updated extension: {}", ext_id);
+        Ok(self.storage.get(&ext_id).cloned().unwrap_or(updated))
+    }
+
     /// Install from a local manifest file (for development/testing).
     /// Resolves the binary path from the manifest's `binaries` field.
     pub fn install_local(

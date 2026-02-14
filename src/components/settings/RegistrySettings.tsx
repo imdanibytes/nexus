@@ -137,15 +137,15 @@ export function RegistrySettings() {
               onChange={(e) => setNewUrl(e.target.value)}
               placeholder={
                 newKind === "local"
-                  ? "/path/to/my-plugins"
-                  : "https://example.com/registry.json"
+                  ? "/path/to/my-registry"
+                  : "https://example.com/registry/index.json"
               }
               className="w-full px-3 py-2 text-[13px] bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text placeholder:text-nx-text-muted focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150 font-mono"
             />
             <p className="text-[11px] text-nx-text-ghost mt-1.5">
               {newKind === "local"
-                ? "Path to a directory containing a registry.json file"
-                : "URL to a JSON registry endpoint"}
+                ? "Path to a registry directory with plugins/ and extensions/ YAML files"
+                : "URL to the raw index.json file of the registry"}
             </p>
           </div>
           <button

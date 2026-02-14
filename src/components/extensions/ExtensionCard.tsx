@@ -1,5 +1,12 @@
 import type { ExtensionRegistryEntry } from "../../types/extension";
 
+const PLATFORM_LABELS: Record<string, string> = {
+  "aarch64-apple-darwin": "macOS ARM",
+  "x86_64-apple-darwin": "macOS Intel",
+  "x86_64-unknown-linux-gnu": "Linux x64",
+  "aarch64-unknown-linux-gnu": "Linux ARM",
+};
+
 interface Props {
   entry: ExtensionRegistryEntry;
   onSelect: () => void;
@@ -18,8 +25,16 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
           </h3>
           <p className="text-[11px] text-nx-text-muted font-mono">
             v{entry.version}
+            {entry.author && (
+              <span className="font-sans ml-1.5">by {entry.author}</span>
+            )}
           </p>
         </div>
+        {entry.status === "deprecated" && (
+          <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-warning-muted text-nx-warning flex-shrink-0">
+            Deprecated
+          </span>
+        )}
       </div>
       <p className="text-[11px] text-nx-text-secondary line-clamp-2">
         {entry.description}
@@ -30,6 +45,14 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
             {entry.source}
           </span>
         )}
+        {entry.platforms?.map((platform) => (
+          <span
+            key={platform}
+            className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-info-muted text-nx-info font-medium"
+          >
+            {PLATFORM_LABELS[platform] ?? platform}
+          </span>
+        ))}
         {entry.categories.map((cat) => (
           <span
             key={cat}

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { InstalledPlugin, PluginManifest, RegistryEntry, RegistrySource } from "../types/plugin";
 import type { ApprovalDecision, GrantedPermission, Permission } from "../types/permissions";
 import type { McpSettings, McpToolStatus } from "../types/mcp";
+import type { AvailableUpdate } from "../types/updates";
 
 export async function pluginList(): Promise<InstalledPlugin[]> {
   return invoke("plugin_list");
@@ -303,4 +304,41 @@ export async function mcpListTools(): Promise<McpToolStatus[]> {
 
 export async function mcpConfigSnippet(): Promise<Record<string, unknown>> {
   return invoke("mcp_config_snippet");
+}
+
+// Updates
+
+export async function checkUpdates(): Promise<AvailableUpdate[]> {
+  return invoke("check_updates");
+}
+
+export async function getCachedUpdates(): Promise<AvailableUpdate[]> {
+  return invoke("get_cached_updates");
+}
+
+export async function dismissUpdate(itemId: string, version: string): Promise<void> {
+  return invoke("dismiss_update", { itemId, version });
+}
+
+export async function updatePlugin(
+  manifestUrl: string,
+  expectedDigest: string | null
+): Promise<InstalledPlugin> {
+  return invoke("update_plugin", { manifestUrl, expectedDigest });
+}
+
+export async function updateExtension(
+  manifestUrl: string
+): Promise<InstalledExtension> {
+  return invoke("update_extension", { manifestUrl });
+}
+
+export async function updateExtensionForceKey(
+  manifestUrl: string
+): Promise<InstalledExtension> {
+  return invoke("update_extension_force_key", { manifestUrl });
+}
+
+export async function lastUpdateCheck(): Promise<string | null> {
+  return invoke("last_update_check");
 }

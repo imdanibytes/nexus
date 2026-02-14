@@ -1,4 +1,4 @@
-use crate::plugin_manager::registry::{RegistryKind, RegistrySource};
+use crate::plugin_manager::registry::{RegistryKind, RegistrySource, RegistryTrust};
 use crate::AppState;
 
 #[tauri::command]
@@ -37,6 +37,7 @@ pub async fn registry_add(
         kind: registry_kind,
         url,
         enabled: true,
+        trust: RegistryTrust::Community,
     };
 
     mgr.registry_store.add(source.clone()).map_err(|e| e.to_string())?;

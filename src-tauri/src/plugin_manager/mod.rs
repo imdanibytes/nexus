@@ -8,6 +8,7 @@ use crate::error::{NexusError, NexusResult};
 use crate::extensions::loader::ExtensionLoader;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::permissions::PermissionStore;
+use crate::update_checker::UpdateCheckState;
 use manifest::PluginManifest;
 use storage::{
     hash_token, InstalledPlugin, McpSettings, NexusSettings, PluginSettingsStore, PluginStatus,
@@ -29,6 +30,7 @@ pub struct PluginManager {
     pub settings: NexusSettings,
     pub plugin_settings: PluginSettingsStore,
     pub mcp_settings: McpSettings,
+    pub update_state: UpdateCheckState,
     pub gateway_token_hash: String,
     pub data_dir: PathBuf,
     tool_version: AtomicU64,
@@ -44,6 +46,7 @@ impl PluginManager {
         let settings = NexusSettings::load(&data_dir).unwrap_or_default();
         let plugin_settings = PluginSettingsStore::load(&data_dir).unwrap_or_default();
         let mcp_settings = McpSettings::load(&data_dir).unwrap_or_default();
+        let update_state = crate::update_checker::load_update_state(&data_dir);
 
         // Generate or load the MCP gateway token
         let token_path = data_dir.join("mcp_gateway_token");
@@ -80,6 +83,7 @@ impl PluginManager {
             settings,
             plugin_settings,
             mcp_settings,
+            update_state,
             gateway_token_hash,
             data_dir,
             tool_version: AtomicU64::new(0),
@@ -106,6 +110,7 @@ impl PluginManager {
         manifest: PluginManifest,
         approved_permissions: Vec<crate::permissions::Permission>,
         deferred_permissions: Vec<crate::permissions::Permission>,
+        manifest_url: Option<&str>,
     ) -> NexusResult<InstalledPlugin> {
         manifest
             .validate()
@@ -202,6 +207,7 @@ impl PluginManager {
             assigned_port: port,
             auth_token: token_hash,
             installed_at: chrono::Utc::now(),
+            manifest_url_origin: manifest_url.and_then(storage::extract_url_host),
         };
 
         // Grant only user-approved permissions.
@@ -396,6 +402,164 @@ impl PluginManager {
         registry::search_entries(&self.registry_cache, query)
     }
 
+    /// Update an installed plugin to a new version from a manifest URL.
+    /// Preserves assigned_port, auth_token, and permissions.
+    pub async fn update_plugin(
+        &mut self,
+        manifest: PluginManifest,
+        expected_digest: Option<String>,
+    ) -> NexusResult<InstalledPlugin> {
+        manifest
+            .validate()
+            .map_err(NexusError::InvalidManifest)?;
+
+        let plugin = self
+            .storage
+            .get(&manifest.id)
+            .ok_or_else(|| NexusError::PluginNotFound(manifest.id.clone()))?;
+
+        // Security: block digest downgrade
+        if plugin.manifest.image_digest.is_some() && manifest.image_digest.is_none() {
+            return Err(NexusError::Other(
+                "Digest downgrade blocked: installed plugin has an image digest but the update does not".to_string(),
+            ));
+        }
+
+        // Security: verify expected digest matches manifest
+        if let Some(ref expected) = expected_digest {
+            if let Some(ref manifest_digest) = manifest.image_digest {
+                if expected != manifest_digest {
+                    return Err(NexusError::Other(format!(
+                        "Expected digest {} does not match manifest digest {}",
+                        expected, manifest_digest
+                    )));
+                }
+            }
+        }
+
+        let was_running = plugin.status == PluginStatus::Running;
+        let port = plugin.assigned_port;
+        let old_container_id = plugin.container_id.clone();
+        let preserved_origin = plugin.manifest_url_origin.clone();
+
+        // Stop old container
+        if let Some(ref cid) = old_container_id {
+            if was_running {
+                let _ = docker::stop_container(cid).await;
+            }
+            let _ = docker::remove_container(cid).await;
+        }
+
+        // Pull new image
+        log::info!("Pulling updated image: {}", manifest.image);
+        docker::pull_image(&manifest.image).await?;
+
+        // Verify digest if present
+        if let Some(ref expected_digest) = manifest.image_digest {
+            match docker::get_image_digest(&manifest.image).await? {
+                Some(actual_digest) => {
+                    if &actual_digest != expected_digest {
+                        return Err(NexusError::Other(format!(
+                            "Image digest mismatch for {}. Expected: {}, Got: {}",
+                            manifest.image, expected_digest, actual_digest
+                        )));
+                    }
+                    log::info!(
+                        "Image digest verified: {} = {}",
+                        manifest.image, actual_digest
+                    );
+                }
+                None => {
+                    log::warn!(
+                        "Image {} has no registry digest, skipping digest verification",
+                        manifest.image
+                    );
+                }
+            }
+        }
+
+        // Create new container
+        let mut env_vars: Vec<String> = manifest
+            .env
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
+        let new_token = uuid::Uuid::new_v4().to_string();
+        let new_hash = storage::hash_token(&new_token);
+        env_vars.push(format!("NEXUS_PLUGIN_SECRET={}", new_token));
+        env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
+        env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+
+        let mut labels = HashMap::new();
+        labels.insert("nexus.plugin.id".to_string(), manifest.id.clone());
+        labels.insert("nexus.plugin.version".to_string(), manifest.version.clone());
+
+        let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
+
+        let limits = docker::ResourceLimits {
+            nano_cpus: self
+                .settings
+                .cpu_quota_percent
+                .map(|pct| (pct / 100.0 * 1e9) as i64),
+            memory_bytes: self
+                .settings
+                .memory_limit_mb
+                .map(|mb| (mb * 1_048_576) as i64),
+        };
+
+        let new_container_id = docker::create_container(
+            &container_name,
+            &manifest.image,
+            port,
+            manifest.ui.port,
+            env_vars,
+            labels,
+            limits,
+        )
+        .await?;
+
+        let updated_plugin = InstalledPlugin {
+            manifest,
+            container_id: Some(new_container_id.clone()),
+            status: PluginStatus::Stopped,
+            assigned_port: port,
+            auth_token: new_hash,
+            installed_at: chrono::Utc::now(),
+            manifest_url_origin: preserved_origin,
+        };
+
+        // Update storage
+        if let Some(existing) = self.storage.get_mut(&updated_plugin.manifest.id) {
+            *existing = updated_plugin.clone();
+        }
+
+        // Restart if it was running
+        if was_running {
+            let ready_path = updated_plugin
+                .manifest
+                .health
+                .as_ref()
+                .map(|h| h.endpoint.clone())
+                .unwrap_or_else(|| updated_plugin.manifest.ui.path.clone());
+
+            docker::start_container(&new_container_id).await?;
+            docker::wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;
+
+            if let Some(plugin) = self.storage.get_mut(&updated_plugin.manifest.id) {
+                plugin.status = PluginStatus::Running;
+            }
+        }
+
+        self.storage.save()?;
+        log::info!(
+            "Updated plugin {} to version {}",
+            updated_plugin.manifest.id,
+            updated_plugin.manifest.version
+        );
+
+        Ok(self.storage.get(&updated_plugin.manifest.id).cloned().unwrap())
+    }
+
     pub fn search_extension_marketplace(&self, query: &str) -> Vec<registry::ExtensionRegistryEntry> {
         registry::search_extension_entries(&self.extension_registry_cache, query)
     }
@@ -409,6 +573,17 @@ impl PluginManager {
     /// Disable a host extension (stops process, unregisters).
     pub fn disable_extension(&mut self, ext_id: &str) -> Result<(), crate::extensions::ExtensionError> {
         self.extension_loader.disable(ext_id, &mut self.extensions)
+    }
+
+    /// Update a host extension to a new version.
+    pub async fn update_extension(
+        &mut self,
+        manifest: crate::extensions::manifest::ExtensionManifest,
+        force_key: bool,
+    ) -> Result<crate::extensions::storage::InstalledExtension, crate::extensions::ExtensionError> {
+        self.extension_loader
+            .update(manifest, &mut self.extensions, force_key)
+            .await
     }
 
     /// Remove a host extension (stop, delete files, unregister).

@@ -5,6 +5,8 @@ pub mod host_api;
 mod notification;
 mod permissions;
 mod plugin_manager;
+mod update_checker;
+mod version;
 
 use host_api::approval::ApprovalBridge;
 use plugin_manager::PluginManager;
@@ -123,6 +125,13 @@ pub fn run() {
             commands::extensions::extension_preview,
             commands::extensions::extension_marketplace_search,
             commands::permissions::permission_remove_scope,
+            commands::updates::check_updates,
+            commands::updates::get_cached_updates,
+            commands::updates::dismiss_update,
+            commands::updates::update_plugin,
+            commands::updates::update_extension,
+            commands::updates::update_extension_force_key,
+            commands::updates::last_update_check,
             notification::send_notification,
         ])
         .run(tauri::generate_context!())

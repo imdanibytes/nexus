@@ -5,3 +5,4 @@ pub mod permissions;
 pub mod plugins;
 pub mod registries;
 pub mod system;
+pub mod updates;

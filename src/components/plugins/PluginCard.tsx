@@ -73,15 +73,42 @@ export function RegistryPluginCard({
       className="p-4 rounded-[var(--radius-card)] border border-nx-border bg-nx-surface hover:border-nx-border-strong hover:shadow-[var(--shadow-card-hover)] cursor-pointer transition-all duration-200"
     >
       <div className="flex items-start justify-between mb-2">
-        <div>
-          <h3 className="text-[13px] font-semibold text-nx-text">{entry.name}</h3>
-          <p className="text-[11px] text-nx-text-muted font-mono">v{entry.version}</p>
+        <div className="flex items-center gap-2.5">
+          {entry.icon ? (
+            <img
+              src={entry.icon}
+              alt=""
+              className="w-8 h-8 rounded-[var(--radius-button)] object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-[var(--radius-button)] bg-nx-overlay flex items-center justify-center flex-shrink-0">
+              <span className="text-[13px] font-semibold text-nx-text-muted">
+                {entry.name.charAt(0)}
+              </span>
+            </div>
+          )}
+          <div>
+            <h3 className="text-[13px] font-semibold text-nx-text">{entry.name}</h3>
+            <p className="text-[11px] text-nx-text-muted font-mono">
+              v{entry.version}
+              {entry.author && (
+                <span className="font-sans ml-1.5">by {entry.author}</span>
+              )}
+            </p>
+          </div>
         </div>
-        {isInstalled && (
-          <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-accent-muted text-nx-accent">
-            Installed
-          </span>
-        )}
+        <div className="flex gap-1.5 flex-shrink-0">
+          {entry.status === "deprecated" && (
+            <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-warning-muted text-nx-warning">
+              Deprecated
+            </span>
+          )}
+          {isInstalled && (
+            <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-accent-muted text-nx-accent">
+              Installed
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-[11px] text-nx-text-secondary line-clamp-2">
         {entry.description}

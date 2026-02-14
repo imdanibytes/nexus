@@ -5,6 +5,20 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// Extract the hostname from a URL string (e.g. "github.com" from "https://github.com/foo/bar").
+pub fn extract_url_host(url: &str) -> Option<String> {
+    // Simple parsing: find the host between :// and the next /
+    let after_scheme = url.split("://").nth(1)?;
+    let host = after_scheme.split('/').next()?;
+    // Strip port if present
+    let host = host.split(':').next()?;
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_string())
+    }
+}
+
 /// SHA-256 hash a raw token and return the hex digest.
 pub fn hash_token(raw_token: &str) -> String {
     let mut hasher = Sha256::new();
@@ -29,6 +43,10 @@ pub struct InstalledPlugin {
     pub assigned_port: u16,
     pub auth_token: String,
     pub installed_at: chrono::DateTime<chrono::Utc>,
+    /// Hostname of the manifest URL at install time (domain pinning).
+    /// If a registry entry later points to a different host, flagged as suspicious.
+    #[serde(default)]
+    pub manifest_url_origin: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -179,6 +197,7 @@ mod tests {
             assigned_port: 9700,
             auth_token: hash_token(raw_token),
             installed_at: chrono::Utc::now(),
+            manifest_url_origin: None,
         };
         storage.add(plugin).unwrap();
 
@@ -225,6 +244,7 @@ mod tests {
             assigned_port: 9700,
             auth_token: hash_token("correct-token"),
             installed_at: chrono::Utc::now(),
+            manifest_url_origin: None,
         };
         storage.add(plugin).unwrap();
 
@@ -272,6 +292,43 @@ mod tests {
             plugin.auth_token,
             hash_token("550e8400-e29b-41d4-a716-446655440000")
         );
+    }
+
+    #[test]
+    fn extract_url_host_https() {
+        assert_eq!(
+            extract_url_host("https://github.com/foo/bar.json"),
+            Some("github.com".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_url_host_http() {
+        assert_eq!(
+            extract_url_host("http://example.com/manifest.json"),
+            Some("example.com".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_url_host_with_port() {
+        assert_eq!(
+            extract_url_host("https://localhost:8080/path"),
+            Some("localhost".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_url_host_file_scheme() {
+        assert_eq!(
+            extract_url_host("file:///home/user/manifest.json"),
+            None // empty host in file URLs
+        );
+    }
+
+    #[test]
+    fn extract_url_host_no_scheme() {
+        assert_eq!(extract_url_host("just-a-string"), None);
     }
 }
 

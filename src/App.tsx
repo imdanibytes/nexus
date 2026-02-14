@@ -9,7 +9,7 @@ import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarke
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
-import { checkDocker } from "./lib/tauri";
+import { checkDocker, marketplaceRefresh, checkUpdates } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -79,7 +79,7 @@ function App() {
     selectExtensionEntry,
   } = useAppStore();
   const { refresh } = usePlugins();
-  const { addNotification } = useAppStore();
+  const { addNotification, setAvailableUpdates } = useAppStore();
 
   useEffect(() => {
     refresh();
@@ -107,7 +107,25 @@ function App() {
         }
       })
       .catch(() => {});
-  }, [refresh, addNotification]);
+
+    // Check for plugin/extension updates
+    const checkForPluginUpdates = async () => {
+      try {
+        await marketplaceRefresh();
+        const updates = await checkUpdates();
+        if (updates.length > 0) {
+          setAvailableUpdates(updates);
+        }
+      } catch {
+        // Silently ignore — offline or registry unreachable
+      }
+    };
+    checkForPluginUpdates();
+
+    // Re-check every 30 minutes
+    const interval = setInterval(checkForPluginUpdates, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [refresh, addNotification, setAvailableUpdates]);
 
   const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));
 

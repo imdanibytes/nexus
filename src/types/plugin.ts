@@ -56,11 +56,15 @@ export interface RegistryEntry {
   name: string;
   version: string;
   description: string;
+  author?: string;
+  license?: string;
+  homepage?: string;
+  icon?: string;
   image: string;
   image_digest?: string;
   manifest_url: string;
   categories: string[];
-  downloads: number;
+  status?: string;
   source?: string;
 }
 

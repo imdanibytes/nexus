@@ -7,10 +7,11 @@ import { PermissionsTab } from "./PermissionsTab";
 import { McpTab } from "./McpTab";
 import { ExtensionsTab } from "./ExtensionsTab";
 import { NotificationsTab } from "./NotificationsTab";
-import { Settings, Container, Gauge, Puzzle, Shield, Cpu, Blocks, Bell } from "lucide-react";
+import { UpdatesTab } from "./UpdatesTab";
+import { Settings, Container, Gauge, Puzzle, Shield, Cpu, Blocks, Bell, ArrowUpCircle } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 
-type SettingsTab = "general" | "runtime" | "resources" | "plugins" | "permissions" | "mcp" | "extensions" | "notifications";
+type SettingsTab = "general" | "runtime" | "resources" | "plugins" | "permissions" | "mcp" | "extensions" | "notifications" | "updates";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
@@ -21,6 +22,7 @@ const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "mcp", label: "MCP", icon: Cpu },
   { id: "extensions", label: "Extensions", icon: Blocks },
+  { id: "updates", label: "Updates", icon: ArrowUpCircle },
 ];
 
 export function SettingsPage() {
@@ -68,6 +70,7 @@ export function SettingsPage() {
           {active === "notifications" && <NotificationsTab />}
           {active === "mcp" && <McpTab />}
           {active === "extensions" && <ExtensionsTab />}
+          {active === "updates" && <UpdatesTab />}
         </ErrorBoundary>
       </div>
     </div>

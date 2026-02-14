@@ -1,6 +1,6 @@
 import { useAppStore } from "../../stores/appStore";
 import type { InstalledPlugin } from "../../types/plugin";
-import { Plus, Settings } from "lucide-react";
+import { Plus, Settings, ArrowUp } from "lucide-react";
 
 const statusColor: Record<string, string> = {
   running: "bg-nx-success",
@@ -10,9 +10,10 @@ const statusColor: Record<string, string> = {
 };
 
 function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
-  const { selectedPluginId, selectPlugin, setView } = useAppStore();
+  const { selectedPluginId, selectPlugin, setView, availableUpdates } = useAppStore();
   const isSelected = selectedPluginId === plugin.manifest.id;
   const isRunning = plugin.status === "running";
+  const hasUpdate = availableUpdates.some((u) => u.item_id === plugin.manifest.id);
 
   return (
     <button
@@ -31,12 +32,15 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
         style={isRunning ? { animation: "pulse-status 2s ease-in-out infinite" } : undefined}
       />
       <span className="truncate text-[12px] font-medium">{plugin.manifest.name}</span>
+      {hasUpdate && (
+        <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent shrink-0" />
+      )}
     </button>
   );
 }
 
 export function Sidebar() {
-  const { currentView, setView, installedPlugins } = useAppStore();
+  const { currentView, setView, installedPlugins, availableUpdates } = useAppStore();
 
   return (
     <aside
@@ -90,7 +94,7 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => setView("settings")}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] text-[12px] font-medium transition-all duration-150 ${
+          className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] text-[12px] font-medium transition-all duration-150 ${
             currentView === "settings"
               ? "bg-nx-accent-muted text-nx-accent"
               : "text-nx-text-secondary hover:bg-nx-overlay hover:text-nx-text"
@@ -98,6 +102,11 @@ export function Sidebar() {
         >
           <Settings size={15} strokeWidth={1.5} />
           Settings
+          {availableUpdates.length > 0 && (
+            <span className="absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold rounded-full bg-nx-accent text-nx-deep">
+              {availableUpdates.length}
+            </span>
+          )}
         </button>
       </nav>
     </aside>

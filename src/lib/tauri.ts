@@ -342,3 +342,11 @@ export async function updateExtensionForceKey(
 export async function lastUpdateCheck(): Promise<string | null> {
   return invoke("last_update_check");
 }
+
+export async function getUpdateCheckInterval(): Promise<number> {
+  return invoke("get_update_check_interval");
+}
+
+export async function setUpdateCheckInterval(minutes: number): Promise<void> {
+  return invoke("set_update_check_interval", { minutes });
+}

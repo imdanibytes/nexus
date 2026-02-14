@@ -7,6 +7,7 @@ import {
   updateExtension,
   updateExtensionForceKey,
   lastUpdateCheck,
+  setUpdateCheckInterval,
 } from "../../lib/tauri";
 import { useAppStore } from "../../stores/appStore";
 import { usePlugins } from "../../hooks/usePlugins";
@@ -21,7 +22,17 @@ import {
   ShieldCheck,
   ShieldAlert,
   ShieldX,
+  Clock,
 } from "lucide-react";
+
+const CHECK_INTERVALS: { value: number; label: string }[] = [
+  { value: 30, label: "Every 30 min" },
+  { value: 60, label: "Hourly" },
+  { value: 360, label: "Every 6 hours" },
+  { value: 1440, label: "Daily" },
+  { value: 10080, label: "Weekly" },
+  { value: 0, label: "Manual only" },
+];
 
 const SECURITY_BADGE_STYLES: Record<
   string,
@@ -81,6 +92,8 @@ export function UpdatesTab() {
     useAppStore();
   const { refresh: refreshPlugins } = usePlugins();
 
+  const { updateCheckInterval, setUpdateCheckInterval: setStoreInterval } = useAppStore();
+
   const [checking, setChecking] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
@@ -98,6 +111,15 @@ export function UpdatesTab() {
   useEffect(() => {
     loadLastChecked();
   }, [loadLastChecked]);
+
+  async function handleIntervalChange(minutes: number) {
+    setStoreInterval(minutes);
+    try {
+      await setUpdateCheckInterval(minutes);
+    } catch {
+      // ignore
+    }
+  }
 
   async function handleCheck() {
     setChecking(true);
@@ -212,6 +234,34 @@ export function UpdatesTab() {
             )}
             {checking ? "Checking..." : "Check Now"}
           </button>
+        </div>
+      </section>
+
+      {/* Auto-check frequency */}
+      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock size={15} strokeWidth={1.5} className="text-nx-text-muted" />
+            <div>
+              <h3 className="text-[13px] font-semibold text-nx-text">
+                Auto-Check Frequency
+              </h3>
+              <p className="text-[11px] text-nx-text-ghost">
+                How often Nexus checks for plugin and extension updates
+              </p>
+            </div>
+          </div>
+          <select
+            value={updateCheckInterval}
+            onChange={(e) => handleIntervalChange(Number(e.target.value))}
+            className="px-3 py-1.5 text-[11px] font-medium bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150"
+          >
+            {CHECK_INTERVALS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       </section>
 

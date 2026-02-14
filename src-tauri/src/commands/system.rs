@@ -129,6 +129,24 @@ pub async fn save_resource_quotas(
     mgr.settings.save().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn get_update_check_interval(
+    state: tauri::State<'_, AppState>,
+) -> Result<u32, String> {
+    let mgr = state.read().await;
+    Ok(mgr.settings.update_check_interval_minutes)
+}
+
+#[tauri::command]
+pub async fn set_update_check_interval(
+    state: tauri::State<'_, AppState>,
+    minutes: u32,
+) -> Result<(), String> {
+    let mut mgr = state.write().await;
+    mgr.settings.update_check_interval_minutes = minutes;
+    mgr.settings.save().map_err(|e| e.to_string())
+}
+
 /// HEAD a URL to check if it's reachable (2xx/3xx = true).
 /// Used by the extension marketplace to verify manifest URLs exist before enabling install.
 #[tauri::command]

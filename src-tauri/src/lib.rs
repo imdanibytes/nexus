@@ -106,6 +106,8 @@ pub fn run() {
             commands::system::container_resource_usage,
             commands::system::get_resource_quotas,
             commands::system::save_resource_quotas,
+            commands::system::get_update_check_interval,
+            commands::system::set_update_check_interval,
             commands::system::check_url_reachable,
             commands::permissions::runtime_approval_respond,
             commands::registries::registry_list,

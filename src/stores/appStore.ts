@@ -25,6 +25,7 @@ interface AppState {
   extensionMarketplaceEntries: ExtensionRegistryEntry[];
   selectedExtensionEntry: ExtensionRegistryEntry | null;
   availableUpdates: AvailableUpdate[];
+  updateCheckInterval: number;
 
   setView: (view: View) => void;
   setPlugins: (plugins: InstalledPlugin[]) => void;
@@ -41,6 +42,7 @@ interface AppState {
   setExtensionMarketplace: (entries: ExtensionRegistryEntry[]) => void;
   selectExtensionEntry: (entry: ExtensionRegistryEntry | null) => void;
   setAvailableUpdates: (updates: AvailableUpdate[]) => void;
+  setUpdateCheckInterval: (minutes: number) => void;
 }
 
 let notifCounter = 0;
@@ -58,6 +60,7 @@ export const useAppStore = create<AppState>((set) => ({
   extensionMarketplaceEntries: [],
   selectedExtensionEntry: null,
   availableUpdates: [],
+  updateCheckInterval: 30,
 
   setView: (view) => set({ currentView: view }),
   setPlugins: (plugins) => set({ installedPlugins: plugins }),
@@ -91,6 +94,7 @@ export const useAppStore = create<AppState>((set) => ({
   setExtensionMarketplace: (entries) => set({ extensionMarketplaceEntries: entries }),
   selectExtensionEntry: (entry) => set({ selectedExtensionEntry: entry }),
   setAvailableUpdates: (updates) => set({ availableUpdates: updates }),
+  setUpdateCheckInterval: (minutes) => set({ updateCheckInterval: minutes }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setLoading: (loading) => set({ isLoading: loading }),
   addNotification: (message, type) => {

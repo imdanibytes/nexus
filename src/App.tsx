@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Shell } from "./components/layout/Shell";
 import { PluginViewport } from "./components/plugins/PluginViewport";
 import { PluginLogs } from "./components/plugins/PluginLogs";
@@ -9,7 +9,7 @@ import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarke
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
-import { checkDocker, marketplaceRefresh, checkUpdates } from "./lib/tauri";
+import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -79,8 +79,21 @@ function App() {
     selectExtensionEntry,
   } = useAppStore();
   const { refresh } = usePlugins();
-  const { addNotification, setAvailableUpdates } = useAppStore();
+  const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval } = useAppStore();
 
+  const checkForPluginUpdates = useCallback(async () => {
+    try {
+      await marketplaceRefresh();
+      const updates = await checkUpdates();
+      if (updates.length > 0) {
+        setAvailableUpdates(updates);
+      }
+    } catch {
+      // Silently ignore — offline or registry unreachable
+    }
+  }, [setAvailableUpdates]);
+
+  // One-time startup: docker check, app update check, initial plugin check, load interval setting
   useEffect(() => {
     refresh();
 
@@ -95,7 +108,6 @@ function App() {
       })
       .catch(() => {});
 
-    // Background update check — non-blocking, just notifies
     import("@tauri-apps/plugin-updater")
       .then(({ check }) => check())
       .then((update) => {
@@ -108,24 +120,18 @@ function App() {
       })
       .catch(() => {});
 
-    // Check for plugin/extension updates
-    const checkForPluginUpdates = async () => {
-      try {
-        await marketplaceRefresh();
-        const updates = await checkUpdates();
-        if (updates.length > 0) {
-          setAvailableUpdates(updates);
-        }
-      } catch {
-        // Silently ignore — offline or registry unreachable
-      }
-    };
     checkForPluginUpdates();
+    getUpdateCheckInterval()
+      .then(setUpdateCheckInterval)
+      .catch(() => {});
+  }, [refresh, addNotification, checkForPluginUpdates, setUpdateCheckInterval]);
 
-    // Re-check every 30 minutes
-    const interval = setInterval(checkForPluginUpdates, 30 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [refresh, addNotification, setAvailableUpdates]);
+  // Reactive timer — restarts whenever the interval setting changes
+  useEffect(() => {
+    if (updateCheckInterval <= 0) return;
+    const id = setInterval(checkForPluginUpdates, updateCheckInterval * 60 * 1000);
+    return () => clearInterval(id);
+  }, [updateCheckInterval, checkForPluginUpdates]);
 
   const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));
 

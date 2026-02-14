@@ -453,8 +453,16 @@ pub struct NexusSettings {
     pub cpu_quota_percent: Option<f64>,
     #[serde(default)]
     pub memory_limit_mb: Option<u64>,
+    /// How often to auto-check for plugin/extension updates (in minutes).
+    /// 0 = manual only. Default: 30.
+    #[serde(default = "default_update_interval")]
+    pub update_check_interval_minutes: u32,
     #[serde(skip)]
     path: PathBuf,
+}
+
+fn default_update_interval() -> u32 {
+    30
 }
 
 impl NexusSettings {

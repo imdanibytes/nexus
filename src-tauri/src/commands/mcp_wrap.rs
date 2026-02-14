@@ -22,6 +22,7 @@ pub async fn mcp_suggest_metadata(command: String) -> Result<PluginMetadata, Str
 }
 
 /// Generate plugin artifacts, build Docker image, and install the plugin.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn mcp_generate_and_install(
     state: tauri::State<'_, AppState>,

@@ -25,7 +25,8 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
     if (isInstalled) return;
     if (canBuild) {
       // Local registry with build context — always installable
-      setImageAvailable(true);
+      // Using a microtask to avoid synchronous setState in effect body
+      queueMicrotask(() => setImageAvailable(true));
       return;
     }
     let cancelled = false;

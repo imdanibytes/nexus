@@ -10,6 +10,7 @@ pub fn compare_versions(installed: &str, available: &str) -> Option<Ordering> {
 
 /// Check if `current` is greater than or equal to `min`.
 /// Returns `false` if either string fails to parse.
+#[allow(dead_code)]
 pub fn satisfies_min_version(current: &str, min: &str) -> bool {
     compare_versions(current, min)
         .map(|ord| ord != Ordering::Less)

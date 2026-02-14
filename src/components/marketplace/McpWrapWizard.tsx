@@ -146,8 +146,6 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
     { id: "build", label: "Build" },
   ];
 
-  const selectedToolCount = includedTools.size;
-
   // ── Render ────────────────────────────────────────────────────
 
   return (
@@ -463,7 +461,7 @@ function DetailsStep({
   onBack: () => void;
   onNext: () => void;
 }) {
-  const idValid = /^[a-z0-9][a-z0-9.\-]*$/.test(metadata.id);
+  const idValid = /^[a-z0-9][a-z0-9.-]*$/.test(metadata.id);
 
   return (
     <>

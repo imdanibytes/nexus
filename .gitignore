@@ -8,6 +8,8 @@ dist-ssr/
 # Rust build
 src-tauri/target/
 crates/*/target/
+src-tauri/crates/*/target/
+src-tauri/crates/*/Cargo.lock
 examples/extensions/*/target/
 
 # Extension secrets (keypairs, etc.)

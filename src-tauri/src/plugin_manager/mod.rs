@@ -105,6 +105,7 @@ impl PluginManager {
         &mut self,
         manifest: PluginManifest,
         approved_permissions: Vec<crate::permissions::Permission>,
+        deferred_permissions: Vec<crate::permissions::Permission>,
     ) -> NexusResult<InstalledPlugin> {
         manifest
             .validate()
@@ -218,6 +219,20 @@ impl PluginManager {
             let _ = self
                 .permissions
                 .grant(&plugin.manifest.id, perm.clone(), approved_scopes);
+        }
+
+        // Deferred permissions: user skipped these at install time.
+        // They'll trigger a JIT approval dialog on first use.
+        for perm in &deferred_permissions {
+            let approved_scopes = match perm {
+                crate::permissions::Permission::FilesystemRead
+                | crate::permissions::Permission::FilesystemWrite => Some(vec![]),
+                crate::permissions::Permission::Extension(_) => Some(vec![]),
+                _ => None,
+            };
+            let _ = self
+                .permissions
+                .defer(&plugin.manifest.id, perm.clone(), approved_scopes);
         }
 
         self.storage.add(plugin.clone())?;

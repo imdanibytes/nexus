@@ -12,13 +12,17 @@ export type BuiltinPermission =
 /** A permission string — either a built-in scope or an extension scope (ext:*). */
 export type Permission = BuiltinPermission | (string & {});
 
+export type PermissionState = "active" | "revoked" | "deferred";
+
 export interface GrantedPermission {
   plugin_id: string;
   permission: Permission;
   granted_at: string;
   /** Generalized scope whitelist (renamed from approved_paths). */
   approved_scopes: string[] | null;
-  /** When set, this permission is soft-revoked but preserved for restoration. */
+  /** Three-state lifecycle: active, revoked, or deferred. Source of truth. */
+  state: PermissionState;
+  /** Legacy timestamp preserved for revoked state. `state` is the source of truth. */
   revoked_at: string | null;
 }
 

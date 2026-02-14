@@ -49,13 +49,14 @@ pub async fn plugin_install(
     state: tauri::State<'_, AppState>,
     manifest_url: String,
     approved_permissions: Vec<Permission>,
+    deferred_permissions: Option<Vec<Permission>>,
 ) -> Result<InstalledPlugin, String> {
     let manifest = registry::fetch_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
 
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions)
+    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default())
         .await
         .map_err(|e| e.to_string())
 }
@@ -65,6 +66,7 @@ pub async fn plugin_install_local(
     state: tauri::State<'_, AppState>,
     manifest_path: String,
     approved_permissions: Vec<Permission>,
+    deferred_permissions: Option<Vec<Permission>>,
 ) -> Result<InstalledPlugin, String> {
     let data = std::fs::read_to_string(&manifest_path)
         .map_err(|e| format!("Failed to read manifest: {}", e))?;
@@ -97,7 +99,7 @@ pub async fn plugin_install_local(
     }
 
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions)
+    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default())
         .await
         .map_err(|e| e.to_string())
 }

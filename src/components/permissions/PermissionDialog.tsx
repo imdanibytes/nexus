@@ -1,8 +1,21 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Permission } from "../../types/permissions";
 import type { PluginManifest } from "../../types/plugin";
 import { getPermissionInfo, allPermissions } from "../../types/permissions";
-import { ShieldCheck, ShieldX, ArrowLeft, ArrowRight, Package, ExternalLink, Cpu, Wrench } from "lucide-react";
+import { extensionList } from "../../lib/tauri";
+import {
+  ShieldCheck,
+  ShieldX,
+  ArrowLeft,
+  ArrowRight,
+  Package,
+  ExternalLink,
+  Cpu,
+  Wrench,
+  Puzzle,
+  AlertTriangle,
+  Check,
+} from "lucide-react";
 
 const riskColors = {
   low: "text-nx-success bg-nx-success-muted",
@@ -14,7 +27,7 @@ type Step = "info" | "permissions" | "mcp_tools";
 
 interface Props {
   manifest: PluginManifest;
-  onApprove: (permissions: Permission[]) => void;
+  onApprove: (approved: Permission[], deferred: Permission[]) => void;
   onDeny: () => void;
 }
 
@@ -24,6 +37,9 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
   const mcpTools = manifest.mcp?.tools ?? [];
   const hasMcpTools = mcpTools.length > 0;
   const [step, setStep] = useState<Step>("info");
+  // Track the final approved/deferred split from the permissions step
+  const [approvedPerms, setApprovedPerms] = useState<Permission[]>(requestedPermissions);
+  const [deferredPerms, setDeferredPerms] = useState<Permission[]>([]);
 
   function handleInfoNext() {
     if (hasPermissions) {
@@ -31,15 +47,17 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
     } else if (hasMcpTools) {
       setStep("mcp_tools");
     } else {
-      onApprove([]);
+      onApprove([], []);
     }
   }
 
-  function handlePermissionsNext(perms: Permission[]) {
+  function handlePermissionsNext(approved: Permission[], deferred: Permission[]) {
+    setApprovedPerms(approved);
+    setDeferredPerms(deferred);
     if (hasMcpTools) {
       setStep("mcp_tools");
     } else {
-      onApprove(perms);
+      onApprove(approved, deferred);
     }
   }
 
@@ -103,7 +121,7 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
           {step === "mcp_tools" && (
             <McpToolsStep
               manifest={manifest}
-              onApprove={() => onApprove(requestedPermissions)}
+              onApprove={() => onApprove(approvedPerms, deferredPerms)}
               onDeny={onDeny}
               onBack={() => setStep(hasPermissions ? "permissions" : "info")}
             />
@@ -200,6 +218,25 @@ function InfoStep({
   );
 }
 
+/** Group permissions into built-in and extension groups. */
+function groupPermissions(permissions: Permission[]) {
+  const builtIn: Permission[] = [];
+  const extGroups: Record<string, Permission[]> = {};
+
+  for (const perm of permissions) {
+    if (typeof perm === "string" && perm.startsWith("ext:")) {
+      const parts = perm.slice(4).split(":");
+      const extId = parts[0] ?? "unknown";
+      if (!extGroups[extId]) extGroups[extId] = [];
+      extGroups[extId].push(perm);
+    } else {
+      builtIn.push(perm);
+    }
+  }
+
+  return { builtIn, extGroups };
+}
+
 function PermissionsStep({
   manifest,
   permissions,
@@ -212,16 +249,39 @@ function PermissionsStep({
   manifest: PluginManifest;
   permissions: Permission[];
   hasMcpTools: boolean;
-  onNext: (perms: Permission[]) => void;
-  onApprove: (perms: Permission[]) => void;
+  onNext: (approved: Permission[], deferred: Permission[]) => void;
+  onApprove: (approved: Permission[], deferred: Permission[]) => void;
   onDeny: () => void;
   onBack: () => void;
 }) {
   const [hasSeenAll, setHasSeenAll] = useState(false);
+  // Per-permission toggle: true = approved (active), false = deferred
+  const [toggles, setToggles] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const perm of permissions) {
+      initial[perm] = true; // Default: all ON (approved)
+    }
+    return initial;
+  });
+
+  // Extension availability check
+  const [installedExtensions, setInstalledExtensions] = useState<Set<string>>(new Set());
+  const [extensionsLoaded, setExtensionsLoaded] = useState(false);
+
+  useEffect(() => {
+    extensionList()
+      .then((list) => {
+        setInstalledExtensions(new Set(list.map((e) => e.id)));
+        setExtensionsLoaded(true);
+      })
+      .catch(() => setExtensionsLoaded(true));
+  }, []);
+
+  const { builtIn, extGroups } = groupPermissions(permissions);
+  const declaredExtensions = Object.keys(manifest.extensions ?? {});
 
   const listRef = useCallback((el: HTMLDivElement | null) => {
     if (!el) return;
-    // No overflow — everything is visible already
     if (el.scrollHeight <= el.clientHeight) {
       setHasSeenAll(true);
     }
@@ -229,50 +289,104 @@ function PermissionsStep({
 
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
     const el = e.currentTarget;
-    // Scrolled to bottom (4px tolerance for subpixel rounding)
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
       setHasSeenAll(true);
     }
   }
+
+  function togglePerm(perm: string) {
+    setToggles((prev) => ({ ...prev, [perm]: !prev[perm] }));
+  }
+
+  function computeApprovedDeferred(): [Permission[], Permission[]] {
+    const approved: Permission[] = [];
+    const deferred: Permission[] = [];
+    for (const perm of permissions) {
+      if (toggles[perm]) {
+        approved.push(perm);
+      } else {
+        deferred.push(perm);
+      }
+    }
+    return [approved, deferred];
+  }
+
+  const deferredCount = permissions.filter((p) => !toggles[p]).length;
 
   return (
     <>
       <h3 className="text-[16px] font-bold text-nx-text mb-1">
         {manifest.name}
       </h3>
-      <p className="text-[13px] text-nx-text-secondary mb-5">
+      <p className="text-[13px] text-nx-text-secondary mb-1">
         This plugin requests the following permissions:
       </p>
+      {deferredCount > 0 && (
+        <p className="text-[11px] text-nx-warning mb-4">
+          {deferredCount} permission{deferredCount !== 1 ? "s" : ""} deferred — will prompt on first use
+        </p>
+      )}
+      {deferredCount === 0 && <div className="mb-4" />}
 
       <div
         ref={listRef}
         onScroll={handleScroll}
-        className="space-y-2 mb-6 max-h-64 overflow-y-auto"
+        className="space-y-2 mb-4 max-h-64 overflow-y-auto"
       >
-        {permissions.map((perm) => {
-          const info = getPermissionInfo(perm);
+        {/* Built-in permissions */}
+        {builtIn.map((perm) => (
+          <PermissionToggleRow
+            key={perm}
+            perm={perm}
+            enabled={toggles[perm]}
+            onToggle={() => togglePerm(perm)}
+          />
+        ))}
+
+        {/* Extension permission groups */}
+        {Object.entries(extGroups).map(([extId, extPerms]) => {
+          const isMissing = extensionsLoaded && !installedExtensions.has(extId);
+
           return (
-            <div
-              key={perm}
-              className="flex items-center justify-between p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
-            >
-              <div>
-                <p className="text-[12px] text-nx-text font-medium font-mono">
-                  {perm}
-                </p>
-                <p className="text-[11px] text-nx-text-muted mt-0.5">
-                  {info.description}
-                </p>
+            <div key={extId} className="space-y-1.5">
+              <div className="flex items-center gap-2 pt-2 pb-1">
+                <Puzzle size={12} strokeWidth={1.5} className="text-nx-text-muted" />
+                <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider">
+                  {extId}
+                </span>
+                {isMissing ? (
+                  <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-warning-muted text-nx-warning">
+                    <AlertTriangle size={10} strokeWidth={1.5} />
+                    Not installed
+                  </span>
+                ) : extensionsLoaded ? (
+                  <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-success-muted text-nx-success">
+                    <Check size={10} strokeWidth={1.5} />
+                    Installed
+                  </span>
+                ) : null}
               </div>
-              <span
-                className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-semibold capitalize ${riskColors[info.risk]}`}
-              >
-                {info.risk}
-              </span>
+              {extPerms.map((perm) => (
+                <PermissionToggleRow
+                  key={perm}
+                  perm={perm}
+                  enabled={toggles[perm]}
+                  onToggle={() => togglePerm(perm)}
+                />
+              ))}
             </div>
           );
         })}
       </div>
+
+      {/* Missing extension warnings */}
+      {extensionsLoaded && declaredExtensions.some((e) => !installedExtensions.has(e)) && (
+        <div className="mb-4 p-2.5 rounded-[var(--radius-button)] bg-nx-warning-muted/50 border border-nx-warning/20">
+          <p className="text-[11px] text-nx-warning leading-relaxed">
+            Some required extensions are not installed. Extension operations will fail until they are installed from the Extensions marketplace.
+          </p>
+        </div>
+      )}
 
       {!hasSeenAll && (
         <p className="text-[11px] text-nx-text-ghost text-center mb-3">
@@ -299,7 +413,10 @@ function PermissionsStep({
           {hasMcpTools ? (
             <button
               disabled={!hasSeenAll}
-              onClick={() => onNext(permissions)}
+              onClick={() => {
+                const [approved, deferred] = computeApprovedDeferred();
+                onNext(approved, deferred);
+              }}
               className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
                 hasSeenAll
                   ? "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
@@ -312,7 +429,10 @@ function PermissionsStep({
           ) : (
             <button
               disabled={!hasSeenAll}
-              onClick={() => onApprove(permissions)}
+              onClick={() => {
+                const [approved, deferred] = computeApprovedDeferred();
+                onApprove(approved, deferred);
+              }}
               className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
                 hasSeenAll
                   ? "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
@@ -326,6 +446,58 @@ function PermissionsStep({
         </div>
       </div>
     </>
+  );
+}
+
+/** A single permission row with toggle switch. */
+function PermissionToggleRow({
+  perm,
+  enabled,
+  onToggle,
+}: {
+  perm: string;
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  const info = getPermissionInfo(perm);
+
+  return (
+    <div
+      className={`flex items-center justify-between p-3 rounded-[var(--radius-button)] border transition-colors duration-150 ${
+        enabled
+          ? "bg-nx-deep border-nx-border-subtle"
+          : "bg-nx-deep/50 border-nx-border-subtle/50 opacity-60"
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="text-[12px] text-nx-text font-medium font-mono">
+            {perm}
+          </p>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-semibold capitalize ${riskColors[info.risk]}`}
+          >
+            {info.risk}
+          </span>
+        </div>
+        <p className="text-[11px] text-nx-text-muted mt-0.5">
+          {info.description}
+        </p>
+      </div>
+      <button
+        onClick={onToggle}
+        className={`relative ml-3 w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${
+          enabled ? "bg-nx-accent" : "bg-nx-overlay"
+        }`}
+        title={enabled ? "Approved — click to defer" : "Deferred — click to approve"}
+      >
+        <span
+          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+            enabled ? "left-[18px]" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
   );
 }
 

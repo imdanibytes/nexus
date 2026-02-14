@@ -107,7 +107,7 @@ function App() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [refresh, addNotification]);
 
   const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));
 

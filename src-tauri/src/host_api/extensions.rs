@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::extensions::validation::validate_input;
 use crate::extensions::RiskLevel;
-use crate::permissions::Permission;
+use crate::permissions::{Permission, PermissionState};
 use crate::AppState;
 
 use super::approval::ApprovalBridge;
@@ -174,23 +174,102 @@ pub async fn call_extension(
             )
         })?;
 
-    // 3. LAYER 1 — PERMISSION: Check "ext:{ext_id}:{operation}"
+    // 3. LAYER 1 — PERMISSION: Check "ext:{ext_id}:{operation}" with three-state model
     let perm_string = crate::extensions::registry::ExtensionRegistry::permission_string(&ext_id, &operation);
     let required_perm = Permission::Extension(perm_string.clone());
 
-    if !mgr.permissions.has_permission(&auth.plugin_id, &required_perm) {
-        log::warn!(
-            "AUDIT DENIED plugin={} extension={} operation={} reason=missing_permission perm={}",
-            auth.plugin_id,
-            ext_id,
-            operation,
-            perm_string,
-        );
-        return Err(error_response(
-            StatusCode::FORBIDDEN,
-            "Permission denied",
-            Some(format!("Plugin '{}' lacks permission '{}'", auth.plugin_id, perm_string)),
-        ));
+    match mgr.permissions.get_state(&auth.plugin_id, &required_perm) {
+        Some(PermissionState::Active) => {
+            // Proceed to scope/risk checks below
+        }
+        Some(PermissionState::Deferred) => {
+            // JIT approval: user skipped this at install, ask now
+            let plugin_name = mgr
+                .storage
+                .get(&auth.plugin_id)
+                .map(|p| p.manifest.name.clone())
+                .unwrap_or_else(|| auth.plugin_id.clone());
+
+            let perm_desc = op_def.description.clone();
+            let mut context = std::collections::HashMap::new();
+            context.insert("extension".to_string(), ext_id.clone());
+            context.insert("extension_display_name".to_string(), ext.display_name().to_string());
+            context.insert("operation".to_string(), operation.clone());
+            context.insert("operation_description".to_string(), perm_desc);
+            context.insert("permission".to_string(), perm_string.clone());
+
+            let request = super::approval::ApprovalRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                plugin_id: auth.plugin_id.clone(),
+                plugin_name,
+                category: "deferred_permission".to_string(),
+                permission: perm_string.clone(),
+                context,
+            };
+
+            // Drop read lock before awaiting approval
+            drop(mgr);
+
+            match bridge.request_approval(request).await {
+                super::approval::ApprovalDecision::Approve => {
+                    // Persist: Deferred → Active
+                    let mut mgr = state.write().await;
+                    let _ = mgr.permissions.activate(&auth.plugin_id, &required_perm);
+                    drop(mgr);
+
+                    // Re-acquire read lock and re-resolve references
+                    let mgr = state.read().await;
+                    let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                        error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
+                    })?;
+                    let op_def = ext.operations().into_iter().find(|op| op.name == operation).ok_or_else(|| {
+                        error_response(StatusCode::INTERNAL_SERVER_ERROR, "Operation disappeared", None)
+                    })?;
+
+                    return execute_and_respond(
+                        ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                    ).await;
+                }
+                super::approval::ApprovalDecision::ApproveOnce => {
+                    // One-time: don't persist, state stays Deferred
+                    let mgr = state.read().await;
+                    let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
+                        error_response(StatusCode::INTERNAL_SERVER_ERROR, "Extension disappeared", None)
+                    })?;
+                    let op_def = ext.operations().into_iter().find(|op| op.name == operation).ok_or_else(|| {
+                        error_response(StatusCode::INTERNAL_SERVER_ERROR, "Operation disappeared", None)
+                    })?;
+
+                    return execute_and_respond(
+                        ext, &ext_id, &operation, &auth.plugin_id, body.input, &op_def, &bridge, &state,
+                    ).await;
+                }
+                super::approval::ApprovalDecision::Deny => {
+                    // Deny: Deferred → Revoked
+                    let mut mgr = state.write().await;
+                    let _ = mgr.permissions.revoke(&auth.plugin_id, &required_perm);
+                    return Err(error_response(
+                        StatusCode::FORBIDDEN,
+                        "Permission denied",
+                        Some(format!("User denied deferred permission '{}'", perm_string)),
+                    ));
+                }
+            }
+        }
+        Some(PermissionState::Revoked) | None => {
+            log::warn!(
+                "AUDIT DENIED plugin={} extension={} operation={} reason=missing_permission perm={}",
+                auth.plugin_id,
+                ext_id,
+                operation,
+                perm_string,
+            );
+            return Err(error_response(
+                StatusCode::FORBIDDEN,
+                "Permission denied",
+                Some(format!("Plugin '{}' lacks permission '{}'", auth.plugin_id, perm_string)),
+            ));
+        }
     }
 
     // 4. Validate input against the operation's JSON Schema

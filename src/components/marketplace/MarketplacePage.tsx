@@ -42,12 +42,12 @@ export function MarketplacePage() {
     setPendingManifest(manifest);
   }
 
-  async function handleApprove(approvedPermissions: Permission[]) {
+  async function handleApprove(approvedPermissions: Permission[], deferredPermissions: Permission[]) {
     if (!pendingPath) return;
 
     setPendingManifest(null);
     setInstalling(true);
-    await installLocal(pendingPath, approvedPermissions);
+    await installLocal(pendingPath, approvedPermissions, deferredPermissions);
     setPendingPath(null);
     setInstalling(false);
     setView("plugins");

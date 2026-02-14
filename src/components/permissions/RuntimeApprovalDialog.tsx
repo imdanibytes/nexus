@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   ShieldCheck,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { runtimeApprovalRespond } from "../../lib/tauri";
 import { useOsNotification } from "../../hooks/useOsNotification";
+import { getPermissionInfo } from "../../types/permissions";
 import type {
   ApprovalDecision,
   RuntimeApprovalRequest,
@@ -24,6 +25,18 @@ function resolveHeader(req: RuntimeApprovalRequest): {
   iconColor: string;
 } {
   const ctx = req.context;
+
+  // Deferred permission — JIT approval on first use
+  if (req.category === "deferred_permission") {
+    const desc = ctx.description ?? ctx.operation_description ?? req.permission;
+    return {
+      icon: ShieldAlert,
+      title: "Permission Required",
+      subtitle: `${req.plugin_name} wants to use: ${desc}. This permission was deferred during installation.`,
+      iconBg: "bg-nx-warning-muted",
+      iconColor: "text-nx-warning",
+    };
+  }
 
   // Extension high-risk operation
   if (req.category.startsWith("extension:")) {
@@ -129,25 +142,22 @@ export function RuntimeApprovalDialog() {
 
   const current = queue.length > 0 ? queue[0] : null;
 
-  // Reset cooldown whenever the active request changes
-  useEffect(() => {
-    if (!current) return;
-    const duration = cooldownFor(current.context.risk_level);
+  // Reset cooldown when the active request changes.
+  // Derive during render (React-recommended pattern for adjusting state when
+  // derived values change) instead of inside useEffect.
+  const prevRequestId = useRef<string | undefined>(undefined);
+  if (current?.id !== prevRequestId.current) {
+    prevRequestId.current = current?.id;
+    const duration = current ? cooldownFor(current.context.risk_level) : 0;
     setCooldown(duration);
-    if (duration === 0) return;
+  }
 
-    const interval = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [current?.id]);
+  // Countdown timer — recursive setTimeout avoids setInterval dance
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   if (!current) return null;
 
@@ -168,6 +178,7 @@ export function RuntimeApprovalDialog() {
   const header = resolveHeader(current);
   const HeaderIcon = header.icon;
   const isHighRisk = current.context.risk_level === "high";
+  const isDeferred = current.category === "deferred_permission";
   const isExtension =
     current.category.startsWith("extension:") ||
     current.category.startsWith("extension_scope:");
@@ -206,7 +217,9 @@ export function RuntimeApprovalDialog() {
 
         {/* Category-specific content */}
         <div className="px-6 pb-4">
-          {current.category === "filesystem" ? (
+          {isDeferred ? (
+            <DeferredPermissionDetail context={current.context} permission={current.permission} />
+          ) : current.category === "filesystem" ? (
             <FilesystemDetail context={current.context} />
           ) : isExtension ? (
             <ExtensionDetail
@@ -280,6 +293,62 @@ export function RuntimeApprovalDialog() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function DeferredPermissionDetail({
+  context,
+  permission,
+}: {
+  context: Record<string, string>;
+  permission: string;
+}) {
+  const info = getPermissionInfo(permission);
+  const riskColors: Record<string, string> = {
+    low: "text-nx-success bg-nx-success-muted",
+    medium: "text-nx-warning bg-nx-warning-muted",
+    high: "text-nx-error bg-nx-error-muted",
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+        <p className="text-[11px] text-nx-text-muted mb-1.5">Permission</p>
+        <div className="flex items-center gap-2">
+          <p className="text-[12px] text-nx-text font-medium font-mono">
+            {permission}
+          </p>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-semibold capitalize ${riskColors[info.risk] ?? riskColors.medium}`}
+          >
+            {info.risk}
+          </span>
+        </div>
+        <p className="text-[11px] text-nx-text-secondary mt-1">
+          {info.description}
+        </p>
+      </div>
+      {context.extension && (
+        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+          <div className="flex items-center gap-2 mb-1">
+            <Puzzle size={12} strokeWidth={1.5} className="text-nx-text-muted" />
+            <p className="text-[11px] text-nx-text-muted">
+              {context.extension_display_name ?? context.extension}
+            </p>
+          </div>
+          {context.operation && (
+            <p className="text-[12px] text-nx-text font-medium">
+              {context.operation}
+            </p>
+          )}
+          {context.operation_description && (
+            <p className="text-[11px] text-nx-text-secondary mt-0.5">
+              {context.operation_description}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

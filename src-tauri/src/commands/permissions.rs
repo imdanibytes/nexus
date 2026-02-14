@@ -104,7 +104,18 @@ pub async fn runtime_approval_respond(
     context: std::collections::HashMap<String, String>,
 ) -> Result<(), String> {
     if decision == ApprovalDecision::Approve {
-        if category == "filesystem" {
+        if category == "deferred_permission" {
+            // Deferred → Active: persist the state transition before signaling the channel
+            let permission_str = context.get("permission").cloned().unwrap_or_default();
+            let permission: Permission =
+                serde_json::from_value(serde_json::Value::String(permission_str))
+                    .map_err(|e| format!("invalid permission: {}", e))?;
+
+            let mut mgr = state.write().await;
+            mgr.permissions
+                .activate(&plugin_id, &permission)
+                .map_err(|e| e.to_string())?;
+        } else if category == "filesystem" {
             // Filesystem scope: persist the parent directory
             if let Some(parent_dir) = context.get("parent_dir") {
                 let permission_str = context.get("permission").cloned().unwrap_or_default();

@@ -21,16 +21,26 @@ export async function pluginPreviewLocal(
 
 export async function pluginInstall(
   manifestUrl: string,
-  approvedPermissions: string[]
+  approvedPermissions: string[],
+  deferredPermissions?: string[]
 ): Promise<InstalledPlugin> {
-  return invoke("plugin_install", { manifestUrl, approvedPermissions });
+  return invoke("plugin_install", {
+    manifestUrl,
+    approvedPermissions,
+    deferredPermissions: deferredPermissions ?? [],
+  });
 }
 
 export async function pluginInstallLocal(
   manifestPath: string,
-  approvedPermissions: string[]
+  approvedPermissions: string[],
+  deferredPermissions?: string[]
 ): Promise<InstalledPlugin> {
-  return invoke("plugin_install_local", { manifestPath, approvedPermissions });
+  return invoke("plugin_install_local", {
+    manifestPath,
+    approvedPermissions,
+    deferredPermissions: deferredPermissions ?? [],
+  });
 }
 
 export async function pluginStart(pluginId: string): Promise<void> {

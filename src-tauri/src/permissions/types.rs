@@ -1,5 +1,20 @@
 use serde::{Deserialize, Serialize};
 
+/// Three-state permission lifecycle: Active → Revoked, Deferred → Active, Deferred → Revoked.
+///
+/// - **Active**: Permission is granted and enforced. API calls proceed normally.
+/// - **Revoked**: Permission was revoked by the user. API calls are denied (403).
+/// - **Deferred**: User skipped this permission at install time. First use triggers
+///   a JIT approval dialog; approving transitions to Active, denying to Revoked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionState {
+    #[default]
+    Active,
+    Revoked,
+    Deferred,
+}
+
 /// Known permission variants plus dynamic extension permissions.
 ///
 /// Extension permissions use the format "ext:{extension_id}:{operation_name}",
@@ -248,9 +263,13 @@ pub struct GrantedPermission {
     /// operation-specific resource identifiers (e.g. repo paths, domains).
     #[serde(alias = "approved_paths")]
     pub approved_scopes: Option<Vec<String>>,
-    /// When set, this permission is revoked. The grant is preserved so it can
-    /// be restored without re-approving scopes. `has_permission()` returns false
-    /// for revoked grants.
+    /// Source of truth for the permission lifecycle. Backward-compatible:
+    /// old JSON without this field deserializes as `Active` (the default).
+    /// Migration in `PermissionStore::load()` reconciles with legacy `revoked_at`.
+    #[serde(default)]
+    pub state: PermissionState,
+    /// Legacy timestamp preserved for Revoked state. Written when `state` transitions
+    /// to Revoked, cleared when transitioning to Active. `state` is the source of truth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
 }

@@ -25,9 +25,9 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
     }
   }
 
-  async function handleApprove(approvedPermissions: Permission[]) {
+  async function handleApprove(approvedPermissions: Permission[], deferredPermissions: Permission[]) {
     setPendingManifest(null);
-    await install(entry.manifest_url, approvedPermissions);
+    await install(entry.manifest_url, approvedPermissions, deferredPermissions);
     onBack();
   }
 

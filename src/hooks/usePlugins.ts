@@ -74,11 +74,11 @@ export function usePlugins() {
     [addNotification]
   );
 
-  // Step 2: Install with user-approved permissions
+  // Step 2: Install with user-approved and deferred permissions
   const install = useCallback(
-    async (manifestUrl: string, approvedPermissions: Permission[]) => {
+    async (manifestUrl: string, approvedPermissions: Permission[], deferredPermissions?: Permission[]) => {
       try {
-        await api.pluginInstall(manifestUrl, approvedPermissions);
+        await api.pluginInstall(manifestUrl, approvedPermissions, deferredPermissions);
         addNotification("Plugin installed", "success");
         await refresh();
       } catch (e) {
@@ -89,9 +89,9 @@ export function usePlugins() {
   );
 
   const installLocal = useCallback(
-    async (manifestPath: string, approvedPermissions: Permission[]) => {
+    async (manifestPath: string, approvedPermissions: Permission[], deferredPermissions?: Permission[]) => {
       try {
-        await api.pluginInstallLocal(manifestPath, approvedPermissions);
+        await api.pluginInstallLocal(manifestPath, approvedPermissions, deferredPermissions);
         addNotification("Plugin installed from local manifest", "success");
         await refresh();
       } catch (e) {

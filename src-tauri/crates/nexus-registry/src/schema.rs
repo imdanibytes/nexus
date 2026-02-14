@@ -28,6 +28,14 @@ pub fn plugin_schema() -> Value {
                 "type": "string",
                 "minLength": 1
             },
+            "author_url": {
+                "type": "string",
+                "format": "uri"
+            },
+            "created_at": {
+                "type": "string",
+                "format": "date-time"
+            },
             "license": {
                 "type": "string"
             },
@@ -50,6 +58,10 @@ pub fn plugin_schema() -> Value {
             "manifest_url": {
                 "type": "string",
                 "format": "uri"
+            },
+            "manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
             },
             "status": {
                 "type": "string",
@@ -92,6 +104,14 @@ pub fn extension_schema() -> Value {
                 "type": "string",
                 "minLength": 1
             },
+            "author_url": {
+                "type": "string",
+                "format": "uri"
+            },
+            "created_at": {
+                "type": "string",
+                "format": "date-time"
+            },
             "license": {
                 "type": "string"
             },
@@ -105,6 +125,10 @@ pub fn extension_schema() -> Value {
             "manifest_url": {
                 "type": "string",
                 "format": "uri"
+            },
+            "manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
             },
             "status": {
                 "type": "string",

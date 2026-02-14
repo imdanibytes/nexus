@@ -1,7 +1,9 @@
 use anyhow::{bail, Context, Result};
+use chrono::Utc;
 use dialoguer::{Input, Select};
 use regex::Regex;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::path::Path;
 
 const ID_PATTERN: &str = r"^[a-z][a-z0-9]*\.[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$";
@@ -33,66 +35,140 @@ fn validate_nonempty(input: &String) -> Result<(), String> {
     }
 }
 
-pub fn run_plugin() -> Result<()> {
-    println!("Add a new plugin to the registry\n");
+/// Returns the value if provided, otherwise prompts interactively.
+fn require_or_prompt(
+    value: Option<String>,
+    prompt: &str,
+    default: Option<&str>,
+    validator: Option<fn(&String) -> Result<(), String>>,
+) -> Result<String> {
+    if let Some(v) = value {
+        return Ok(v);
+    }
+    let input = Input::<String>::new().with_prompt(prompt);
+    let input = match default {
+        Some(d) => input.default(d.to_string()),
+        None => input,
+    };
+    let result = match validator {
+        Some(v) => input.validate_with(v).interact_text()?,
+        None => input.interact_text()?,
+    };
+    Ok(result)
+}
 
-    let id: String = Input::new()
-        .with_prompt("Plugin ID (reverse-domain)")
-        .validate_with(validate_id)
-        .interact_text()?;
+// ── Arg structs passed from main.rs ──
 
-    let name: String = Input::new()
-        .with_prompt("Display name")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+pub struct PluginArgs {
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub author_url: Option<String>,
+    pub license: Option<String>,
+    pub homepage: Option<String>,
+    pub image: Option<String>,
+    pub manifest_url: Option<String>,
+    pub categories: Option<String>,
+    pub status: String,
+}
 
-    let version: String = Input::new()
-        .with_prompt("Version")
-        .default("0.1.0".to_string())
-        .validate_with(validate_version)
-        .interact_text()?;
+pub struct ExtensionArgs {
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub author_url: Option<String>,
+    pub license: Option<String>,
+    pub homepage: Option<String>,
+    pub manifest_url: Option<String>,
+    pub platforms: Option<String>,
+    pub categories: Option<String>,
+    pub status: String,
+}
 
-    let description: String = Input::new()
-        .with_prompt("Description")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+impl PluginArgs {
+    fn is_non_interactive(&self) -> bool {
+        self.id.is_some()
+            && self.name.is_some()
+            && self.description.is_some()
+            && self.author.is_some()
+            && self.image.is_some()
+            && self.manifest_url.is_some()
+    }
+}
 
-    let author: String = Input::new()
-        .with_prompt("Author")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+impl ExtensionArgs {
+    fn is_non_interactive(&self) -> bool {
+        self.id.is_some()
+            && self.name.is_some()
+            && self.description.is_some()
+            && self.author.is_some()
+            && self.manifest_url.is_some()
+    }
+}
 
-    let license: String = Input::new()
-        .with_prompt("License")
-        .default("MIT".to_string())
-        .interact_text()?;
+pub fn run_plugin(args: PluginArgs) -> Result<()> {
+    let non_interactive = args.is_non_interactive();
+    if !non_interactive {
+        println!("Add a new plugin to the registry\n");
+    }
 
-    let homepage: String = Input::new()
-        .with_prompt("Homepage URL (optional)")
-        .default(String::new())
-        .interact_text()?;
+    let id = require_or_prompt(
+        args.id,
+        "Plugin ID (reverse-domain)",
+        None,
+        Some(validate_id),
+    )?;
+    let name = require_or_prompt(args.name, "Display name", None, Some(validate_nonempty))?;
+    let version = require_or_prompt(
+        args.version,
+        "Version",
+        Some("0.1.0"),
+        Some(validate_version),
+    )?;
+    let description =
+        require_or_prompt(args.description, "Description", None, Some(validate_nonempty))?;
+    let author = require_or_prompt(
+        args.author.clone(),
+        "Author (GitHub username)",
+        None,
+        Some(validate_nonempty),
+    )?;
 
-    let image: String = Input::new()
-        .with_prompt("Docker image")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+    let default_author_url = format!("https://github.com/{author}");
+    let author_url = require_or_prompt(
+        args.author_url,
+        "Author URL (optional)",
+        Some(&default_author_url),
+        None,
+    )?;
 
-    let manifest_url: String = Input::new()
-        .with_prompt("Manifest URL")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+    let license = require_or_prompt(args.license, "License", Some("MIT"), None)?;
+    let homepage = require_or_prompt(args.homepage, "Homepage URL (optional)", Some(""), None)?;
+    let image = require_or_prompt(args.image, "Docker image", None, Some(validate_nonempty))?;
+    let manifest_url =
+        require_or_prompt(args.manifest_url, "Manifest URL", None, Some(validate_nonempty))?;
 
-    let categories_input: String = Input::new()
-        .with_prompt("Categories (comma-separated, optional)")
-        .default(String::new())
-        .interact_text()?;
+    // Auto-compute manifest SHA-256
+    let manifest_sha256 = fetch_manifest_hash(&manifest_url);
 
-    let status_options = &["active", "deprecated", "unlisted"];
-    let status_idx = Select::new()
-        .with_prompt("Status")
-        .items(status_options)
-        .default(0)
-        .interact()?;
+    let categories_input =
+        require_or_prompt(args.categories, "Categories (comma-separated, optional)", Some(""), None)?;
+
+    let status = if non_interactive {
+        args.status
+    } else {
+        let status_options = &["active", "deprecated", "unlisted"];
+        let status_idx = Select::new()
+            .with_prompt("Status")
+            .items(status_options)
+            .default(0)
+            .interact()?;
+        status_options[status_idx].to_string()
+    };
 
     // Build the YAML content
     let mut plugin = serde_json::Map::new();
@@ -101,6 +177,13 @@ pub fn run_plugin() -> Result<()> {
     plugin.insert("version".into(), Value::String(version));
     plugin.insert("description".into(), Value::String(description));
     plugin.insert("author".into(), Value::String(author));
+    if !author_url.is_empty() {
+        plugin.insert("author_url".into(), Value::String(author_url));
+    }
+    plugin.insert(
+        "created_at".into(),
+        Value::String(Utc::now().to_rfc3339()),
+    );
     if !license.is_empty() {
         plugin.insert("license".into(), Value::String(license));
     }
@@ -109,10 +192,10 @@ pub fn run_plugin() -> Result<()> {
     }
     plugin.insert("image".into(), Value::String(image));
     plugin.insert("manifest_url".into(), Value::String(manifest_url));
-    plugin.insert(
-        "status".into(),
-        Value::String(status_options[status_idx].to_string()),
-    );
+    if let Some(hash) = manifest_sha256 {
+        plugin.insert("manifest_sha256".into(), Value::String(hash));
+    }
+    plugin.insert("status".into(), Value::String(status));
 
     if !categories_input.is_empty() {
         let categories: Vec<Value> = categories_input
@@ -137,76 +220,71 @@ pub fn run_plugin() -> Result<()> {
     Ok(())
 }
 
-pub fn run_extension() -> Result<()> {
-    println!("Add a new extension to the registry\n");
+pub fn run_extension(args: ExtensionArgs) -> Result<()> {
+    let non_interactive = args.is_non_interactive();
+    if !non_interactive {
+        println!("Add a new extension to the registry\n");
+    }
 
-    let id: String = Input::new()
-        .with_prompt("Extension ID (reverse-domain)")
-        .validate_with(validate_id)
-        .interact_text()?;
+    let id = require_or_prompt(
+        args.id,
+        "Extension ID (reverse-domain)",
+        None,
+        Some(validate_id),
+    )?;
+    let name = require_or_prompt(args.name, "Display name", None, Some(validate_nonempty))?;
+    let version = require_or_prompt(
+        args.version,
+        "Version",
+        Some("0.1.0"),
+        Some(validate_version),
+    )?;
+    let description =
+        require_or_prompt(args.description, "Description", None, Some(validate_nonempty))?;
+    let author = require_or_prompt(
+        args.author.clone(),
+        "Author (GitHub username)",
+        None,
+        Some(validate_nonempty),
+    )?;
 
-    let name: String = Input::new()
-        .with_prompt("Display name")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+    let default_author_url = format!("https://github.com/{author}");
+    let author_url = require_or_prompt(
+        args.author_url,
+        "Author URL (optional)",
+        Some(&default_author_url),
+        None,
+    )?;
 
-    let version: String = Input::new()
-        .with_prompt("Version")
-        .default("0.1.0".to_string())
-        .validate_with(validate_version)
-        .interact_text()?;
+    let license = require_or_prompt(args.license, "License", Some("MIT"), None)?;
+    let homepage = require_or_prompt(args.homepage, "Homepage URL (optional)", Some(""), None)?;
+    let manifest_url =
+        require_or_prompt(args.manifest_url, "Manifest URL", None, Some(validate_nonempty))?;
 
-    let description: String = Input::new()
-        .with_prompt("Description")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+    // Auto-compute manifest SHA-256
+    let manifest_sha256 = fetch_manifest_hash(&manifest_url);
 
-    let author: String = Input::new()
-        .with_prompt("Author")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
+    let platforms_input = require_or_prompt(
+        args.platforms,
+        "Platforms (comma-separated, e.g. macos-aarch64,linux-x86_64)",
+        Some(""),
+        None,
+    )?;
 
-    let license: String = Input::new()
-        .with_prompt("License")
-        .default("MIT".to_string())
-        .interact_text()?;
+    let categories_input =
+        require_or_prompt(args.categories, "Categories (comma-separated, optional)", Some(""), None)?;
 
-    let homepage: String = Input::new()
-        .with_prompt("Homepage URL (optional)")
-        .default(String::new())
-        .interact_text()?;
-
-    let manifest_url: String = Input::new()
-        .with_prompt("Manifest URL")
-        .validate_with(validate_nonempty)
-        .interact_text()?;
-
-    let platform_options = &[
-        "windows-x86_64",
-        "macos-x86_64",
-        "macos-aarch64",
-        "linux-x86_64",
-        "linux-aarch64",
-    ];
-    let platforms_input: String = Input::new()
-        .with_prompt(format!(
-            "Platforms (comma-separated, options: {})",
-            platform_options.join(", ")
-        ))
-        .default(String::new())
-        .interact_text()?;
-
-    let categories_input: String = Input::new()
-        .with_prompt("Categories (comma-separated, optional)")
-        .default(String::new())
-        .interact_text()?;
-
-    let status_options = &["active", "deprecated", "unlisted"];
-    let status_idx = Select::new()
-        .with_prompt("Status")
-        .items(status_options)
-        .default(0)
-        .interact()?;
+    let status = if non_interactive {
+        args.status
+    } else {
+        let status_options = &["active", "deprecated", "unlisted"];
+        let status_idx = Select::new()
+            .with_prompt("Status")
+            .items(status_options)
+            .default(0)
+            .interact()?;
+        status_options[status_idx].to_string()
+    };
 
     // Build the YAML content
     let mut extension = serde_json::Map::new();
@@ -215,6 +293,13 @@ pub fn run_extension() -> Result<()> {
     extension.insert("version".into(), Value::String(version));
     extension.insert("description".into(), Value::String(description));
     extension.insert("author".into(), Value::String(author));
+    if !author_url.is_empty() {
+        extension.insert("author_url".into(), Value::String(author_url));
+    }
+    extension.insert(
+        "created_at".into(),
+        Value::String(Utc::now().to_rfc3339()),
+    );
     if !license.is_empty() {
         extension.insert("license".into(), Value::String(license));
     }
@@ -222,10 +307,10 @@ pub fn run_extension() -> Result<()> {
         extension.insert("homepage".into(), Value::String(homepage));
     }
     extension.insert("manifest_url".into(), Value::String(manifest_url));
-    extension.insert(
-        "status".into(),
-        Value::String(status_options[status_idx].to_string()),
-    );
+    if let Some(hash) = manifest_sha256 {
+        extension.insert("manifest_sha256".into(), Value::String(hash));
+    }
+    extension.insert("status".into(), Value::String(status));
 
     if !platforms_input.is_empty() {
         let platforms: Vec<Value> = platforms_input
@@ -256,4 +341,30 @@ pub fn run_extension() -> Result<()> {
 
     println!("\nCreated {}", output_path.display());
     Ok(())
+}
+
+/// Fetch a manifest URL and compute its SHA-256 hash.
+/// Returns None if the fetch fails (non-fatal — the hash is optional).
+fn fetch_manifest_hash(url: &str) -> Option<String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return None;
+    }
+    print!("Fetching manifest for SHA-256... ");
+    match reqwest::blocking::get(url) {
+        Ok(resp) if resp.status().is_success() => match resp.bytes() {
+            Ok(body) => {
+                let hash = format!("{:x}", Sha256::digest(&body));
+                println!("{hash}");
+                Some(hash)
+            }
+            Err(_) => {
+                println!("failed to read body, skipping hash");
+                None
+            }
+        },
+        _ => {
+            println!("failed to fetch, skipping hash");
+            None
+        }
+    }
 }

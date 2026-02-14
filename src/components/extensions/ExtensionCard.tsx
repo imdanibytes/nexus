@@ -1,4 +1,5 @@
 import type { ExtensionRegistryEntry } from "../../types/extension";
+import { timeAgo } from "../../lib/timeAgo";
 
 const PLATFORM_LABELS: Record<string, string> = {
   "aarch64-apple-darwin": "macOS ARM",
@@ -25,7 +26,17 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
           </h3>
           <p className="text-[11px] text-nx-text-muted font-mono">
             v{entry.version}
-            {entry.author && (
+            {entry.author_url ? (
+              <a
+                href={entry.author_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="font-sans ml-1.5 text-nx-accent hover:underline"
+              >
+                {entry.author}
+              </a>
+            ) : (
               <span className="font-sans ml-1.5">by {entry.author}</span>
             )}
           </p>
@@ -39,7 +50,7 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
       <p className="text-[11px] text-nx-text-secondary line-clamp-2">
         {entry.description}
       </p>
-      <div className="flex gap-1.5 mt-2.5 flex-wrap">
+      <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
         {entry.source && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-accent-muted text-nx-accent font-medium">
             {entry.source}
@@ -61,6 +72,11 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
             {cat}
           </span>
         ))}
+        {entry.created_at && (
+          <span className="text-[10px] text-nx-text-ghost ml-auto">
+            {timeAgo(entry.created_at)}
+          </span>
+        )}
       </div>
     </div>
   );

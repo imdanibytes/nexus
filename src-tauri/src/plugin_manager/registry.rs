@@ -169,6 +169,8 @@ pub struct ExtensionRegistryEntry {
     pub description: String,
     pub manifest_url: String,
     #[serde(default)]
+    pub manifest_sha256: Option<String>,
+    #[serde(default)]
     pub categories: Vec<String>,
     #[serde(default)]
     pub source: String,
@@ -177,6 +179,10 @@ pub struct ExtensionRegistryEntry {
     pub author_public_key: Option<String>,
     #[serde(default)]
     pub author: Option<String>,
+    #[serde(default)]
+    pub author_url: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
     #[serde(default)]
     pub platforms: Vec<String>,
     #[serde(default)]
@@ -196,6 +202,8 @@ pub struct RegistryEntry {
     pub image_digest: Option<String>,
     pub manifest_url: String,
     #[serde(default)]
+    pub manifest_sha256: Option<String>,
+    #[serde(default)]
     pub categories: Vec<String>,
     /// Which registry this entry came from (populated at fetch time)
     #[serde(default)]
@@ -205,6 +213,10 @@ pub struct RegistryEntry {
     pub source_trust: Option<String>,
     #[serde(default)]
     pub author: Option<String>,
+    #[serde(default)]
+    pub author_url: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
     #[serde(default)]
     pub license: Option<String>,
     #[serde(default)]

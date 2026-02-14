@@ -56,7 +56,9 @@ export interface RegistryEntry {
   name: string;
   version: string;
   description: string;
-  author?: string;
+  author: string;
+  author_url?: string;
+  created_at?: string;
   license?: string;
   homepage?: string;
   icon?: string;

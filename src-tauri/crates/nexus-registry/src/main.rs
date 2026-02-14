@@ -52,9 +52,83 @@ enum Commands {
 #[derive(Subcommand)]
 enum AddKind {
     /// Add a new plugin
-    Plugin,
+    Plugin {
+        /// Plugin ID in reverse-domain format (e.g. com.example.my-plugin)
+        #[arg(long)]
+        id: Option<String>,
+        /// Display name
+        #[arg(long)]
+        name: Option<String>,
+        /// Semver version (e.g. 0.2.0)
+        #[arg(long)]
+        version: Option<String>,
+        /// Short description
+        #[arg(long)]
+        description: Option<String>,
+        /// Author GitHub username
+        #[arg(long)]
+        author: Option<String>,
+        /// Author profile URL
+        #[arg(long)]
+        author_url: Option<String>,
+        /// SPDX license identifier
+        #[arg(long)]
+        license: Option<String>,
+        /// Project homepage URL
+        #[arg(long)]
+        homepage: Option<String>,
+        /// Docker image reference
+        #[arg(long)]
+        image: Option<String>,
+        /// Raw manifest URL (plugin.json)
+        #[arg(long)]
+        manifest_url: Option<String>,
+        /// Comma-separated categories
+        #[arg(long)]
+        categories: Option<String>,
+        /// Package status: active, deprecated, or unlisted
+        #[arg(long, default_value = "active")]
+        status: String,
+    },
     /// Add a new extension
-    Extension,
+    Extension {
+        /// Extension ID in reverse-domain format
+        #[arg(long)]
+        id: Option<String>,
+        /// Display name
+        #[arg(long)]
+        name: Option<String>,
+        /// Semver version
+        #[arg(long)]
+        version: Option<String>,
+        /// Short description
+        #[arg(long)]
+        description: Option<String>,
+        /// Author GitHub username
+        #[arg(long)]
+        author: Option<String>,
+        /// Author profile URL
+        #[arg(long)]
+        author_url: Option<String>,
+        /// SPDX license identifier
+        #[arg(long)]
+        license: Option<String>,
+        /// Project homepage URL
+        #[arg(long)]
+        homepage: Option<String>,
+        /// Raw manifest URL (manifest.json)
+        #[arg(long)]
+        manifest_url: Option<String>,
+        /// Comma-separated platform targets
+        #[arg(long)]
+        platforms: Option<String>,
+        /// Comma-separated categories
+        #[arg(long)]
+        categories: Option<String>,
+        /// Package status: active, deprecated, or unlisted
+        #[arg(long, default_value = "active")]
+        status: String,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -65,8 +139,60 @@ fn main() -> anyhow::Result<()> {
         Commands::Validate { path } => commands::validate::run(&path),
         Commands::Build { path } => commands::build::run(&path),
         Commands::Add { kind } => match kind {
-            AddKind::Plugin => commands::add::run_plugin(),
-            AddKind::Extension => commands::add::run_extension(),
+            AddKind::Plugin {
+                id,
+                name,
+                version,
+                description,
+                author,
+                author_url,
+                license,
+                homepage,
+                image,
+                manifest_url,
+                categories,
+                status,
+            } => commands::add::run_plugin(commands::add::PluginArgs {
+                id,
+                name,
+                version,
+                description,
+                author,
+                author_url,
+                license,
+                homepage,
+                image,
+                manifest_url,
+                categories,
+                status,
+            }),
+            AddKind::Extension {
+                id,
+                name,
+                version,
+                description,
+                author,
+                author_url,
+                license,
+                homepage,
+                manifest_url,
+                platforms,
+                categories,
+                status,
+            } => commands::add::run_extension(commands::add::ExtensionArgs {
+                id,
+                name,
+                version,
+                description,
+                author,
+                author_url,
+                license,
+                homepage,
+                manifest_url,
+                platforms,
+                categories,
+                status,
+            }),
         },
         Commands::Publish { registry, package } => {
             commands::publish::run(&registry, &package)

@@ -90,7 +90,15 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Cache Tauri CLI
+        id: tauri-cli-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-tauri
+          key: tauri-cli-${{ runner.os }}-${{ matrix.target }}-v2
+
       - name: Install Tauri CLI
+        if: steps.tauri-cli-cache.outputs.cache-hit != 'true'
         run: cargo install tauri-cli --version "^2"
 
       # --- macOS code signing ---

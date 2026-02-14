@@ -62,11 +62,7 @@ pub fn run(registry_url: &str, package_path: &Path) -> Result<()> {
     println!("Validating...");
     crate::commands::validate::run(&clone_path)?;
 
-    // Build the index
-    println!("Building index...");
-    crate::commands::build::run(&clone_path)?;
-
-    // Create branch
+    // Create branch (index.json is built by CI after merge, not here)
     let branch_name = format!("add/{package_id}-{package_version}");
     println!("Creating branch: {branch_name}");
     run_git_in(
@@ -74,8 +70,8 @@ pub fn run(registry_url: &str, package_path: &Path) -> Result<()> {
         &["checkout", "-b", &branch_name],
     )?;
 
-    // Stage and commit
-    run_git_in(&clone_path, &["add", &format!("{kind}/{file_name}"), "index.json"])?;
+    // Stage and commit — only the YAML file
+    run_git_in(&clone_path, &["add", &format!("{kind}/{file_name}")])?;
     run_git_in(
         &clone_path,
         &[

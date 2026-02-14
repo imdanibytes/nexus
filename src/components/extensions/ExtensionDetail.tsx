@@ -17,7 +17,10 @@ import {
   Library,
   Puzzle,
   AlertTriangle,
+  User,
+  Clock,
 } from "lucide-react";
+import { timeAgo } from "../../lib/timeAgo";
 
 const RISK_STYLES: Record<string, { bg: string; text: string }> = {
   low: { bg: "bg-nx-success-muted", text: "text-nx-success" },
@@ -157,6 +160,33 @@ export function ExtensionDetail({ entry, onBack }: Props) {
               )}
               {installing ? "Installing..." : "Install Extension"}
             </button>
+          )}
+        </div>
+
+        {/* Metadata row */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4 text-[11px] text-nx-text-muted">
+          {entry.author && (
+            <span className="flex items-center gap-1">
+              <User size={11} strokeWidth={1.5} />
+              {entry.author_url ? (
+                <a
+                  href={entry.author_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-nx-text transition-colors duration-150"
+                >
+                  {entry.author}
+                </a>
+              ) : (
+                entry.author
+              )}
+            </span>
+          )}
+          {entry.created_at && (
+            <span className="flex items-center gap-1" title={entry.created_at}>
+              <Clock size={11} strokeWidth={1.5} />
+              Published {timeAgo(entry.created_at)}
+            </span>
           )}
         </div>
 

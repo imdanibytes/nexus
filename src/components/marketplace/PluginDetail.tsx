@@ -4,7 +4,8 @@ import type { Permission } from "../../types/permissions";
 import { PermissionDialog } from "../permissions/PermissionDialog";
 import { usePlugins } from "../../hooks/usePlugins";
 import { checkImageAvailable } from "../../lib/tauri";
-import { ArrowLeft, Download, Check, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Download, Check, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale } from "lucide-react";
+import { timeAgo } from "../../lib/timeAgo";
 
 interface Props {
   entry: RegistryEntry;
@@ -86,6 +87,50 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
           )}
         </div>
 
+        {/* Metadata row */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4 text-[11px] text-nx-text-muted">
+          {entry.author && (
+            <span className="flex items-center gap-1">
+              <User size={11} strokeWidth={1.5} />
+              {entry.author_url ? (
+                <a
+                  href={entry.author_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-nx-text transition-colors duration-150"
+                >
+                  {entry.author}
+                </a>
+              ) : (
+                entry.author
+              )}
+            </span>
+          )}
+          {entry.created_at && (
+            <span className="flex items-center gap-1" title={entry.created_at}>
+              <Clock size={11} strokeWidth={1.5} />
+              Published {timeAgo(entry.created_at)}
+            </span>
+          )}
+          {entry.license && (
+            <span className="flex items-center gap-1">
+              <Scale size={11} strokeWidth={1.5} />
+              {entry.license}
+            </span>
+          )}
+          {entry.homepage && (
+            <a
+              href={entry.homepage}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:text-nx-text transition-colors duration-150"
+            >
+              <ExternalLink size={11} strokeWidth={1.5} />
+              Repository
+            </a>
+          )}
+        </div>
+
         <p className="text-nx-text-secondary text-[13px] mb-6 leading-relaxed">{entry.description}</p>
 
         <div className="space-y-4">
@@ -114,7 +159,7 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
               <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
                 Categories
               </h4>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {entry.categories.map((cat) => (
                   <span
                     key={cat}

@@ -94,7 +94,7 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => setView("settings")}
-          className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] text-[12px] font-medium transition-all duration-150 ${
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] text-[12px] font-medium transition-all duration-150 ${
             currentView === "settings"
               ? "bg-nx-accent-muted text-nx-accent"
               : "text-nx-text-secondary hover:bg-nx-overlay hover:text-nx-text"
@@ -103,7 +103,7 @@ export function Sidebar() {
           <Settings size={15} strokeWidth={1.5} />
           Settings
           {availableUpdates.length > 0 && (
-            <span className="absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold rounded-full bg-nx-accent text-nx-deep">
+            <span className="ml-auto min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold rounded-full bg-nx-accent text-nx-deep">
               {availableUpdates.length}
             </span>
           )}

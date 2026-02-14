@@ -215,3 +215,38 @@ in the manifest's `env` field:
 | `NEXUS_PLUGIN_SECRET` | Plugin secret for exchanging for a short-lived access token via `POST /api/v1/auth/token` |
 | `NEXUS_API_URL` | Base URL for the Host API from the browser (e.g., `http://localhost:9600`) |
 | `NEXUS_HOST_URL` | Base URL for the Host API from inside the container (e.g., `http://host.docker.internal:9600`) |
+| `NEXUS_DATA_DIR` | Path to persistent data directory inside the container (`/data`). Backed by a named Docker volume that survives restarts and updates. |
+
+## Persistent Storage
+
+Nexus provides two storage mechanisms for plugins:
+
+### Docker Volume (`/data`)
+
+Each plugin gets a named Docker volume (`nexus-data-{plugin-id}`) mounted at
+`/data` inside the container. Use this for:
+
+- Databases (SQLite, etc.)
+- Large files, caches, or binary data
+- Anything that benefits from direct filesystem access
+
+The volume persists across container restarts and plugin updates. It is removed
+when the plugin is uninstalled.
+
+### Key-Value Storage API
+
+A lightweight REST API for small structured data (settings state, counters,
+JSON blobs). Data is stored by Nexus on the host filesystem, scoped per-plugin.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/storage` | List all keys |
+| `GET` | `/api/v1/storage/:key` | Read a value |
+| `PUT` | `/api/v1/storage/:key` | Write a value (JSON body) |
+| `DELETE` | `/api/v1/storage/:key` | Delete a key |
+
+**Limits:** 256 KB per value, 1000 keys per plugin. Keys must be alphanumeric
+with hyphens, underscores, and dots (max 128 chars).
+
+No special permission is required — storage is automatically scoped to the
+authenticated plugin via its access token.

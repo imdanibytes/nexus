@@ -203,3 +203,27 @@ pub async fn plugin_save_settings(
         .set(&plugin_id, values)
         .map_err(|e| e.to_string())
 }
+
+/// Get storage usage info for a plugin (KV bytes).
+#[tauri::command]
+pub async fn plugin_storage_info(
+    state: tauri::State<'_, AppState>,
+    plugin_id: String,
+) -> Result<u64, String> {
+    let mgr = state.read().await;
+    Ok(crate::host_api::storage::plugin_storage_bytes(
+        &mgr.data_dir,
+        &plugin_id,
+    ))
+}
+
+/// Clear all KV storage for a plugin.
+#[tauri::command]
+pub async fn plugin_clear_storage(
+    state: tauri::State<'_, AppState>,
+    plugin_id: String,
+) -> Result<(), String> {
+    let mgr = state.read().await;
+    crate::host_api::storage::remove_plugin_storage(&mgr.data_dir, &plugin_id);
+    Ok(())
+}

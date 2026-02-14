@@ -4,7 +4,7 @@ use bollard::query_parameters::{
     ListNetworksOptions, LogsOptions, RemoveContainerOptions, RemoveImageOptions,
     StartContainerOptions, StatsOptions, StopContainerOptions,
 };
-use bollard::service::{ContainerCreateBody, HostConfig, NetworkCreateRequest, PortBinding};
+use bollard::service::{ContainerCreateBody, HostConfig, Mount, MountTypeEnum, NetworkCreateRequest, PortBinding};
 use bollard::Docker;
 use futures_util::StreamExt;
 use std::collections::HashMap;
@@ -286,6 +286,7 @@ pub async fn create_container(
     env_vars: Vec<String>,
     labels: HashMap<String, String>,
     limits: ResourceLimits,
+    data_volume: Option<&str>,
 ) -> NexusResult<String> {
     let docker = connect()?;
 
@@ -299,6 +300,17 @@ pub async fn create_container(
     let mut port_bindings = HashMap::new();
     port_bindings.insert(container_port_key.clone(), Some(vec![port_binding]));
 
+    let mounts = match data_volume {
+        Some(vol_name) => vec![Mount {
+            target: Some("/data".to_string()),
+            source: Some(vol_name.to_string()),
+            typ: Some(MountTypeEnum::VOLUME),
+            read_only: Some(false),
+            ..Default::default()
+        }],
+        None => vec![],
+    };
+
     let host_config = HostConfig {
         port_bindings: Some(port_bindings),
         network_mode: Some(NETWORK_NAME.to_string()),
@@ -308,7 +320,7 @@ pub async fn create_container(
         cap_add: Some(vec!["NET_BIND_SERVICE".to_string()]),
         security_opt: Some(vec!["no-new-privileges:true".to_string()]),
         binds: Some(vec![]),
-        mounts: Some(vec![]),
+        mounts: Some(mounts),
         // Resource limits
         nano_cpus: limits.nano_cpus,
         memory: limits.memory_bytes,
@@ -370,6 +382,17 @@ pub async fn remove_container(container_id: &str) -> NexusResult<()> {
         )
         .await
         .map_err(NexusError::Docker)?;
+    Ok(())
+}
+
+/// Remove a named Docker volume. Used during plugin uninstall to clean up persistent data.
+pub async fn remove_volume(name: &str) -> NexusResult<()> {
+    let docker = connect()?;
+    docker
+        .remove_volume(name, None::<bollard::query_parameters::RemoveVolumeOptions>)
+        .await
+        .map_err(NexusError::Docker)?;
+    log::info!("Removed Docker volume: {}", name);
     Ok(())
 }
 

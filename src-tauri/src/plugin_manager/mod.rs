@@ -19,6 +19,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// Generate a Docker volume name for a plugin's persistent data.
+fn data_volume_name(plugin_id: &str) -> String {
+    format!("nexus-data-{}", plugin_id.replace('.', "-"))
+}
+
 pub struct PluginManager {
     pub storage: PluginStorage,
     pub permissions: PermissionStore,
@@ -170,6 +175,8 @@ impl PluginManager {
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         // Container-internal URL — for server-side code (MCP handlers etc.) that runs inside Docker
         env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+        // Persistent data directory inside the container
+        env_vars.push("NEXUS_DATA_DIR=/data".to_string());
 
         // Labels for tracking
         let mut labels = HashMap::new();
@@ -177,6 +184,7 @@ impl PluginManager {
         labels.insert("nexus.plugin.version".to_string(), manifest.version.clone());
 
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
+        let volume_name = data_volume_name(&manifest.id);
 
         let limits = docker::ResourceLimits {
             nano_cpus: self
@@ -197,6 +205,7 @@ impl PluginManager {
             env_vars,
             labels,
             limits,
+            Some(&volume_name),
         )
         .await?;
 
@@ -282,12 +291,14 @@ impl PluginManager {
         env_vars.push(format!("NEXUS_PLUGIN_SECRET={}", new_token));
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+        env_vars.push("NEXUS_DATA_DIR=/data".to_string());
 
         let mut labels = HashMap::new();
         labels.insert("nexus.plugin.id".to_string(), manifest.id.clone());
         labels.insert("nexus.plugin.version".to_string(), manifest.version.clone());
 
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
+        let volume_name = data_volume_name(plugin_id);
 
         let limits = docker::ResourceLimits {
             nano_cpus: self
@@ -308,6 +319,7 @@ impl PluginManager {
             env_vars,
             labels,
             limits,
+            Some(&volume_name),
         )
         .await?;
 
@@ -366,6 +378,13 @@ impl PluginManager {
         if let Err(e) = docker::remove_image(&image_name).await {
             log::warn!("Could not remove image {}: {}", image_name, e);
         }
+
+        // Remove persistent data: Docker volume + KV storage
+        let volume_name = data_volume_name(plugin_id);
+        if let Err(e) = docker::remove_volume(&volume_name).await {
+            log::warn!("Could not remove volume {}: {}", volume_name, e);
+        }
+        crate::host_api::storage::remove_plugin_storage(&self.data_dir, plugin_id);
 
         self.storage.remove(plugin_id)?;
         self.permissions.revoke_all(plugin_id)?;
@@ -489,12 +508,14 @@ impl PluginManager {
         env_vars.push(format!("NEXUS_PLUGIN_SECRET={}", new_token));
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+        env_vars.push("NEXUS_DATA_DIR=/data".to_string());
 
         let mut labels = HashMap::new();
         labels.insert("nexus.plugin.id".to_string(), manifest.id.clone());
         labels.insert("nexus.plugin.version".to_string(), manifest.version.clone());
 
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
+        let volume_name = data_volume_name(&manifest.id);
 
         let limits = docker::ResourceLimits {
             nano_cpus: self
@@ -515,6 +536,7 @@ impl PluginManager {
             env_vars,
             labels,
             limits,
+            Some(&volume_name),
         )
         .await?;
 

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePlugins } from "../../hooks/usePlugins";
-import { pluginGetSettings, pluginSaveSettings } from "../../lib/tauri";
+import { pluginGetSettings, pluginSaveSettings, pluginStorageInfo, pluginClearStorage } from "../../lib/tauri";
 import type { InstalledPlugin, SettingDef } from "../../types/plugin";
-import { Puzzle, Save, Check, Square, Trash2 } from "lucide-react";
+import { Puzzle, Save, Check, Square, Trash2, Database } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 
 function SettingField({
@@ -96,6 +96,55 @@ function SettingField({
         </div>
       );
   }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function StorageInfo({ pluginId }: { pluginId: string }) {
+  const [bytes, setBytes] = useState<number | null>(null);
+  const [clearing, setClearing] = useState(false);
+
+  const load = useCallback(() => {
+    pluginStorageInfo(pluginId)
+      .then(setBytes)
+      .catch(() => {});
+  }, [pluginId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (bytes === null) return null;
+
+  return (
+    <div className="flex items-center justify-between pt-3 mt-3 border-t border-nx-border-subtle">
+      <div className="flex items-center gap-1.5">
+        <Database size={11} strokeWidth={1.5} className="text-nx-text-ghost" />
+        <span className="text-[11px] text-nx-text-ghost">
+          Storage: {formatBytes(bytes)}
+        </span>
+      </div>
+      {bytes > 0 && (
+        <button
+          onClick={async () => {
+            setClearing(true);
+            try {
+              await pluginClearStorage(pluginId);
+              setBytes(0);
+            } catch { /* ignore */ }
+            finally { setClearing(false); }
+          }}
+          disabled={clearing}
+          className="text-[10px] font-medium text-nx-error hover:text-nx-error/80 transition-colors duration-150 disabled:opacity-50"
+        >
+          {clearing ? "Clearing..." : "Clear data"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function PluginSettingsCard({
@@ -210,6 +259,7 @@ function PluginSettingsCard({
         <p className="text-[11px] text-nx-text-ghost">
           No configurable settings
         </p>
+        <StorageInfo pluginId={plugin.manifest.id} />
       </div>
     );
   }
@@ -264,6 +314,8 @@ function PluginSettingsCard({
           {saving ? "Saving..." : saved ? "Saved" : "Save"}
         </button>
       </div>
+
+      <StorageInfo pluginId={plugin.manifest.id} />
     </div>
   );
 }

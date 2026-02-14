@@ -9,6 +9,7 @@ pub mod network;
 pub mod process;
 mod rate_limit;
 pub mod settings;
+pub mod storage;
 pub mod system;
 mod theme;
 
@@ -128,6 +129,14 @@ pub async fn start_server(
         .route(
             "/v1/settings",
             routing::get(settings::get_settings).put(settings::put_settings),
+        )
+        // Plugin key-value storage (scoped to authenticated plugin)
+        .route("/v1/storage", routing::get(storage::list_keys))
+        .route(
+            "/v1/storage/{key}",
+            routing::get(storage::get_value)
+                .put(storage::put_value)
+                .delete(storage::delete_value),
         )
         // Rate limiting runs after auth (needs plugin identity)
         .layer(axum_middleware::from_fn(rate_limit::rate_limit_middleware))

@@ -350,3 +350,13 @@ export async function getUpdateCheckInterval(): Promise<number> {
 export async function setUpdateCheckInterval(minutes: number): Promise<void> {
   return invoke("set_update_check_interval", { minutes });
 }
+
+// Plugin storage
+
+export async function pluginStorageInfo(pluginId: string): Promise<number> {
+  return invoke("plugin_storage_info", { pluginId });
+}
+
+export async function pluginClearStorage(pluginId: string): Promise<void> {
+  return invoke("plugin_clear_storage", { pluginId });
+}

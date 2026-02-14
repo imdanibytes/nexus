@@ -93,6 +93,8 @@ pub fn run() {
             commands::plugins::plugin_logs,
             commands::plugins::plugin_get_settings,
             commands::plugins::plugin_save_settings,
+            commands::plugins::plugin_storage_info,
+            commands::plugins::plugin_clear_storage,
             commands::marketplace::marketplace_search,
             commands::marketplace::marketplace_refresh,
             commands::permissions::permission_grant,

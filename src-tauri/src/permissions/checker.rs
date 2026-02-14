@@ -26,8 +26,9 @@ pub fn required_permission_for_endpoint(path: &str) -> Option<Permission> {
         p if p.starts_with("/v1/docker/") => Some(Permission::DockerRead),
         // Network permissions are enforced in the handler itself (local vs internet classification)
         p if p.starts_with("/v1/network/") => None,
-        // Settings require auth (via middleware token check) but no specific permission
+        // Settings and storage require auth but no specific permission — it's the plugin's own data
         p if p.starts_with("/v1/settings") => None,
+        p if p.starts_with("/v1/storage") => None,
         // Extension permissions are checked in the handler (dynamic based on path params)
         p if p.starts_with("/v1/extensions") => None,
         _ => None,

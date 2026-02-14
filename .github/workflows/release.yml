@@ -130,12 +130,17 @@ jobs:
           echo "=== Release files ==="
           ls -la release/
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (binaries first, latest.json last)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
           NOTES_FILE="docs/release-notes/${TAG}.md"
+
+          # Separate latest.json from platform binaries so the updater
+          # only discovers the release after all artifacts are downloadable.
+          mv release/latest.json /tmp/latest.json
+
           if [ -f "$NOTES_FILE" ]; then
             gh release create "$TAG" \
               --title "Nexus ${TAG}" \
@@ -147,6 +152,9 @@ jobs:
               --generate-notes \
               release/*
           fi
+
+          # Upload latest.json last — this is what the updater polls.
+          gh release upload "$TAG" /tmp/latest.json
 
       - uses: actions/setup-node@v4
         with:

@@ -477,7 +477,13 @@ pub async fn fetch_manifest(url: &str) -> NexusResult<super::manifest::PluginMan
 
 /// Fetch an extension manifest from a URL.
 pub async fn fetch_extension_manifest(url: &str) -> NexusResult<crate::extensions::manifest::ExtensionManifest> {
-    if url.starts_with("http://") || url.starts_with("https://") {
+    if let Some(file_path) = url.strip_prefix("file://") {
+        let data = std::fs::read_to_string(file_path)?;
+        let manifest: crate::extensions::manifest::ExtensionManifest = serde_json::from_str(&data)
+            .map_err(|e| NexusError::Other(format!("Invalid extension manifest JSON: {}", e)))?;
+        manifest.validate().map_err(NexusError::InvalidManifest)?;
+        Ok(manifest)
+    } else if url.starts_with("http://") || url.starts_with("https://") {
         let client = http_client()?;
         let response = client.get(url).send().await.map_err(NexusError::Http)?;
 

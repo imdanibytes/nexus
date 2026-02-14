@@ -108,7 +108,7 @@ async fn check_image_available_inner(image: &str) -> Result<bool, Box<dyn std::e
                 .head(format!("{}/v2/{}/manifests/{}", base, repository, tag))
                 .header(
                     "Accept",
-                    "application/vnd.docker.distribution.manifest.v2+json",
+                    "application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json",
                 )
                 .send()
                 .await?;
@@ -133,7 +133,7 @@ async fn check_image_available_inner(image: &str) -> Result<bool, Box<dyn std::e
         .header("Authorization", format!("Bearer {}", token_resp.token))
         .header(
             "Accept",
-            "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json",
+            "application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json",
         )
         .send()
         .await?;

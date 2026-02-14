@@ -58,6 +58,16 @@ build-extension name:
 build-sdk:
     pnpm sdk
 
+# ── Release ───────────────────────────────────────────────────────────────
+
+# Sync all version fields (e.g. just sync-version 0.4.0)
+sync-version version:
+    bash scripts/sync-version.sh {{version}}
+
+# Run release dry-run validation (e.g. just release-dry-run v0.4.0)
+release-dry-run tag:
+    bash scripts/release-dry-run.sh {{tag}}
+
 # ── All ────────────────────────────────────────────────────────────────────
 
 # Build everything: sidecar, extensions, frontend, app

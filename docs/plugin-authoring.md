@@ -3,6 +3,10 @@
 Build plugins for the Nexus desktop dashboard. Plugins run as Docker containers
 and interact with the host through a REST API.
 
+> **Building a host extension instead?** See the
+> [Extension Authoring Guide](extension-authoring.md) for native binaries that
+> expose operations to plugins via JSON-RPC.
+
 ## Quick Start
 
 ```

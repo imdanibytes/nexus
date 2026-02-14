@@ -70,11 +70,35 @@ impl RegistryStore {
             let data = std::fs::read_to_string(&path)?;
             let mut store: RegistryStore = serde_json::from_str(&data)?;
             store.path = path;
+            store.migrate_defaults();
             Ok(store)
         } else {
             let store = RegistryStore { path, ..Default::default() };
             store.save()?;
             Ok(store)
+        }
+    }
+
+    /// Migrate the built-in "nexus-community" source if its URL is stale.
+    /// This handles the case where DEFAULT_REGISTRY_URL changed between releases
+    /// but the user's persisted registries.json still has the old value.
+    fn migrate_defaults(&mut self) {
+        let mut changed = false;
+        if let Some(source) = self.sources.iter_mut().find(|s| s.id == "nexus-community") {
+            if source.url != DEFAULT_REGISTRY_URL {
+                log::info!(
+                    "Migrating nexus-community registry URL: {} -> {}",
+                    source.url,
+                    DEFAULT_REGISTRY_URL
+                );
+                source.url = DEFAULT_REGISTRY_URL.to_string();
+                changed = true;
+            }
+        }
+        if changed {
+            if let Err(e) = self.save() {
+                log::warn!("Failed to save migrated registry store: {}", e);
+            }
         }
     }
 
@@ -393,8 +417,10 @@ pub async fn fetch_all(store: &RegistryStore) -> FetchAllResult {
     for source in store.enabled_sources() {
         match fetch_from_source(source).await {
             Ok(registry) => {
+                let trust_str = format!("{:?}", source.trust).to_lowercase();
                 for mut entry in registry.plugins {
                     entry.source = source.name.clone();
+                    entry.source_trust = Some(trust_str.clone());
                     all_plugins.push(entry);
                 }
                 for mut entry in registry.extensions {

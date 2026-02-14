@@ -27,52 +27,45 @@ Program membership ($99/year) and the following GitHub repository secrets:
 
 ## Pre-Release
 
-### 1. Version Bumps
+### 1. Write Release Notes
 
-Three files must have matching versions (the app version):
+Write release notes in a file at `docs/release-notes/v{VERSION}.md`.
 
-| File | Field |
-|------|-------|
-| `package.json` | `"version"` |
-| `src-tauri/tauri.conf.json` | `"version"` |
-| `src-tauri/Cargo.toml` | `version` under `[package]` |
+The file has two sections separated by `---`:
+- **Above the separator**: Brief bullet summary shown in the in-app "What's New" panel
+- **Below the separator**: Full detailed changelog shown on the GitHub Release page
 
-The Plugin SDK version is independent (only bump if the SDK changed):
-
-| File | Field |
-|------|-------|
-| `packages/plugin-sdk/package.json` | `"version"` |
-
-### 2. Write Release Notes
-
-Write release notes in a file at `docs/release-notes/v{VERSION}.md`. These get passed
-to `gh release create --notes-file` so they appear on the GitHub release page **and** in
-the in-app "What's New" panel via `latest.json`.
-
-Format: Markdown. Keep it user-facing — what changed, not how.
-
-### 3. Local Validation
+### 2. Local Validation
 
 Run the dry-run script to catch problems before pushing:
 
 ```bash
-bash scripts/release-dry-run.sh v0.3.0
+bash scripts/release-dry-run.sh v{VERSION}
 ```
 
-This checks: version consistency, release notes exist, git state is clean, builds compile,
-tests pass, and the tag doesn't already exist.
+This checks: release notes exist, git state is clean, builds compile, and tests pass.
 
-### 4. Commit Version Bumps
+### 3. Commit Release Notes
 
 ```bash
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml docs/release-notes/
+git add docs/release-notes/
 git commit -m "Release v{VERSION}"
 git push origin main
 ```
 
+**Note:** You do NOT need to manually bump version numbers. The release workflow
+automatically syncs all version fields from the git tag:
+
+| File | Field | Synced automatically |
+|------|-------|:---:|
+| `package.json` | `"version"` | yes |
+| `src-tauri/tauri.conf.json` | `"version"` | yes |
+| `src-tauri/Cargo.toml` | `version` under `[package]` | yes |
+| `packages/plugin-sdk/package.json` | `"version"` | yes |
+
 ## Release
 
-### 5. Tag and Push
+### 4. Tag and Push
 
 ```bash
 git tag v{VERSION}
@@ -80,23 +73,24 @@ git push origin v{VERSION}
 ```
 
 This triggers `.github/workflows/release.yml` which:
+- Syncs all version fields from the tag (no manual bumps needed)
 - Signs and notarizes macOS builds (aarch64 + x86_64) via Apple Developer certificate
-- Builds the Plugin SDK
-- Generates `latest.json` (used by the in-app updater, includes release notes for "What's New")
-- Creates a GitHub Release with the release notes and all artifacts
-- Publishes the SDK to GitHub Packages (if SDK version changed)
+- Builds Linux (.deb, .AppImage) and Windows (.exe) installers
+- Builds and publishes the Plugin SDK to GitHub Packages
+- Generates `latest.json` (used by the in-app updater, includes "What's New" summary)
+- Creates a GitHub Release with the full release notes and all artifacts
 
-### 6. Monitor CI
+### 5. Monitor CI
 
 Watch the [Actions tab](https://github.com/imdanibytes/nexus/actions) for the Release workflow.
-Both build matrix jobs + publish must succeed.
+All build matrix jobs + publish must succeed.
 
 If signing fails: check that all `APPLE_*` secrets are set correctly. The most common
 issue is an expired certificate or wrong app-specific password.
 
 ## Post-Release
 
-### 7. Verify
+### 6. Verify
 
 - [ ] GitHub Release page has correct notes, DMGs, and `latest.json`
 - [ ] `latest.json` has correct version, platform URLs, and release notes
@@ -104,9 +98,9 @@ issue is an expired certificate or wrong app-specific password.
 - [ ] Run `codesign -dv --verbose=2 /Applications/Nexus.app` — shows "Developer ID Application"
 - [ ] Run `spctl -a -vvv /Applications/Nexus.app` — shows "source=Notarized Developer ID"
 - [ ] In a previous version, "Check for Updates" shows the new version with "What's New"
-- [ ] SDK published to GitHub Packages (if SDK version changed)
+- [ ] SDK published to GitHub Packages with correct version
 
-### 8. Announce
+### 7. Announce
 
 Post in relevant channels. The GitHub Release auto-generates a changelog from PR titles
-via `--generate-notes`, but the curated notes from step 2 are the primary user-facing summary.
+via `--generate-notes`, but the curated notes from step 1 are the primary user-facing summary.

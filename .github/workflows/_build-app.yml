@@ -44,6 +44,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sync version from git tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Syncing version to $VERSION"
+
+          # package.json (root)
+          jq --arg v "$VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+
+          # tauri.conf.json
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+
+          # Cargo.toml — use a temp file for cross-platform compat
+          awk -v ver="$VERSION" '/^version = "/{print "version = \""ver"\""; next} {print}' src-tauri/Cargo.toml > tmp.toml && mv tmp.toml src-tauri/Cargo.toml
+
       - name: Install Linux dependencies
         if: matrix.os == 'linux'
         run: |

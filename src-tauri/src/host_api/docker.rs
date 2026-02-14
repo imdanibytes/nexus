@@ -35,7 +35,7 @@ pub async fn list_containers() -> Result<Json<Vec<ContainerInfo>>, StatusCode> {
             id: c.id.unwrap_or_default(),
             names: c.names.unwrap_or_default(),
             image: c.image.unwrap_or_default(),
-            state: c.state.unwrap_or_default(),
+            state: c.state.map(|s| s.to_string()).unwrap_or_default(),
             status: c.status.unwrap_or_default(),
         })
         .collect();

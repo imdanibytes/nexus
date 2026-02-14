@@ -1,9 +1,10 @@
-use bollard::container::{
-    Config, CreateContainerOptions, ListContainersOptions, LogOutput, LogsOptions,
-    RemoveContainerOptions, StopContainerOptions,
+use bollard::container::LogOutput;
+use bollard::query_parameters::{
+    BuildImageOptions, CreateContainerOptions, CreateImageOptions, ListContainersOptions,
+    ListNetworksOptions, LogsOptions, RemoveContainerOptions, RemoveImageOptions,
+    StartContainerOptions, StatsOptions, StopContainerOptions,
 };
-use bollard::image::{BuildImageOptions, CreateImageOptions, RemoveImageOptions};
-use bollard::network::CreateNetworkOptions;
+use bollard::service::{ContainerCreateBody, HostConfig, NetworkCreateRequest, PortBinding};
 use bollard::Docker;
 use futures_util::StreamExt;
 use std::collections::HashMap;
@@ -21,7 +22,7 @@ pub async fn ensure_network() -> NexusResult<()> {
     let docker = connect()?;
 
     let networks = docker
-        .list_networks::<String>(None)
+        .list_networks(None::<ListNetworksOptions>)
         .await
         .map_err(NexusError::Docker)?;
 
@@ -33,9 +34,9 @@ pub async fn ensure_network() -> NexusResult<()> {
 
     if !exists {
         docker
-            .create_network(CreateNetworkOptions {
-                name: NETWORK_NAME,
-                driver: "bridge",
+            .create_network(NetworkCreateRequest {
+                name: NETWORK_NAME.to_string(),
+                driver: Some("bridge".to_string()),
                 ..Default::default()
             })
             .await
@@ -73,8 +74,8 @@ pub async fn pull_image(image: &str) -> NexusResult<()> {
     };
 
     let opts = CreateImageOptions {
-        from_image: repo,
-        tag,
+        from_image: Some(repo.to_string()),
+        tag: Some(tag.to_string()),
         ..Default::default()
     };
 
@@ -128,12 +129,13 @@ pub async fn build_image(context_dir: &Path, tag: &str) -> NexusResult<()> {
         .map_err(|e| NexusError::Other(format!("Failed to finalize build context: {}", e)))?;
 
     let opts = BuildImageOptions {
-        t: tag,
+        t: Some(tag.to_string()),
         rm: true,
         ..Default::default()
     };
 
-    let mut stream = docker.build_image(opts, None, Some(tar_bytes.into()));
+    let body = bollard::body_full(tar_bytes.into());
+    let mut stream = docker.build_image(opts, None, Some(body));
     while let Some(result) = stream.next().await {
         match result {
             Ok(info) => {
@@ -143,8 +145,9 @@ pub async fn build_image(context_dir: &Path, tag: &str) -> NexusResult<()> {
                         log::debug!("Build: {}", msg);
                     }
                 }
-                if let Some(error) = info.error {
-                    return Err(NexusError::Other(format!("Docker build error: {}", error)));
+                if let Some(detail) = info.error_detail {
+                    let msg = detail.message.unwrap_or_default();
+                    return Err(NexusError::Other(format!("Docker build error: {}", msg)));
                 }
             }
             Err(e) => return Err(NexusError::Docker(e)),
@@ -175,7 +178,7 @@ pub async fn create_container(
 ) -> NexusResult<String> {
     let docker = connect()?;
 
-    let port_binding = bollard::service::PortBinding {
+    let port_binding = PortBinding {
         host_ip: Some("127.0.0.1".to_string()),
         host_port: Some(host_port.to_string()),
     };
@@ -185,10 +188,7 @@ pub async fn create_container(
     let mut port_bindings = HashMap::new();
     port_bindings.insert(container_port_key.clone(), Some(vec![port_binding]));
 
-    let mut exposed_ports = HashMap::new();
-    exposed_ports.insert(container_port_key, HashMap::new());
-
-    let host_config = bollard::service::HostConfig {
+    let host_config = HostConfig {
         port_bindings: Some(port_bindings),
         network_mode: Some(NETWORK_NAME.to_string()),
         extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
@@ -204,17 +204,17 @@ pub async fn create_container(
         ..Default::default()
     };
 
-    let config = Config {
+    let config = ContainerCreateBody {
         image: Some(image.to_string()),
         env: Some(env_vars),
         labels: Some(labels),
-        exposed_ports: Some(exposed_ports),
+        exposed_ports: Some(vec![container_port_key]),
         host_config: Some(host_config),
         ..Default::default()
     };
 
     let opts = CreateContainerOptions {
-        name,
+        name: Some(name.to_string()),
         ..Default::default()
     };
 
@@ -229,7 +229,7 @@ pub async fn create_container(
 pub async fn start_container(container_id: &str) -> NexusResult<()> {
     let docker = connect()?;
     docker
-        .start_container::<String>(container_id, None)
+        .start_container(container_id, None::<StartContainerOptions>)
         .await
         .map_err(NexusError::Docker)?;
     Ok(())
@@ -240,7 +240,7 @@ pub async fn stop_container(container_id: &str) -> NexusResult<()> {
     docker
         .stop_container(
             container_id,
-            Some(StopContainerOptions { t: 10 }),
+            Some(StopContainerOptions { t: Some(10), signal: None }),
         )
         .await
         .map_err(NexusError::Docker)?;
@@ -270,6 +270,7 @@ pub async fn remove_image(image: &str) -> NexusResult<()> {
             Some(RemoveImageOptions {
                 force: false,
                 noprune: false,
+                ..Default::default()
             }),
             None,
         )
@@ -281,7 +282,7 @@ pub async fn remove_image(image: &str) -> NexusResult<()> {
 pub async fn get_logs(container_id: &str, tail: u32) -> NexusResult<Vec<String>> {
     let docker = connect()?;
 
-    let opts = LogsOptions::<String> {
+    let opts = LogsOptions {
         stdout: true,
         stderr: true,
         tail: tail.to_string(),
@@ -316,11 +317,11 @@ pub async fn list_containers() -> NexusResult<Vec<bollard::service::ContainerSum
     let docker = connect()?;
 
     let mut filters = HashMap::new();
-    filters.insert("label", vec!["nexus.plugin.id"]);
+    filters.insert("label".to_string(), vec!["nexus.plugin.id".to_string()]);
 
     let opts = ListContainersOptions {
         all: true,
-        filters,
+        filters: Some(filters),
         ..Default::default()
     };
 
@@ -381,16 +382,14 @@ pub async fn aggregate_stats() -> NexusResult<crate::commands::system::ResourceU
         };
 
         // Only stats running containers
-        let state = container
-            .state
-            .as_deref()
-            .unwrap_or("unknown");
-        if state != "running" {
+        let is_running = container.state
+            == Some(bollard::service::ContainerSummaryStateEnum::RUNNING);
+        if !is_running {
             continue;
         }
 
         // Get a single stats snapshot (stream=false gives one result)
-        let opts = bollard::container::StatsOptions {
+        let opts = StatsOptions {
             stream: false,
             one_shot: true,
         };
@@ -398,21 +397,24 @@ pub async fn aggregate_stats() -> NexusResult<crate::commands::system::ResourceU
         let mut stream = docker.stats(id, Some(opts));
         if let Some(Ok(stats)) = futures_util::StreamExt::next(&mut stream).await {
             // CPU percentage calculation
-            let cpu_delta = stats.cpu_stats.cpu_usage.total_usage as f64
-                - stats.precpu_stats.cpu_usage.total_usage as f64;
-            let system_delta = stats.cpu_stats.system_cpu_usage.unwrap_or(0) as f64
-                - stats.precpu_stats.system_cpu_usage.unwrap_or(0) as f64;
-            let num_cpus = stats
-                .cpu_stats
-                .online_cpus
-                .unwrap_or(1) as f64;
+            if let (Some(cpu), Some(precpu)) = (&stats.cpu_stats, &stats.precpu_stats) {
+                if let (Some(cpu_usage), Some(precpu_usage)) = (&cpu.cpu_usage, &precpu.cpu_usage) {
+                    let cpu_delta = cpu_usage.total_usage.unwrap_or(0) as f64
+                        - precpu_usage.total_usage.unwrap_or(0) as f64;
+                    let system_delta = cpu.system_cpu_usage.unwrap_or(0) as f64
+                        - precpu.system_cpu_usage.unwrap_or(0) as f64;
+                    let num_cpus = cpu.online_cpus.unwrap_or(1) as f64;
 
-            if system_delta > 0.0 {
-                total_cpu += (cpu_delta / system_delta) * num_cpus * 100.0;
+                    if system_delta > 0.0 {
+                        total_cpu += (cpu_delta / system_delta) * num_cpus * 100.0;
+                    }
+                }
             }
 
             // Memory usage
-            total_memory_bytes += stats.memory_stats.usage.unwrap_or(0);
+            if let Some(mem) = &stats.memory_stats {
+                total_memory_bytes += mem.usage.unwrap_or(0);
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 use super::McpWrapError;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
@@ -9,6 +10,23 @@ pub struct DiscoveredTool {
     pub name: String,
     pub description: String,
     pub input_schema: serde_json::Value,
+}
+
+/// Get the user's full PATH by sourcing their login shell.
+/// macOS .app bundles inherit a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin)
+/// that doesn't include Homebrew, nvm, fnm, etc. This resolves the real PATH once.
+fn user_path() -> &'static str {
+    static PATH: OnceLock<String> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        std::process::Command::new(&shell)
+            .args(["-lc", "printf '%s' \"$PATH\""])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .unwrap_or_else(|| std::env::var("PATH").unwrap_or_default())
+    })
 }
 
 /// Discover tools from an MCP server by running the given command and
@@ -26,6 +44,7 @@ pub async fn discover_tools(command: &str) -> Result<Vec<DiscoveredTool>, McpWra
 
     let mut child = Command::new(binary)
         .args(&parts[1..])
+        .env("PATH", user_path())
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::inherit())

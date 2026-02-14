@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -e
+
+echo "pre-push: running clippy..."
+(cd src-tauri && cargo clippy -- -D warnings)
+
+echo "pre-push: running tsc..."
+npx tsc --noEmit
+
+echo "pre-push: all checks passed"

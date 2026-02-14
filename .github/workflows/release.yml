@@ -46,10 +46,10 @@ jobs:
           find artifacts -name "*.AppImage" -type f ! -name "*.tar.gz" -exec cp {} release/ \;
           find artifacts -name "*.exe" -type f -exec cp {} release/ \;
 
-          # Load release notes
+          # Load release notes — brief summary (above first ---) for updater UI
           NOTES_FILE="docs/release-notes/${TAG}.md"
           if [ -f "$NOTES_FILE" ]; then
-            NOTES=$(cat "$NOTES_FILE")
+            NOTES=$(sed -n '/^---$/q;p' "$NOTES_FILE" | sed -e 's/\*\*//g' -e '/^$/d')
             echo "Using release notes from $NOTES_FILE"
           else
             NOTES="Release ${TAG}"

@@ -23,6 +23,7 @@
     "@tauri-apps/plugin-updater": "^2.10.0",
     "geist": "^1.7.0",
     "lucide-react": "^0.564.0",
+    "marked": "^17.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.1.18",

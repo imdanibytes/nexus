@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useState, useMemo } from "react";
 import { RefreshCw, Download, RotateCcw, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { marked } from "marked";
 
 type UpdateState =
   | { phase: "idle" }
@@ -12,58 +13,14 @@ type UpdateState =
   | { phase: "ready"; notes?: string }
   | { phase: "error"; message: string };
 
-function renderNotes(text: string): ReactNode {
-  const lines = text.split("\n");
-  const elements: ReactNode[] = [];
-  let listItems: ReactNode[] = [];
-
-  const renderInline = (line: string, key: number): ReactNode => {
-    const parts = line.split(/(\*\*[^*]+\*\*)/g);
-    return (
-      <span key={key}>
-        {parts.map((part, i) =>
-          part.startsWith("**") && part.endsWith("**") ? (
-            <strong key={i} className="font-semibold text-nx-text-primary">
-              {part.slice(2, -2)}
-            </strong>
-          ) : (
-            part
-          )
-        )}
-      </span>
-    );
-  };
-
-  const flushList = () => {
-    if (listItems.length > 0) {
-      elements.push(
-        <ul key={elements.length} className="space-y-1">
-          {listItems}
-        </ul>
-      );
-      listItems = [];
-    }
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith("- ")) {
-      listItems.push(
-        <li key={i} className="flex gap-1.5">
-          <span className="text-nx-text-muted shrink-0">·</span>
-          <span>{renderInline(line.slice(2), i)}</span>
-        </li>
-      );
-    } else {
-      flushList();
-      if (line.trim()) {
-        elements.push(<p key={i}>{renderInline(line, i)}</p>);
-      }
-    }
-  }
-  flushList();
-
-  return <>{elements}</>;
+function ReleaseNotes({ markdown }: { markdown: string }) {
+  const html = useMemo(() => marked.parse(markdown, { async: false }) as string, [markdown]);
+  return (
+    <div
+      className="release-notes"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }
 
 export function UpdateCheck() {
@@ -207,8 +164,8 @@ export function UpdateCheck() {
             )}
           </button>
           {notesOpen && (
-            <div className="px-3 pb-3 text-[12px] leading-relaxed text-nx-text-secondary border-t border-nx-border/50 pt-2">
-              {renderNotes(releaseNotes)}
+            <div className="px-3 pb-3 text-[12px] leading-relaxed text-nx-text-secondary border-t border-nx-border/50 pt-2 max-h-60 overflow-y-auto">
+              <ReleaseNotes markdown={releaseNotes} />
             </div>
           )}
         </div>

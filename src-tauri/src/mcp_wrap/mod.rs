@@ -23,7 +23,7 @@ fn extract_npm_package(cmd: &str) -> Option<String> {
         if part.starts_with('-') {
             continue;
         }
-        if part.starts_with('@') || part.chars().next().map_or(false, |c| c.is_ascii_lowercase()) {
+        if part.starts_with('@') || part.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
             return Some(part.to_string());
         }
     }

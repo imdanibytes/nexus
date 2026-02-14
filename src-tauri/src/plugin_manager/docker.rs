@@ -288,6 +288,7 @@ pub struct ResourceLimits {
     pub memory_bytes: Option<i64>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_container(
     name: &str,
     image: &str,

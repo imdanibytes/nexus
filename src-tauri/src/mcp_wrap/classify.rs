@@ -2,7 +2,7 @@ use super::discovery::DiscoveredTool;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 
 /// A tool with inferred permission classifications.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,74 +20,80 @@ struct PermissionRule {
     permission: &'static str,
 }
 
-static PERMISSION_RULES: LazyLock<Vec<PermissionRule>> = LazyLock::new(|| {
-    vec![
-        PermissionRule {
-            patterns: vec![
-                Regex::new(r"(?i)\bfile\b").unwrap(),
-                Regex::new(r"(?i)\bread\b").unwrap(),
-                Regex::new(r"(?i)\bpath\b").unwrap(),
-                Regex::new(r"(?i)\bdirectory\b").unwrap(),
-                Regex::new(r"(?i)\bfolder\b").unwrap(),
-                Regex::new(r"(?i)\bls\b").unwrap(),
-                Regex::new(r"(?i)list_dir").unwrap(),
-                Regex::new(r"(?i)get_file").unwrap(),
-            ],
-            permission: "filesystem:read",
-        },
-        PermissionRule {
-            patterns: vec![
-                Regex::new(r"(?i)\bwrite\b").unwrap(),
-                Regex::new(r"(?i)\bsave\b").unwrap(),
-                Regex::new(r"(?i)\bcreate\b").unwrap(),
-                Regex::new(r"(?i)\bdelete\b").unwrap(),
-                Regex::new(r"(?i)\bremove\b").unwrap(),
-                Regex::new(r"(?i)\bmkdir\b").unwrap(),
-                Regex::new(r"(?i)\brename\b").unwrap(),
-                Regex::new(r"(?i)\bmove\b").unwrap(),
-            ],
-            permission: "filesystem:write",
-        },
-        PermissionRule {
-            patterns: vec![
-                Regex::new(r"(?i)\bfetch\b").unwrap(),
-                Regex::new(r"(?i)\brequest\b").unwrap(),
-                Regex::new(r"(?i)\bhttp\b").unwrap(),
-                Regex::new(r"(?i)\burl\b").unwrap(),
-                Regex::new(r"(?i)\bdownload\b").unwrap(),
-                Regex::new(r"(?i)\bapi\b").unwrap(),
-                Regex::new(r"(?i)\bwebhook\b").unwrap(),
-            ],
-            permission: "network:internet",
-        },
-    ]
-});
+fn permission_rules() -> &'static Vec<PermissionRule> {
+    static RULES: OnceLock<Vec<PermissionRule>> = OnceLock::new();
+    RULES.get_or_init(|| {
+        vec![
+            PermissionRule {
+                patterns: vec![
+                    Regex::new(r"(?i)\bfile\b").unwrap(),
+                    Regex::new(r"(?i)\bread\b").unwrap(),
+                    Regex::new(r"(?i)\bpath\b").unwrap(),
+                    Regex::new(r"(?i)\bdirectory\b").unwrap(),
+                    Regex::new(r"(?i)\bfolder\b").unwrap(),
+                    Regex::new(r"(?i)\bls\b").unwrap(),
+                    Regex::new(r"(?i)list_dir").unwrap(),
+                    Regex::new(r"(?i)get_file").unwrap(),
+                ],
+                permission: "filesystem:read",
+            },
+            PermissionRule {
+                patterns: vec![
+                    Regex::new(r"(?i)\bwrite\b").unwrap(),
+                    Regex::new(r"(?i)\bsave\b").unwrap(),
+                    Regex::new(r"(?i)\bcreate\b").unwrap(),
+                    Regex::new(r"(?i)\bdelete\b").unwrap(),
+                    Regex::new(r"(?i)\bremove\b").unwrap(),
+                    Regex::new(r"(?i)\bmkdir\b").unwrap(),
+                    Regex::new(r"(?i)\brename\b").unwrap(),
+                    Regex::new(r"(?i)\bmove\b").unwrap(),
+                ],
+                permission: "filesystem:write",
+            },
+            PermissionRule {
+                patterns: vec![
+                    Regex::new(r"(?i)\bfetch\b").unwrap(),
+                    Regex::new(r"(?i)\brequest\b").unwrap(),
+                    Regex::new(r"(?i)\bhttp\b").unwrap(),
+                    Regex::new(r"(?i)\burl\b").unwrap(),
+                    Regex::new(r"(?i)\bdownload\b").unwrap(),
+                    Regex::new(r"(?i)\bapi\b").unwrap(),
+                    Regex::new(r"(?i)\bwebhook\b").unwrap(),
+                ],
+                permission: "network:internet",
+            },
+        ]
+    })
+}
 
-static HIGH_RISK_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
-    vec![
-        Regex::new(r"(?i)\bexec\b").unwrap(),
-        Regex::new(r"(?i)\brun\b").unwrap(),
-        Regex::new(r"(?i)\bshell\b").unwrap(),
-        Regex::new(r"(?i)\bcommand\b").unwrap(),
-        Regex::new(r"(?i)\beval\b").unwrap(),
-        Regex::new(r"(?i)\bspawn\b").unwrap(),
-        Regex::new(r"(?i)\bsystem\b").unwrap(),
-        Regex::new(r"(?i)\bbash\b").unwrap(),
-    ]
-});
+fn high_risk_patterns() -> &'static Vec<Regex> {
+    static PATTERNS: OnceLock<Vec<Regex>> = OnceLock::new();
+    PATTERNS.get_or_init(|| {
+        vec![
+            Regex::new(r"(?i)\bexec\b").unwrap(),
+            Regex::new(r"(?i)\brun\b").unwrap(),
+            Regex::new(r"(?i)\bshell\b").unwrap(),
+            Regex::new(r"(?i)\bcommand\b").unwrap(),
+            Regex::new(r"(?i)\beval\b").unwrap(),
+            Regex::new(r"(?i)\bspawn\b").unwrap(),
+            Regex::new(r"(?i)\bsystem\b").unwrap(),
+            Regex::new(r"(?i)\bbash\b").unwrap(),
+        ]
+    })
+}
 
 /// Classify a discovered tool by inferring permissions from its name and description.
 pub fn classify_tool(tool: &DiscoveredTool) -> ClassifiedTool {
     let text = format!("{} {}", tool.name, tool.description);
     let mut permissions: HashSet<&str> = HashSet::new();
 
-    for rule in PERMISSION_RULES.iter() {
+    for rule in permission_rules() {
         if rule.patterns.iter().any(|p: &Regex| p.is_match(&text)) {
             permissions.insert(rule.permission);
         }
     }
 
-    let high_risk = HIGH_RISK_PATTERNS.iter().any(|p: &Regex| p.is_match(&text));
+    let high_risk = high_risk_patterns().iter().any(|p: &Regex| p.is_match(&text));
 
     ClassifiedTool {
         name: tool.name.clone(),

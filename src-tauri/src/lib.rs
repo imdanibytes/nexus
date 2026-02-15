@@ -267,15 +267,15 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    #[allow(clippy::single_match)]
-    app.run(|app_handle: &tauri::AppHandle, event: tauri::RunEvent| {
+    app.run(|_app_handle: &tauri::AppHandle, _event: tauri::RunEvent| {
         // macOS dock icon click — re-show the hidden window
+        #[cfg(target_os = "macos")]
         if let tauri::RunEvent::Reopen {
             has_visible_windows, ..
-        } = event
+        } = _event
         {
             if !has_visible_windows {
-                show_window(app_handle);
+                show_window(_app_handle);
             }
         }
     });

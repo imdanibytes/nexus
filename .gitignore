@@ -28,9 +28,6 @@ pnpm-debug.log*
 *.sw?
 .DS_Store
 
-# Sidecar binaries (built by scripts/build-mcp-sidecar.sh)
-src-tauri/binaries/nexus-mcp-*
-
 # Plugin SDK build output (built from openapi.json)
 packages/plugin-sdk/dist/
 

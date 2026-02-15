@@ -66,7 +66,7 @@ pub async fn gateway_auth_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Try X-Nexus-Gateway-Token first (MCP sidecar path)
+    // Try X-Nexus-Gateway-Token first (MCP gateway auth)
     if let Some(token) = req
         .headers()
         .get("X-Nexus-Gateway-Token")

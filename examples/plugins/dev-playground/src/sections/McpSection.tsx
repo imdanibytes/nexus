@@ -71,7 +71,7 @@ export function McpSection() {
         <CardHeader>
           <CardTitle>Request Format</CardTitle>
           <CardDescription>
-            How the sidecar calls your plugin's MCP tools
+            How the MCP gateway calls your plugin's tools
           </CardDescription>
         </CardHeader>
         <CardContent>

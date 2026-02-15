@@ -12,7 +12,6 @@
     "sdk:generate": "cd packages/plugin-sdk && npx openapi-ts",
     "sdk:build": "cd packages/plugin-sdk && npx tsc",
     "sdk": "npm run sdk:spec && npm run sdk:generate && npm run sdk:build",
-    "sidecar": "bash scripts/build-mcp-sidecar.sh",
     "tauri:build": "bash -c 'set -a && [ -f .env.local ] && source .env.local; set +a && cargo tauri build'"
   },
   "dependencies": {

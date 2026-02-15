@@ -81,9 +81,6 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      - name: Build MCP sidecar
-        run: bash scripts/build-mcp-sidecar.sh
-
       - name: Cargo check
         working-directory: src-tauri
         run: cargo check

@@ -12,9 +12,8 @@ just check            # Fast Rust compile check (no codegen)
 just clippy           # Rust lints
 just typecheck        # TypeScript type check (tsc --noEmit)
 just lint             # All lints: clippy + tsc + eslint
-just build-sidecar    # Build the MCP sidecar binary
 just build-app        # Signed production build (.app + .dmg), reads .env.local for signing creds
-just build-all        # Sidecar + extensions + app
+just build-all        # Extensions + app
 ```
 
 Tests:
@@ -41,7 +40,7 @@ just sync-version 0.7.0
 Tauri v2 desktop app. Rust backend serves an Axum HTTP server (Host API) on `127.0.0.1:9600`. React frontend communicates with Rust via Tauri IPC commands. Plugins are Docker containers. Extensions are native binaries communicating via JSON-RPC over stdin/stdout.
 
 ```
-AI Client → nexus-mcp sidecar (stdio) → Host API (:9600) → Plugin containers / Extension processes
+AI Client → MCP (Streamable HTTP) → Host API (:9600/mcp) → Plugin containers / Extension processes
                                                           ↕
                                               React frontend (Tauri webview)
 ```
@@ -51,7 +50,7 @@ AI Client → nexus-mcp sidecar (stdio) → Host API (:9600) → Plugin containe
 - **`lib.rs`** — App entry point. Creates `PluginManager`, wires extension IPC, spawns Host API server. `AppState = Arc<RwLock<PluginManager>>`.
 - **`host_api/`** — Axum server with three route groups:
   - **Auth routes** (public) — `POST /api/v1/auth/token` — plugins exchange secret for session token
-  - **MCP routes** (gateway auth) — `/api/v1/mcp/{tools,call,events}` — sidecar uses these
+  - **MCP routes** (gateway auth) — `/mcp` (Streamable HTTP) + `/api/v1/mcp/{tools,call,events}` (legacy)
   - **Authenticated routes** — everything else (system, fs, process, docker, network, extensions, settings, storage)
   - `middleware.rs` — auth middleware extracts Bearer tokens from SessionStore
   - `approval.rs` — generic `ApprovalBridge` using oneshot channels + Tauri events for runtime permission dialogs
@@ -77,9 +76,9 @@ AI Client → nexus-mcp sidecar (stdio) → Host API (:9600) → Plugin containe
 - **`types/`** — TypeScript type definitions matching Rust structs
 - **`components/`** — Organized by feature: layout, plugins, marketplace, settings, extensions, permissions
 
-### MCP Sidecar (crates/mcp-sidecar/)
+### MCP Gateway
 
-Standalone Rust binary using `rmcp`. Bridges MCP stdio protocol to Host API HTTP endpoints. Built automatically by `beforeBuildCommand` in tauri.conf.json. Build manually with `just build-sidecar`.
+Native Streamable HTTP MCP server at `/mcp`. AI clients connect directly via HTTP — no sidecar binary needed. Gateway token auth via `X-Nexus-Gateway-Token` header.
 
 ### Plugin SDK (packages/plugin-sdk/)
 

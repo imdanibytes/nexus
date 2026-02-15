@@ -100,7 +100,7 @@ pub enum ExtensionError {
 ///
 /// Extensions are pure infrastructure — they provide capabilities, not user-facing tools.
 /// Only plugins expose MCP tools and UIs. The call chain is:
-/// AI → MCP sidecar → Plugin MCP tool → Host API /v1/extensions/{ext}/{op} → Extension → host CLI
+/// AI → MCP gateway → Plugin MCP tool → Host API /v1/extensions/{ext}/{op} → Extension → host CLI
 #[async_trait]
 pub trait Extension: Send + Sync + 'static {
     /// Unique identifier, e.g. "weather" or "file_sync"

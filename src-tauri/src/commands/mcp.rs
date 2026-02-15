@@ -1,7 +1,6 @@
 use crate::plugin_manager::storage::{McpPluginSettings, McpSettings};
 use crate::AppState;
 use serde::Serialize;
-use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct McpToolStatus {
@@ -181,7 +180,6 @@ pub async fn mcp_list_tools(
 
 #[tauri::command]
 pub async fn mcp_config_snippet(
-    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let mgr = state.read().await;
@@ -190,38 +188,9 @@ pub async fn mcp_config_snippet(
     let token = std::fs::read_to_string(&token_path)
         .map_err(|e| format!("Failed to read gateway token: {}", e))?;
 
-    // Tauri bakes the target triple at compile time and places sidecars at:
-    //   {resource_dir}/binaries/{name}-{TAURI_ENV_TARGET_TRIPLE}[.exe]
-    let target_triple = env!("TAURI_ENV_TARGET_TRIPLE");
-    let exe_suffix = if target_triple.contains("windows") { ".exe" } else { "" };
-    let sidecar_name = format!("nexus-mcp-{}{}", target_triple, exe_suffix);
-
-    let sidecar_path = app
-        .path()
-        .resource_dir()
-        .map(|dir| dir.join("binaries").join(&sidecar_name))
-        .map_err(|e| format!("Failed to resolve resource dir: {}", e))?;
-
-    let command = if sidecar_path.exists() {
-        sidecar_path.display().to_string()
-    } else {
-        // Dev mode — binary may not be in the resource dir yet.
-        // Fall back to the build output in src-tauri/binaries/.
-        let dev_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("binaries")
-            .join(&sidecar_name);
-        if dev_path.exists() {
-            dev_path.display().to_string()
-        } else {
-            // Last resort: assume it's on PATH
-            "nexus-mcp".to_string()
-        }
-    };
-
     let token_trimmed = token.trim();
 
-    // Direct connection (recommended) — no sidecar needed
-    let direct_config = serde_json::json!({
+    let desktop_config = serde_json::json!({
         "mcpServers": {
             "nexus": {
                 "url": "http://127.0.0.1:9600/mcp",
@@ -232,34 +201,13 @@ pub async fn mcp_config_snippet(
         }
     });
 
-    // Sidecar connection (legacy/fallback for clients that don't support streamable HTTP)
-    let sidecar_config = serde_json::json!({
-        "mcpServers": {
-            "nexus": {
-                "command": command,
-                "args": [],
-                "env": {
-                    "NEXUS_GATEWAY_TOKEN": token_trimmed,
-                    "NEXUS_API_URL": "http://localhost:9600/api"
-                }
-            }
-        }
-    });
-
     let claude_code_command = format!(
         "claude mcp add -t http \\\n  nexus http://127.0.0.1:9600/mcp \\\n  -H \"X-Nexus-Gateway-Token: {}\"",
         token_trimmed
     );
 
-    let claude_code_command_legacy = format!(
-        "claude mcp add \\\n  -e NEXUS_GATEWAY_TOKEN={} \\\n  -e NEXUS_API_URL=http://localhost:9600/api \\\n  -- nexus {}",
-        token_trimmed, command
-    );
-
     Ok(serde_json::json!({
-        "direct_config": direct_config,
-        "desktop_config": sidecar_config,
-        "claude_code_command": claude_code_command,
-        "claude_code_command_legacy": claude_code_command_legacy
+        "desktop_config": desktop_config,
+        "claude_code_command": claude_code_command
     }))
 }

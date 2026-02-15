@@ -30,12 +30,6 @@ typecheck:
 lint: clippy typecheck
     pnpm lint
 
-# ── Sidecar ────────────────────────────────────────────────────────────────
-
-# Build the MCP sidecar binary
-build-sidecar:
-    bash scripts/build-mcp-sidecar.sh
-
 # ── Extensions ─────────────────────────────────────────────────────────────
 
 # Build all example extensions
@@ -80,5 +74,5 @@ release-dry-run tag:
 
 # ── All ────────────────────────────────────────────────────────────────────
 
-# Build everything: sidecar, extensions, frontend, app
-build-all: build-sidecar build-extensions build-app
+# Build everything: extensions, frontend, app
+build-all: build-extensions build-app

@@ -126,11 +126,6 @@ jobs:
           echo "Signing identity: $CERT_ID"
 
       # --- Build ---
-      - name: Build MCP sidecar
-        run: bash scripts/build-mcp-sidecar.sh
-        env:
-          CARGO_BUILD_TARGET: ${{ matrix.target }}
-
       - name: Build Tauri app (macOS)
         if: matrix.os == 'macos'
         env:

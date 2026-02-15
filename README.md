@@ -11,20 +11,16 @@ Nexus is a Tauri 2 app with a React frontend and a Rust backend. Plugins are Doc
 - Declares permissions for what it can access (filesystem, network, processes, etc.)
 - Optionally exposes MCP tools that AI assistants like Claude can call
 
-A bundled MCP sidecar (`nexus-mcp`) bridges plugin tools to any MCP-compatible client. When plugins start or stop, tool availability updates automatically via SSE.
+The host runs a native MCP gateway at `http://127.0.0.1:9600/mcp` (Streamable HTTP transport). AI clients connect directly — no sidecar binary needed. When plugins start or stop, tool availability updates automatically.
 
 ## Architecture
 
 ```
 Claude Desktop / AI Client
         |
-        | MCP (stdio)
+        | MCP (Streamable HTTP)
         v
-   nexus-mcp sidecar
-        |
-        | HTTP (localhost:9600)
-        v
-   Nexus Host API (Axum)
+   Nexus Host API (Axum) — :9600/mcp
         |
         | Docker API
         v
@@ -34,7 +30,7 @@ Claude Desktop / AI Client
 
 **Frontend:** React 19, TypeScript, Tailwind CSS, Zustand
 **Backend:** Rust, Tauri 2, Axum, Bollard (Docker)
-**MCP Gateway:** Rust, rmcp
+**MCP Gateway:** Native Streamable HTTP
 **Plugin SDK:** Auto-generated TypeScript client from OpenAPI spec
 
 ## Getting Started
@@ -54,12 +50,6 @@ pnpm install
 
 # Run in development mode (starts Vite + Tauri)
 cargo tauri dev
-```
-
-The sidecar is built automatically via `beforeBuildCommand`. To build it manually:
-
-```bash
-pnpm sidecar
 ```
 
 ### Production Build
@@ -130,7 +120,6 @@ npm install @imdanibytes/plugin-sdk --registry=https://npm.pkg.github.com
 ```
 src/                    React frontend
 src-tauri/              Rust backend (Tauri shell, Host API, plugin manager)
-crates/mcp-sidecar/     MCP gateway sidecar
 packages/plugin-sdk/    Auto-generated TypeScript SDK
 examples/plugins/       Example plugins (hello-world, permission-tester)
 examples/extensions/    Test extension binaries

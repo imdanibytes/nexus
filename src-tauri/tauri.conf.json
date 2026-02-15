@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build && bash scripts/build-mcp-sidecar.sh"
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "windows": [
@@ -42,9 +42,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "externalBin": [
-      "binaries/nexus-mcp"
     ]
   },
   "plugins": {

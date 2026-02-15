@@ -165,17 +165,6 @@ fi
 
 echo ""
 
-# --- 7. Sidecar check ---
-echo -e "${BOLD}MCP Sidecar${RESET}"
-
-if bash scripts/build-mcp-sidecar.sh 2>/dev/null; then
-  ok "Sidecar builds"
-else
-  fail "Sidecar build failed"
-fi
-
-echo ""
-
 # --- Summary ---
 echo -e "${BOLD}────────────────────────${RESET}"
 echo -e "  ${GREEN}Passed: $pass${RESET}  ${RED}Failed: $fail${RESET}  ${YELLOW}Warnings: $warn${RESET}"

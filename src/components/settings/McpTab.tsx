@@ -67,14 +67,11 @@ export function McpTab() {
   const [settings, setSettings] = useState<McpSettings | null>(null);
   const [tools, setTools] = useState<McpToolStatus[]>([]);
   const [configData, setConfigData] = useState<{
-    direct_config: unknown;
     desktop_config: unknown;
     claude_code_command: string;
-    claude_code_command_legacy: string;
   } | null>(null);
   const [configTab, setConfigTab] = useState<ConfigTab>("desktop");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [legacyOpen, setLegacyOpen] = useState(false);
   const [userScope, setUserScope] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -167,10 +164,7 @@ export function McpTab() {
     return cmd.replace("claude mcp add", "claude mcp add -s user");
   }
 
-  const directDesktopSnippet = configData?.direct_config
-    ? JSON.stringify(configData.direct_config, null, 2)
-    : "";
-  const legacyDesktopSnippet = configData?.desktop_config
+  const desktopSnippet = configData?.desktop_config
     ? JSON.stringify(configData.desktop_config, null, 2)
     : "";
 
@@ -222,7 +216,7 @@ export function McpTab() {
           </div>
 
           {/* Client tabs */}
-          <Tabs value={configTab} onValueChange={(v) => { setConfigTab(v as ConfigTab); setLegacyOpen(false); }} className="mb-3">
+          <Tabs value={configTab} onValueChange={(v) => { setConfigTab(v as ConfigTab); }} className="mb-3">
             <TabsList>
               <TabsTrigger value="desktop">Claude Desktop</TabsTrigger>
               <TabsTrigger value="code">Claude Code</TabsTrigger>
@@ -232,37 +226,15 @@ export function McpTab() {
           {configTab === "desktop" ? (
             <div className="space-y-3">
               <p className="text-[11px] text-nx-text-ghost">
-                Add this to your Claude Desktop config file. Uses a direct HTTP connection — no sidecar binary needed.
+                Add this to your Claude Desktop config file.
               </p>
-              <CodeBlock text={directDesktopSnippet} />
-
-              {/* Legacy sidecar fallback */}
-              <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen}>
-                <CollapsibleTrigger asChild>
-                  <button className="flex items-center gap-1.5 text-[11px] text-nx-text-ghost hover:text-nx-text-muted transition-colors">
-                    <ChevronDown
-                      size={12}
-                      strokeWidth={1.5}
-                      className={`transition-transform duration-200 ${legacyOpen ? "rotate-180" : ""}`}
-                    />
-                    Legacy (sidecar binary)
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mt-2 space-y-2">
-                    <p className="text-[11px] text-nx-text-ghost">
-                      For clients that don't support streamable HTTP transport, use the stdio sidecar instead.
-                    </p>
-                    <CodeBlock text={legacyDesktopSnippet} />
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              <CodeBlock text={desktopSnippet} />
             </div>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] text-nx-text-ghost">
-                  Run this in your terminal to register the MCP server. Uses a direct HTTP connection.
+                  Run this in your terminal to register the MCP server.
                 </p>
                 <label className="flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
                   <Switch size="sm" checked={userScope} onCheckedChange={setUserScope} />
@@ -270,28 +242,6 @@ export function McpTab() {
                 </label>
               </div>
               <CodeBlock text={injectScope(configData.claude_code_command)} />
-
-              {/* Legacy sidecar fallback */}
-              <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen}>
-                <CollapsibleTrigger asChild>
-                  <button className="flex items-center gap-1.5 text-[11px] text-nx-text-ghost hover:text-nx-text-muted transition-colors">
-                    <ChevronDown
-                      size={12}
-                      strokeWidth={1.5}
-                      className={`transition-transform duration-200 ${legacyOpen ? "rotate-180" : ""}`}
-                    />
-                    Legacy (sidecar binary)
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mt-2 space-y-2">
-                    <p className="text-[11px] text-nx-text-ghost">
-                      For clients that don't support streamable HTTP transport, use the stdio sidecar instead.
-                    </p>
-                    <CodeBlock text={injectScope(configData.claude_code_command_legacy)} />
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
             </div>
           )}
         </section>

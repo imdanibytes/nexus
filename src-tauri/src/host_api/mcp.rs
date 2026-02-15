@@ -19,6 +19,7 @@ use crate::plugin_manager::storage::PluginStatus;
 use crate::AppState;
 
 use super::approval::ApprovalBridge;
+use super::auth::SessionStore;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,19 +66,50 @@ pub async fn gateway_auth_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let token = req
+    // Try X-Nexus-Gateway-Token first (MCP sidecar path)
+    if let Some(token) = req
         .headers()
         .get("X-Nexus-Gateway-Token")
         .and_then(|v| v.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    let mgr = state.read().await;
-    if !mgr.verify_gateway_token(token) {
-        return Err(StatusCode::UNAUTHORIZED);
+    {
+        let mgr = state.read().await;
+        if mgr.verify_gateway_token(token) {
+            drop(mgr);
+            return Ok(next.run(req).await);
+        }
     }
-    drop(mgr);
 
-    Ok(next.run(req).await)
+    // Fall back to Bearer token (plugin path — requires mcp:call permission)
+    if let Some(bearer) = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+    {
+        let sessions = req
+            .extensions()
+            .get::<Arc<SessionStore>>()
+            .cloned()
+            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if let Some(plugin_id) = sessions.validate(bearer) {
+            let mgr = state.read().await;
+            if mgr
+                .permissions
+                .has_permission(&plugin_id, &Permission::McpCall)
+            {
+                drop(mgr);
+                return Ok(next.run(req).await);
+            }
+            log::warn!(
+                "AUDIT plugin={} tried MCP access without mcp:call permission",
+                plugin_id
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+
+    Err(StatusCode::UNAUTHORIZED)
 }
 
 // ---------------------------------------------------------------------------

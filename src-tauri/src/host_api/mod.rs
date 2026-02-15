@@ -150,7 +150,8 @@ pub async fn start_server(
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 
-    // MCP gateway routes — separate auth via X-Nexus-Gateway-Token header
+    // MCP gateway routes — accepts X-Nexus-Gateway-Token (sidecar) OR
+    // Bearer token with mcp:call permission (plugins)
     let mcp_routes = Router::new()
         .route("/v1/mcp/tools", routing::get(mcp::list_tools))
         .route("/v1/mcp/call", routing::post(mcp::call_tool))
@@ -159,6 +160,7 @@ pub async fn start_server(
             state.clone(),
             mcp::gateway_auth_middleware,
         ))
+        .layer(Extension(sessions.clone()))
         .layer(Extension(approvals.clone()));
 
     // Token exchange route — public, plugins call this with their secret

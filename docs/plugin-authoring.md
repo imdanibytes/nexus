@@ -71,6 +71,25 @@ CMD ["node", "server.js"]
 Use any base image and language you want. The only requirement is an HTTP server
 listening on the port declared in `ui.port`.
 
+**Always include a `.dockerignore`.** Nexus builds your Docker image by tarring
+the entire plugin directory as build context. Without a `.dockerignore`, local
+development artifacts (`node_modules/`, `dist/`, `.git/`) get sent into the
+build. This causes two problems:
+
+1. **Platform mismatch** — macOS-native binaries (e.g., esbuild) copied into an
+   Alpine Linux container will crash at build or runtime.
+2. **Bloated context** — `node_modules/` and `.git/` can add hundreds of MB to
+   the build context, slowing down every install.
+
+Recommended `.dockerignore`:
+
+```
+node_modules/
+dist/
+.git/
+*.tsbuildinfo
+```
+
 ### 3. Implement the Server
 
 Your server needs four things:
@@ -305,6 +324,7 @@ specific permission. Users approve permissions at install time.
 | `docker:manage` | High | Start/stop/create containers |
 | `network:local` | Medium | Proxy HTTP requests to LAN addresses |
 | `network:internet` | Medium | Proxy HTTP requests to the internet |
+| `mcp:call` | Medium | Call MCP tools exposed by other plugins |
 
 **Request only what you need.** Users see risk levels during installation and
 may deny high-risk permissions.

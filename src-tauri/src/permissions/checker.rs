@@ -29,6 +29,8 @@ pub fn required_permission_for_endpoint(path: &str) -> Option<Permission> {
         // Settings and storage require auth but no specific permission — it's the plugin's own data
         p if p.starts_with("/v1/settings") => None,
         p if p.starts_with("/v1/storage") => None,
+        // MCP tool access for plugins (gateway auth checks mcp:call directly)
+        p if p.starts_with("/v1/mcp/") => Some(Permission::McpCall),
         // Extension permissions are checked in the handler (dynamic based on path params)
         p if p.starts_with("/v1/extensions") => None,
         _ => None,
@@ -99,6 +101,22 @@ mod tests {
     #[test]
     fn settings_requires_only_auth() {
         assert_eq!(required_permission_for_endpoint("/v1/settings"), None);
+    }
+
+    #[test]
+    fn mcp_endpoints_require_mcp_call() {
+        assert_eq!(
+            required_permission_for_endpoint("/v1/mcp/tools"),
+            Some(Permission::McpCall)
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/mcp/call"),
+            Some(Permission::McpCall)
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/mcp/events"),
+            Some(Permission::McpCall)
+        );
     }
 
     #[test]

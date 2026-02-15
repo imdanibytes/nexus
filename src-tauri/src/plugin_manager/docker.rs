@@ -254,9 +254,11 @@ fn parse_dockerignore(context_dir: &Path) -> Vec<(String, bool)> {
                 return None;
             }
             if let Some(pattern) = trimmed.strip_prefix('!') {
+                let pattern = pattern.trim_end_matches('/');
                 Some((pattern.to_string(), true)) // negation
             } else {
-                Some((trimmed.to_string(), false))
+                let pattern = trimmed.trim_end_matches('/');
+                Some((pattern.to_string(), false))
             }
         })
         .collect()

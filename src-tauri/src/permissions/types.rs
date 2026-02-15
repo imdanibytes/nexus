@@ -31,6 +31,7 @@ pub enum Permission {
     DockerManage,
     NetworkLocal,
     NetworkInternet,
+    McpCall,
     /// Dynamic extension permission: "ext:{ext_id}:{operation}"
     Extension(String),
 }
@@ -45,6 +46,7 @@ const KNOWN_PERMISSIONS: &[&str] = &[
     "docker:manage",
     "network:local",
     "network:internet",
+    "mcp:call",
 ];
 
 impl Permission {
@@ -59,6 +61,7 @@ impl Permission {
             Permission::DockerManage => "docker:manage",
             Permission::NetworkLocal => "network:local",
             Permission::NetworkInternet => "network:internet",
+            Permission::McpCall => "mcp:call",
             Permission::Extension(s) => s.as_str(),
         }
     }
@@ -73,6 +76,7 @@ impl Permission {
             Permission::DockerManage => "high",
             Permission::NetworkLocal => "medium",
             Permission::NetworkInternet => "medium",
+            Permission::McpCall => "medium",
             // Extension permissions derive risk from the operation; default to medium
             Permission::Extension(_) => "medium",
         }
@@ -88,6 +92,7 @@ impl Permission {
             Permission::DockerManage => "Start/stop/create containers",
             Permission::NetworkLocal => "HTTP requests to LAN",
             Permission::NetworkInternet => "HTTP requests to internet",
+            Permission::McpCall => "Call MCP tools from other plugins",
             Permission::Extension(s) => s.as_str(),
         }
     }
@@ -117,6 +122,7 @@ impl<'de> Deserialize<'de> for Permission {
             "docker:manage" => Ok(Permission::DockerManage),
             "network:local" => Ok(Permission::NetworkLocal),
             "network:internet" => Ok(Permission::NetworkInternet),
+            "mcp:call" => Ok(Permission::McpCall),
             _ if s.starts_with("ext:") => Ok(Permission::Extension(s)),
             _ => Err(serde::de::Error::unknown_variant(&s, KNOWN_PERMISSIONS)),
         }
@@ -144,6 +150,7 @@ mod tests {
             Permission::DockerManage,
             Permission::NetworkLocal,
             Permission::NetworkInternet,
+            Permission::McpCall,
         ];
 
         for perm in perms {

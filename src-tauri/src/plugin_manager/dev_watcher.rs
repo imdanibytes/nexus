@@ -165,6 +165,20 @@ pub async fn rebuild_plugin(
         }
     };
 
+    // Reject manifest ID changes — prevents permission theft via ID mutation
+    if manifest.id != plugin_id {
+        emit_rebuild(
+            app_handle,
+            plugin_id,
+            "error",
+            format!(
+                "Manifest ID mismatch: expected '{}', got '{}'. Aborting rebuild.",
+                plugin_id, manifest.id
+            ),
+        );
+        return;
+    }
+
     // Build Docker image
     emit_rebuild(app_handle, plugin_id, "building", format!("Building image {}", manifest.image));
     if let Err(e) = docker::build_image(source_dir, &manifest.image).await {

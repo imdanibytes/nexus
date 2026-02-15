@@ -277,7 +277,14 @@ pub async fn plugin_dev_mode_toggle(
             let watch_dir = std::path::Path::new(&manifest_path)
                 .parent()
                 .ok_or("Invalid manifest path")?
-                .to_path_buf();
+                .canonicalize()
+                .map_err(|e| format!("Invalid watch directory: {}", e))?;
+
+            // Reject system directories as watch targets
+            let watch_str = watch_dir.to_string_lossy();
+            if watch_str == "/" || watch_str.starts_with("/System") || watch_str.starts_with("/usr") {
+                return Err("Cannot watch system directories".into());
+            }
 
             dev_watcher
                 .start_watching(

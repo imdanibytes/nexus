@@ -101,7 +101,10 @@ pub fn generate_plugin(
                 "permissions": t.permissions,
                 "input_schema": t.input_schema,
                 "requires_approval": t.requires_approval
-            })).collect::<Vec<_>>()
+            })).collect::<Vec<_>>(),
+            "server": {
+                "path": "/mcp"
+            }
         }
     });
     std::fs::write(
@@ -116,6 +119,7 @@ pub fn generate_plugin(
         "@modelcontextprotocol/sdk".to_string(),
         serde_json::json!("^1.12.1"),
     );
+    deps.insert("express".to_string(), serde_json::json!("^4.21.0"));
     if let Some((ref name, ref version)) = npm_pkg {
         deps.insert(name.clone(), serde_json::Value::String(version.clone()));
     }

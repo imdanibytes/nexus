@@ -247,6 +247,11 @@ pub async fn mcp_config_snippet(
     });
 
     let claude_code_command = format!(
+        "claude mcp add \\\n  --transport http \\\n  -H \"X-Nexus-Gateway-Token: {}\" \\\n  nexus http://127.0.0.1:9600/mcp",
+        token_trimmed
+    );
+
+    let claude_code_command_legacy = format!(
         "claude mcp add \\\n  -e NEXUS_GATEWAY_TOKEN={} \\\n  -e NEXUS_API_URL=http://localhost:9600/api \\\n  -- nexus {}",
         token_trimmed, command
     );
@@ -254,6 +259,7 @@ pub async fn mcp_config_snippet(
     Ok(serde_json::json!({
         "direct_config": direct_config,
         "desktop_config": sidecar_config,
-        "claude_code_command": claude_code_command
+        "claude_code_command": claude_code_command,
+        "claude_code_command_legacy": claude_code_command_legacy
     }))
 }

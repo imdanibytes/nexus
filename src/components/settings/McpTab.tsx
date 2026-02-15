@@ -26,14 +26,55 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 
 type ConfigTab = "desktop" | "code";
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      onClick={copy}
+      className="absolute top-2 right-2 bg-nx-surface border border-nx-border-subtle hover:bg-nx-wash"
+      title="Copy to clipboard"
+    >
+      {copied ? (
+        <Check size={12} strokeWidth={1.5} className="text-nx-success" />
+      ) : (
+        <Copy size={12} strokeWidth={1.5} className="text-nx-text-ghost" />
+      )}
+    </Button>
+  );
+}
+
+function CodeBlock({ text }: { text: string }) {
+  return (
+    <div className="relative">
+      <pre className="bg-nx-deep border border-nx-border-subtle rounded-[var(--radius-button)] p-3 text-[11px] text-nx-text-secondary font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+        {text}
+      </pre>
+      <CopyButton text={text} />
+    </div>
+  );
+}
+
 export function McpTab() {
   const [settings, setSettings] = useState<McpSettings | null>(null);
   const [tools, setTools] = useState<McpToolStatus[]>([]);
-  const [desktopSnippet, setDesktopSnippet] = useState<string>("");
-  const [codeSnippet, setCodeSnippet] = useState<string>("");
+  const [configData, setConfigData] = useState<{
+    direct_config: unknown;
+    desktop_config: unknown;
+    claude_code_command: string;
+    claude_code_command_legacy: string;
+  } | null>(null);
   const [configTab, setConfigTab] = useState<ConfigTab>("desktop");
-  const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [legacyOpen, setLegacyOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -45,9 +86,7 @@ export function McpTab() {
       ]);
       setSettings(s);
       setTools(t);
-      const data = c as { desktop_config: unknown; claude_code_command: string };
-      setDesktopSnippet(JSON.stringify(data.desktop_config, null, 2));
-      setCodeSnippet(data.claude_code_command);
+      setConfigData(c as typeof configData);
     } catch {
       // backend may not have MCP commands yet
     } finally {
@@ -86,14 +125,6 @@ export function McpTab() {
     });
   }
 
-  const activeSnippet = configTab === "desktop" ? desktopSnippet : codeSnippet;
-
-  async function copySnippet() {
-    await navigator.clipboard.writeText(activeSnippet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   // Group tools by plugin, with built-in "nexus" group sorted first
   const pluginGroupMap = tools.reduce<
     Record<string, { pluginName: string; pluginId: string; tools: McpToolStatus[] }>
@@ -129,6 +160,13 @@ export function McpTab() {
   }
 
   const globalEnabled = settings?.enabled ?? false;
+
+  const directDesktopSnippet = configData?.direct_config
+    ? JSON.stringify(configData.direct_config, null, 2)
+    : "";
+  const legacyDesktopSnippet = configData?.desktop_config
+    ? JSON.stringify(configData.desktop_config, null, 2)
+    : "";
 
   return (
     <div className="space-y-6">
@@ -168,7 +206,7 @@ export function McpTab() {
       </section>
 
       {/* Section 2: Client Setup */}
-      {globalEnabled && (desktopSnippet || codeSnippet) && (
+      {globalEnabled && configData && (
         <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <Terminal size={15} strokeWidth={1.5} className="text-nx-text-muted" />
@@ -178,37 +216,72 @@ export function McpTab() {
           </div>
 
           {/* Client tabs */}
-          <Tabs value={configTab} onValueChange={(v) => { setConfigTab(v as ConfigTab); setCopied(false); }} className="mb-3">
+          <Tabs value={configTab} onValueChange={(v) => { setConfigTab(v as ConfigTab); setLegacyOpen(false); }} className="mb-3">
             <TabsList>
               <TabsTrigger value="desktop">Claude Desktop</TabsTrigger>
               <TabsTrigger value="code">Claude Code</TabsTrigger>
             </TabsList>
           </Tabs>
 
-          <p className="text-[11px] text-nx-text-ghost mb-3">
-            {configTab === "desktop"
-              ? "Add this to your Claude Desktop config file."
-              : "Run this in your terminal to register the MCP server."}
-          </p>
+          {configTab === "desktop" ? (
+            <div className="space-y-3">
+              <p className="text-[11px] text-nx-text-ghost">
+                Add this to your Claude Desktop config file. Uses a direct HTTP connection — no sidecar binary needed.
+              </p>
+              <CodeBlock text={directDesktopSnippet} />
 
-          <div className="relative">
-            <pre className="bg-nx-deep border border-nx-border-subtle rounded-[var(--radius-button)] p-3 text-[11px] text-nx-text-secondary font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
-              {activeSnippet}
-            </pre>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={copySnippet}
-              className="absolute top-2 right-2 bg-nx-surface border border-nx-border-subtle hover:bg-nx-wash"
-              title="Copy to clipboard"
-            >
-              {copied ? (
-                <Check size={12} strokeWidth={1.5} className="text-nx-success" />
-              ) : (
-                <Copy size={12} strokeWidth={1.5} className="text-nx-text-ghost" />
-              )}
-            </Button>
-          </div>
+              {/* Legacy sidecar fallback */}
+              <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-1.5 text-[11px] text-nx-text-ghost hover:text-nx-text-muted transition-colors">
+                    <ChevronDown
+                      size={12}
+                      strokeWidth={1.5}
+                      className={`transition-transform duration-200 ${legacyOpen ? "rotate-180" : ""}`}
+                    />
+                    Legacy (sidecar binary)
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-[11px] text-nx-text-ghost">
+                      For clients that don't support streamable HTTP transport, use the stdio sidecar instead.
+                    </p>
+                    <CodeBlock text={legacyDesktopSnippet} />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[11px] text-nx-text-ghost">
+                Run this in your terminal to register the MCP server. Uses a direct HTTP connection.
+              </p>
+              <CodeBlock text={configData.claude_code_command} />
+
+              {/* Legacy sidecar fallback */}
+              <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen}>
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-1.5 text-[11px] text-nx-text-ghost hover:text-nx-text-muted transition-colors">
+                    <ChevronDown
+                      size={12}
+                      strokeWidth={1.5}
+                      className={`transition-transform duration-200 ${legacyOpen ? "rotate-180" : ""}`}
+                    />
+                    Legacy (sidecar binary)
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-[11px] text-nx-text-ghost">
+                      For clients that don't support streamable HTTP transport, use the stdio sidecar instead.
+                    </p>
+                    <CodeBlock text={configData.claude_code_command_legacy} />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          )}
         </section>
       )}
 

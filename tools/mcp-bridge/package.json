@@ -8,6 +8,7 @@
     "start": "node src/server.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1"
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "express": "^4.21.0"
   }
 }

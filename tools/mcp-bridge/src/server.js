@@ -1,4 +1,7 @@
-import http from "node:http";
+import { randomUUID } from "node:crypto";
+import express from "express";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -11,7 +14,6 @@ if (!MCP_SERVER_COMMAND) {
 }
 
 // Parse command string into command + args
-// "npx -y @modelcontextprotocol/server-weather" → { command: "npx", args: ["-y", ...] }
 function parseCommand(cmd) {
   const parts = cmd.trim().split(/\s+/);
   return { command: parts[0], args: parts.slice(1) };
@@ -19,109 +21,187 @@ function parseCommand(cmd) {
 
 const { command, args } = parseCommand(MCP_SERVER_COMMAND);
 
-// ── MCP Client ──────────────────────────────────────────────────
+// ── Child MCP Client (stdio → child server) ──────────────────
 
-let mcpClient = null;
-let transport = null;
-let toolsCache = [];
+let childClient = null;
+let childTransport = null;
 
-async function initMcpClient() {
+async function initChildClient() {
   console.log(`Spawning MCP server: ${command} ${args.join(" ")}`);
 
-  transport = new StdioClientTransport({ command, args });
-
-  mcpClient = new Client(
+  childTransport = new StdioClientTransport({ command, args });
+  childClient = new Client(
     { name: "nexus-mcp-bridge", version: "0.1.0" },
     { capabilities: {} },
   );
 
-  await mcpClient.connect(transport);
-  console.log("MCP client connected");
+  await childClient.connect(childTransport);
+  console.log("Child MCP client connected");
 
-  const result = await mcpClient.listTools();
-  toolsCache = result.tools || [];
-  console.log(`Discovered ${toolsCache.length} tools`);
-  for (const tool of toolsCache) {
+  const { tools } = await childClient.listTools();
+  console.log(`Discovered ${(tools || []).length} tools`);
+  for (const tool of tools || []) {
     console.log(`  - ${tool.name}: ${tool.description || "(no description)"}`);
   }
 }
 
-// ── HTTP Server ─────────────────────────────────────────────────
+// ── Bridge MCP Server (StreamableHTTP → proxy to child) ──────
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let data = "";
-    req.on("data", (chunk) => (data += chunk));
-    req.on("end", () => resolve(data));
-    req.on("error", reject);
-  });
+const transports = new Map();
+
+function createBridgeServer() {
+  const server = new McpServer(
+    { name: "nexus-mcp-bridge", version: "0.1.0" },
+    { capabilities: { tools: {}, resources: {}, prompts: {} } },
+  );
+
+  // Dynamic tool listing — forward from child
+  server.server.setRequestHandler(
+    { method: "tools/list" },
+    async () => {
+      if (!childClient) throw new Error("Child MCP client not initialized");
+      return childClient.listTools();
+    },
+  );
+
+  // Tool calls — forward to child
+  server.server.setRequestHandler(
+    { method: "tools/call" },
+    async (request) => {
+      if (!childClient) throw new Error("Child MCP client not initialized");
+      return childClient.callTool(request.params);
+    },
+  );
+
+  // Resource listing — forward from child (best-effort)
+  server.server.setRequestHandler(
+    { method: "resources/list" },
+    async () => {
+      if (!childClient) throw new Error("Child MCP client not initialized");
+      try {
+        return await childClient.listResources();
+      } catch {
+        return { resources: [] };
+      }
+    },
+  );
+
+  // Resource reading — forward to child
+  server.server.setRequestHandler(
+    { method: "resources/read" },
+    async (request) => {
+      if (!childClient) throw new Error("Child MCP client not initialized");
+      return childClient.readResource(request.params);
+    },
+  );
+
+  // Prompt listing — forward from child (best-effort)
+  server.server.setRequestHandler(
+    { method: "prompts/list" },
+    async () => {
+      if (!childClient) throw new Error("Child MCP client not initialized");
+      try {
+        return await childClient.listPrompts();
+      } catch {
+        return { prompts: [] };
+      }
+    },
+  );
+
+  // Prompt retrieval — forward to child
+  server.server.setRequestHandler(
+    { method: "prompts/get" },
+    async (request) => {
+      if (!childClient) throw new Error("Child MCP client not initialized");
+      return childClient.getPrompt(request.params);
+    },
+  );
+
+  return server;
 }
 
-const server = http.createServer(async (req, res) => {
-  // Health check
-  if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", tools: toolsCache.length }));
+// ── Express App ──────────────────────────────────────────────
+
+const app = express();
+app.use(express.json());
+
+// Health check
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", child_connected: !!childClient });
+});
+
+// MCP endpoint — StreamableHTTP with session management
+app.post("/mcp", async (req, res) => {
+  const sessionId = req.headers["mcp-session-id"];
+
+  if (sessionId && transports.has(sessionId)) {
+    const transport = transports.get(sessionId);
+    await transport.handleRequest(req, res, req.body);
     return;
   }
 
-  // MCP tool call — bridged from Nexus Host API
-  if (req.method === "POST" && req.url === "/mcp/call") {
-    try {
-      const body = JSON.parse(await readBody(req));
-      const { tool_name, arguments: toolArgs } = body;
+  // New session — create transport + bridge server
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+    onsessioninitialized: (sid) => {
+      transports.set(sid, transport);
+    },
+  });
 
-      if (!mcpClient) {
-        throw new Error("MCP client not initialized");
-      }
-
-      const result = await mcpClient.callTool({
-        name: tool_name,
-        arguments: toolArgs || {},
-      });
-
-      // Translate MCP SDK response → Nexus format (isError → is_error)
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          content: result.content || [],
-          is_error: result.isError || false,
-        }),
-      );
-    } catch (err) {
-      console.error("MCP call error:", err);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          content: [{ type: "text", text: `Bridge error: ${err.message}` }],
-          is_error: true,
-        }),
-      );
+  transport.onclose = () => {
+    if (transport.sessionId) {
+      transports.delete(transport.sessionId);
     }
+  };
+
+  const server = createBridgeServer();
+  await server.server.connect(transport);
+  await transport.handleRequest(req, res, req.body);
+});
+
+// GET /mcp for SSE streams (required by streamable HTTP spec)
+app.get("/mcp", async (req, res) => {
+  const sessionId = req.headers["mcp-session-id"];
+  if (sessionId && transports.has(sessionId)) {
+    const transport = transports.get(sessionId);
+    await transport.handleRequest(req, res);
     return;
   }
-
-  res.writeHead(404);
-  res.end("Not Found");
+  res.status(400).json({ error: "No valid session" });
 });
 
-// ── Lifecycle ───────────────────────────────────────────────────
-
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down...");
-  if (transport) transport.close();
-  server.close(() => process.exit(0));
+// DELETE /mcp for session cleanup
+app.delete("/mcp", async (req, res) => {
+  const sessionId = req.headers["mcp-session-id"];
+  if (sessionId && transports.has(sessionId)) {
+    const transport = transports.get(sessionId);
+    await transport.handleRequest(req, res);
+    return;
+  }
+  res.status(400).json({ error: "No valid session" });
 });
 
-process.on("SIGINT", () => {
-  console.log("SIGINT received, shutting down...");
-  if (transport) transport.close();
-  server.close(() => process.exit(0));
-});
+// ── Lifecycle ────────────────────────────────────────────────
 
-initMcpClient()
+let httpServer;
+
+function shutdown() {
+  console.log("Shutting down...");
+  if (childTransport) childTransport.close();
+  for (const transport of transports.values()) {
+    transport.close?.();
+  }
+  transports.clear();
+  if (httpServer) httpServer.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000);
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
+
+initChildClient()
   .then(() => {
-    server.listen(PORT, () => {
+    httpServer = app.listen(PORT, () => {
       console.log(`MCP bridge listening on port ${PORT}`);
     });
   })

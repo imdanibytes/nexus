@@ -7,4 +7,7 @@ echo "pre-push: running clippy..."
 echo "pre-push: running tsc..."
 npx tsc --noEmit
 
+echo "pre-push: running eslint..."
+pnpm lint
+
 echo "pre-push: all checks passed"

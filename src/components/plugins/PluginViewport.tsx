@@ -2,8 +2,19 @@ import { useState } from "react";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
-import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand } from "lucide-react";
+import { useAppStore } from "../../stores/appStore";
+import * as api from "../../lib/tauri";
+import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand, Wrench, ScrollText, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+  MenubarCheckboxItem,
+  MenubarTrigger,
+} from "@/components/ui/menubar";
 import {
   Sheet,
   SheetContent,
@@ -11,6 +22,14 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const overlayConfig: Record<
   PluginAction,
@@ -63,11 +82,17 @@ export function PluginViewport({
   const iframeSrc = hasUi
     ? `http://localhost:${plugin.assigned_port}${plugin.manifest.ui!.path}`
     : null;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-full relative">
+      {/* macOS-style menu bar */}
+      <PluginMenuBar plugin={plugin} disabled={isBusy} onStart={onStart} onOpenChange={setMenuOpen} />
+
       {/* Plugin content */}
       <div className="flex-1 relative">
+        {/* Transparent overlay to capture clicks when menu is open (iframe swallows pointer events) */}
+        {menuOpen && <div className="absolute inset-0 z-10" />}
         {isRunning && !isBusy && hasUi ? (
           <iframe
             src={iframeSrc!}
@@ -101,6 +126,260 @@ export function PluginViewport({
         <BusyOverlay action={busyAction} pluginName={plugin.manifest.name} />
       )}
     </div>
+  );
+}
+
+function PluginMenuBar({ plugin, disabled, onStart, onOpenChange }: { plugin: InstalledPlugin; disabled: boolean; onStart: () => void; onOpenChange?: (open: boolean) => void }) {
+  const { setBusy, removePlugin, addNotification, setShowLogs } = useAppStore();
+  const isRunning = plugin.status === "running";
+  const isLocal = !!plugin.local_manifest_path;
+  const id = plugin.manifest.id;
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
+
+  async function handleStart() {
+    setBusy(id, "starting");
+    try {
+      await api.pluginStart(id);
+      addNotification("Plugin started", "success");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Start failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleStop() {
+    setBusy(id, "stopping");
+    try {
+      await api.pluginStop(id);
+      addNotification("Plugin stopped", "info");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Stop failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleRestart() {
+    setBusy(id, "stopping");
+    try {
+      await api.pluginStop(id);
+      setBusy(id, "starting");
+      await api.pluginStart(id);
+      addNotification("Plugin restarted", "success");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Restart failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleRemove() {
+    setRemoveDialogOpen(false);
+    setBusy(id, "removing");
+    try {
+      await api.pluginRemove(id);
+      removePlugin(id);
+      addNotification("Plugin removed", "info");
+    } catch (e) {
+      addNotification(`Remove failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleRebuild() {
+    setBusy(id, "rebuilding");
+    try {
+      await api.pluginRebuild(id);
+      addNotification("Plugin rebuilt", "success");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Rebuild failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleToggleDevMode() {
+    const next = !plugin.dev_mode;
+    try {
+      await api.pluginDevModeToggle(id, next);
+      addNotification(next ? "Dev mode enabled" : "Dev mode disabled", "info");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Dev mode toggle failed: ${e}`, "error");
+    }
+  }
+
+  const m = plugin.manifest;
+
+  return (
+    <>
+      <Menubar
+        className="rounded-none border-x-0 border-t-0 border-b border-nx-border bg-nx-raised/60 shadow-none px-2"
+        onValueChange={(value) => onOpenChange?.(value !== "")}
+      >
+        {/* macOS-style app name menu */}
+        <MenubarMenu>
+          <MenubarTrigger className="font-semibold text-nx-text">
+            {m.name}
+          </MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onClick={() => setAboutDialogOpen(true)}>
+              About {m.name}
+            </MenubarItem>
+            <MenubarSeparator />
+            {isRunning ? (
+              <>
+                <MenubarItem onClick={handleRestart} disabled={disabled}>
+                  <Play size={14} strokeWidth={1.5} className="text-nx-success" />
+                  Restart
+                </MenubarItem>
+                <MenubarItem onClick={handleStop} disabled={disabled}>
+                  <Square size={14} strokeWidth={1.5} className="text-nx-warning" />
+                  Stop
+                </MenubarItem>
+              </>
+            ) : (
+              <MenubarItem onClick={handleStart} disabled={disabled}>
+                <Play size={14} strokeWidth={1.5} className="text-nx-success" />
+                Start
+              </MenubarItem>
+            )}
+            <MenubarSeparator />
+            <MenubarItem
+              variant="destructive"
+              onClick={() => setRemoveDialogOpen(true)}
+              disabled={disabled}
+            >
+              <Trash2 size={14} strokeWidth={1.5} />
+              Remove {m.name}...
+            </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+
+        <MenubarMenu>
+          <MenubarTrigger className="text-nx-text-secondary">
+            View
+          </MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onClick={() => setShowLogs(id)}>
+              <ScrollText size={14} strokeWidth={1.5} />
+              Logs
+            </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+
+        {isLocal && (
+          <MenubarMenu>
+            <MenubarTrigger className="text-nx-text-secondary">
+              Dev
+            </MenubarTrigger>
+            <MenubarContent>
+              <MenubarItem onClick={handleRebuild} disabled={disabled}>
+                <Hammer size={14} strokeWidth={1.5} className="text-nx-accent" />
+                Rebuild
+              </MenubarItem>
+              <MenubarSeparator />
+              <MenubarCheckboxItem
+                checked={plugin.dev_mode}
+                onCheckedChange={handleToggleDevMode}
+                disabled={disabled}
+              >
+                <Wrench size={14} strokeWidth={1.5} />
+                Auto-rebuild on changes
+              </MenubarCheckboxItem>
+            </MenubarContent>
+          </MenubarMenu>
+        )}
+      </Menubar>
+
+      {/* About dialog */}
+      <Dialog open={aboutDialogOpen} onOpenChange={setAboutDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader className="items-center text-center">
+            <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-2">
+              {m.icon ? (
+                <img src={m.icon} alt={m.name} className="w-10 h-10 rounded-md" />
+              ) : (
+                <Terminal size={28} strokeWidth={1.5} className="text-nx-accent" />
+              )}
+            </div>
+            <DialogTitle className="text-base">{m.name}</DialogTitle>
+            <DialogDescription className="text-[12px] text-nx-text-muted" asChild>
+              <div className="space-y-3">
+                <p>{m.description}</p>
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-left text-[11px]">
+                  <span className="text-nx-text-ghost">Version</span>
+                  <span className="font-mono text-nx-text-secondary">{m.version}</span>
+                  <span className="text-nx-text-ghost">Author</span>
+                  <span className="text-nx-text-secondary">{m.author}</span>
+                  <span className="text-nx-text-ghost">ID</span>
+                  <span className="font-mono text-nx-text-secondary">{m.id}</span>
+                  {m.license && (
+                    <>
+                      <span className="text-nx-text-ghost">License</span>
+                      <span className="text-nx-text-secondary">{m.license}</span>
+                    </>
+                  )}
+                  <span className="text-nx-text-ghost">Type</span>
+                  <span className="text-nx-text-secondary">{m.ui ? "UI Plugin" : "Headless Service"}</span>
+                  {m.mcp && (
+                    <>
+                      <span className="text-nx-text-ghost">MCP Tools</span>
+                      <span className="text-nx-text-secondary">{m.mcp.tools?.length ?? 0}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove confirmation dialog */}
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <TriangleAlert size={18} className="text-nx-warning" />
+              Remove {m.name}?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-relaxed pt-1">
+              This will permanently delete all plugin data, including stored files and settings.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setRemoveDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleRemove}
+              className="bg-nx-error text-white hover:bg-nx-error/80"
+            >
+              Remove & Delete Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

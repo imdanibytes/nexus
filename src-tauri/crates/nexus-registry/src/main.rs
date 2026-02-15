@@ -38,6 +38,30 @@ enum Commands {
         #[command(subcommand)]
         kind: AddKind,
     },
+    /// Update an existing plugin or extension entry
+    Update {
+        /// Package ID to update (e.g. com.nexus.cookie-jar)
+        #[arg(long)]
+        id: String,
+        /// New version
+        #[arg(long)]
+        version: Option<String>,
+        /// New Docker image reference
+        #[arg(long)]
+        image: Option<String>,
+        /// New image digest (sha256:...)
+        #[arg(long)]
+        image_digest: Option<String>,
+        /// New description
+        #[arg(long)]
+        description: Option<String>,
+        /// New manifest URL
+        #[arg(long)]
+        manifest_url: Option<String>,
+        /// New status (active, deprecated, unlisted)
+        #[arg(long)]
+        status: Option<String>,
+    },
     /// Publish a package to a remote registry
     Publish {
         /// Git URL of the target registry
@@ -194,6 +218,23 @@ fn main() -> anyhow::Result<()> {
                 status,
             }),
         },
+        Commands::Update {
+            id,
+            version,
+            image,
+            image_digest,
+            description,
+            manifest_url,
+            status,
+        } => commands::update::run(commands::update::UpdateArgs {
+            id,
+            version,
+            image,
+            image_digest,
+            description,
+            manifest_url,
+            status,
+        }),
         Commands::Publish { registry, package } => {
             commands::publish::run(&registry, &package)
         }

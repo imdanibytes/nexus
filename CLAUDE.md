@@ -84,6 +84,54 @@ Native Streamable HTTP MCP server at `/mcp`. AI clients connect directly via HTT
 
 TypeScript SDK for plugins. `src/client/` is auto-generated from the OpenAPI spec; `src/index.ts` is the hand-written L2 wrapper (NexusPlugin class, host event bridge). Published to GitHub Packages as `@imdanibytes/nexus-sdk`. See `packages/nexus-sdk/CLAUDE.md` for the generated vs hand-written boundary.
 
+## Internationalization (i18n)
+
+All user-facing strings live in `src/i18n/locales/{lang}/` as JSON files, one per namespace. **Never hardcode UI strings in components.**
+
+### Structure
+
+```
+src/i18n/
+  index.ts           # i18next init, resource imports, LANGUAGES array
+  types.ts           # TypeScript module augmentation
+  context/           # Translation context — intent/description per key (NOT loaded at runtime)
+    common.json
+    plugins.json
+    settings.json
+    permissions.json
+  locales/
+    en/              # English (source of truth)
+      common.json    # Nav, actions, status badges, errors, confirmations, time
+      plugins.json   # Marketplace, viewport, overlays, MCP wrap wizard, extensions
+      settings.json  # All settings tabs, registries, help
+      permissions.json # Install dialog, runtime approval, permission list
+    ja/              # Japanese
+    es/              # Spanish
+    ko/              # Korean
+    zh/              # Chinese (Simplified)
+    de/              # German
+```
+
+### When modifying UI strings
+
+1. **Adding a string**: Add the key to `en/*.json` first, then add the same key to ALL other locale files. Add a context entry to `context/*.json` describing the intent (button label, heading, toast, etc.).
+2. **Removing a string**: Remove from ALL locale files and the context file.
+3. **Changing a string**: Update `en/*.json`, then update all translations. Update context if the intent changed.
+4. **Adding a locale**: Create `locales/{code}/` with all 4 namespace files, add imports to `index.ts`, add to `LANGUAGES` array.
+
+### Context files (`src/i18n/context/`)
+
+Each key maps to a description of how the string is used — button label, toast notification, dialog heading, badge text, etc. This matters for translation: "Save" as a button is different from "Save" as a noun in many languages. Translators (human or AI) should read the context file before translating.
+
+### Rules
+
+- Use `useTranslation("namespace")` — the namespace determines which JSON file is used
+- Cross-namespace access: `t("common:action.save")` with colon prefix (types are relaxed for this)
+- Interpolation: `{{variable}}` syntax — e.g. `t("error.startFailed", { error: msg })`
+- Plurals: `_one` / `_other` suffixes — e.g. `toolCount_one`, `toolCount_other`
+- HTML in strings: use `<Trans>` component or `dangerouslySetInnerHTML` with `t()`
+- Language switcher persists to `localStorage` key `nexus-language` and notifies plugins via `postMessage`
+
 ## Key Patterns
 
 ### Axum nested router path stripping
@@ -100,6 +148,55 @@ Generic `ApprovalBridge` in `approval.rs` — creates a oneshot channel, emits a
 
 ### Frontend state
 Single Zustand store, no React Router. Navigation is `setView("marketplace")`. All Tauri commands are called through typed wrappers in `lib/tauri.ts`.
+
+## Registry CLI (nexus-registry)
+
+Rust CLI in `src-tauri/crates/nexus-registry/` for managing the plugin/extension registry at `https://github.com/imdanibytes/registry`. **Always use this instead of manually editing registry YAML.**
+
+```bash
+# Install
+cd src-tauri && cargo install --path crates/nexus-registry
+
+# Add a new plugin (interactive if flags omitted, auto-fetches manifest SHA256)
+nexus-registry add plugin \
+  --id com.yourname.my-plugin \
+  --name "My Plugin" \
+  --version 1.0.0 \
+  --author yourname \
+  --image ghcr.io/yourname/nexus-plugin-name:1.0.0 \
+  --manifest-url https://raw.githubusercontent.com/yourname/nexus-plugin-name/main/plugin.json \
+  --categories "productivity,ai-tools"
+
+# Validate all registry YAML against schemas
+nexus-registry validate /path/to/registry
+
+# Build index.json from YAML sources
+nexus-registry build /path/to/registry
+
+# Publish to remote registry (clones, validates, branches, pushes, opens PR with auto-merge)
+nexus-registry publish \
+  --registry https://github.com/imdanibytes/registry.git \
+  --package plugins/com.yourname.my-plugin.yaml
+```
+
+**Updating an existing entry** (version bumps — the most common operation):
+
+```bash
+cd ~/workspace/registry
+nexus-registry update \
+  --id com.nexus.cookie-jar \
+  --version 0.6.0 \
+  --image ghcr.io/imdanibytes/nexus-plugin-cookie-jar:0.6.0 \
+  --image-digest "sha256:..."
+# Auto-fetches manifest_sha256 from manifest_url. Preserves all other fields.
+```
+
+### Registry update workflow (version bump)
+
+1. Tag the plugin repo: `git tag -a v0.6.0 -m "v0.6.0" && git push origin main v0.6.0`
+2. Wait for CI to build the Docker image — grab the digest from the GitHub Actions summary
+3. `cd ~/workspace/registry && nexus-registry update --id <id> --version <ver> --image <image:tag> --image-digest <sha256:...>`
+4. Commit and push to registry (or use `nexus-registry publish` for new entries)
 
 ## Release Process
 

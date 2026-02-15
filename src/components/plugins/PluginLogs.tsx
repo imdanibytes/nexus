@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import { Copy, Check, Loader2, X } from "lucide-react";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   pluginId: string;
@@ -15,13 +20,13 @@ interface Props {
 export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
 
     async function fetchLogs() {
-      setLoading(true);
       const lines = await getLogs(pluginId, 200);
       if (active) {
         setLogs(lines);
@@ -40,32 +45,66 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(logs.join("\n")).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="bottom" className="h-96 max-w-4xl mx-auto rounded-t-[var(--radius-modal)] p-0">
-        <SheetHeader className="px-4 py-2.5 border-b border-nx-border-subtle">
-          <SheetTitle className="text-[12px] font-semibold text-nx-text-secondary">
-            Logs &mdash; <span className="font-mono text-nx-text-muted">{pluginId}</span>
+      <SheetContent side="bottom" showCloseButton={false} className="h-96 max-w-4xl mx-auto rounded-t-[var(--radius-modal)] p-0 flex flex-col">
+        <SheetHeader className="px-4 py-2.5 border-b border-nx-border-subtle flex-row items-center gap-2 shrink-0">
+          <SheetTitle className="text-[12px] font-semibold text-nx-text-secondary flex items-center gap-2 flex-1">
+            Logs
+            <Badge variant="secondary" className="text-[10px] font-mono">
+              {pluginId}
+            </Badge>
           </SheetTitle>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={handleCopy}
+            disabled={logs.length === 0}
+            className="text-nx-text-muted"
+          >
+            {copied ? (
+              <Check size={12} strokeWidth={1.5} className="text-nx-success" />
+            ) : (
+              <Copy size={12} strokeWidth={1.5} />
+            )}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+          <SheetClose asChild>
+            <Button variant="ghost" size="xs" className="text-nx-text-muted">
+              <X size={14} strokeWidth={1.5} />
+            </Button>
+          </SheetClose>
         </SheetHeader>
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 font-mono text-[12px]">
-          {loading && logs.length === 0 ? (
-            <p className="text-nx-text-ghost">Loading logs...</p>
-          ) : logs.length === 0 ? (
-            <p className="text-nx-text-ghost">No logs available</p>
-          ) : (
-            logs.map((line, i) => (
-              <div key={i} className="text-nx-text-secondary whitespace-pre-wrap leading-5">
-                {line}
+
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-4 font-mono text-[11px] leading-5">
+            {loading && logs.length === 0 ? (
+              <div className="flex items-center gap-2 text-nx-text-ghost">
+                <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                Loading logs...
               </div>
-            ))
-          )}
-        </div>
+            ) : logs.length === 0 ? (
+              <p className="text-nx-text-ghost">No logs available</p>
+            ) : (
+              logs.map((line, i) => (
+                <div key={i} className="text-nx-text-secondary whitespace-pre-wrap hover:bg-nx-surface/40 px-1 -mx-1 rounded-sm">
+                  {line}
+                </div>
+              ))
+            )}
+            <div ref={bottomRef} />
+          </div>
+        </ScrollArea>
       </SheetContent>
     </Sheet>
   );

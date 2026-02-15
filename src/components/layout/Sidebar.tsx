@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useAppStore } from "../../stores/appStore";
 import type { InstalledPlugin } from "../../types/plugin";
-import { Plus, Settings, ArrowUp } from "lucide-react";
+import * as api from "../../lib/tauri";
+import { Plus, Settings, ArrowUp, Play, Square, ScrollText, Trash2, Hammer, Wrench, MoreHorizontal, TriangleAlert } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -9,10 +11,27 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const statusColor: Record<string, string> = {
   running: "bg-nx-success",
@@ -22,10 +41,86 @@ const statusColor: Record<string, string> = {
 };
 
 function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
-  const { selectedPluginId, selectPlugin, setView, availableUpdates } = useAppStore();
+  const { selectedPluginId, selectPlugin, setView, availableUpdates, busyPlugins, setBusy, removePlugin, addNotification, setShowLogs } = useAppStore();
   const isSelected = selectedPluginId === plugin.manifest.id;
   const isRunning = plugin.status === "running";
   const hasUpdate = availableUpdates.some((u) => u.item_id === plugin.manifest.id);
+  const isBusy = !!busyPlugins[plugin.manifest.id];
+  const isLocal = !!plugin.local_manifest_path;
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+
+  async function handleStart() {
+    const id = plugin.manifest.id;
+    setBusy(id, "starting");
+    try {
+      await api.pluginStart(id);
+      addNotification("Plugin started", "success");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Start failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleStop() {
+    const id = plugin.manifest.id;
+    setBusy(id, "stopping");
+    try {
+      await api.pluginStop(id);
+      addNotification("Plugin stopped", "info");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Stop failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleRemove() {
+    const id = plugin.manifest.id;
+    setRemoveDialogOpen(false);
+    setBusy(id, "removing");
+    try {
+      await api.pluginRemove(id);
+      removePlugin(id);
+      addNotification("Plugin removed", "info");
+    } catch (e) {
+      addNotification(`Remove failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleRebuild() {
+    const id = plugin.manifest.id;
+    setBusy(id, "rebuilding");
+    try {
+      await api.pluginRebuild(id);
+      addNotification("Plugin rebuilt", "success");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Rebuild failed: ${e}`, "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
+
+  async function handleToggleDevMode() {
+    const id = plugin.manifest.id;
+    const next = !plugin.dev_mode;
+    try {
+      await api.pluginDevModeToggle(id, next);
+      addNotification(next ? "Dev mode enabled" : "Dev mode disabled", "info");
+      const plugins = await api.pluginList();
+      useAppStore.getState().setPlugins(plugins);
+    } catch (e) {
+      addNotification(`Dev mode toggle failed: ${e}`, "error");
+    }
+  }
 
   return (
     <SidebarMenuItem>
@@ -44,11 +139,94 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
         />
         <span className="truncate">{plugin.manifest.name}</span>
       </SidebarMenuButton>
+
       {hasUpdate && (
         <SidebarMenuBadge>
           <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent" />
         </SidebarMenuBadge>
       )}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction showOnHover className="text-nx-text-ghost hover:text-nx-text">
+            <MoreHorizontal size={14} strokeWidth={1.5} />
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="w-48">
+          {isRunning ? (
+            <DropdownMenuItem onClick={handleStop} disabled={isBusy}>
+              <Square size={14} strokeWidth={1.5} className="text-nx-warning" />
+              Stop
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={handleStart} disabled={isBusy}>
+              <Play size={14} strokeWidth={1.5} className="text-nx-success" />
+              Start
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuItem onClick={() => setShowLogs(plugin.manifest.id)}>
+            <ScrollText size={14} strokeWidth={1.5} />
+            Logs
+          </DropdownMenuItem>
+
+          {isLocal && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleRebuild} disabled={isBusy}>
+                <Hammer size={14} strokeWidth={1.5} className="text-nx-accent" />
+                Rebuild
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleToggleDevMode} disabled={isBusy}>
+                <Wrench size={14} strokeWidth={1.5} />
+                {plugin.dev_mode ? "Disable Dev Mode" : "Enable Dev Mode"}
+              </DropdownMenuItem>
+            </>
+          )}
+
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setRemoveDialogOpen(true)}
+            disabled={isBusy}
+          >
+            <Trash2 size={14} strokeWidth={1.5} />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <TriangleAlert size={18} className="text-nx-warning" />
+              Remove {plugin.manifest.name}?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-relaxed pt-1">
+              This will permanently delete all plugin data, including stored files and settings.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setRemoveDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleRemove}
+              className="bg-nx-error text-white hover:bg-nx-error/80"
+            >
+              Remove & Delete Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarMenuItem>
   );
 }

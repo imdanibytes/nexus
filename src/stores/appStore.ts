@@ -26,6 +26,7 @@ interface AppState {
   availableUpdates: AvailableUpdate[];
   updateCheckInterval: number;
   installStatus: InstallStatus;
+  showLogsPluginId: string | null;
 
   setView: (view: View) => void;
   setPlugins: (plugins: InstalledPlugin[]) => void;
@@ -43,6 +44,7 @@ interface AppState {
   setAvailableUpdates: (updates: AvailableUpdate[]) => void;
   setUpdateCheckInterval: (minutes: number) => void;
   setInstallStatus: (message: string | null) => void;
+  setShowLogs: (pluginId: string | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -59,6 +61,7 @@ export const useAppStore = create<AppState>((set) => ({
   availableUpdates: [],
   updateCheckInterval: 30,
   installStatus: { active: false, message: "" },
+  showLogsPluginId: null,
 
   setView: (view) => set({ currentView: view }),
   setPlugins: (plugins) => set({ installedPlugins: plugins }),
@@ -106,4 +109,5 @@ export const useAppStore = create<AppState>((set) => ({
         ? { active: true, message }
         : { active: false, message: "" },
     }),
+  setShowLogs: (pluginId) => set({ showLogsPluginId: pluginId }),
 }));

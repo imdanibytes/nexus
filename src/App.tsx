@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { Shell } from "./components/layout/Shell";
 import { PluginViewport } from "./components/plugins/PluginViewport";
 import { PluginLogs } from "./components/plugins/PluginLogs";
@@ -10,41 +10,16 @@ import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { useDevRebuild } from "./hooks/useDevRebuild";
-import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginDevModeToggle, pluginRebuild } from "./lib/tauri";
+import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InstallOverlay } from "./components/InstallOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 function PluginsView() {
-  const { plugins, selectedPlugin, busyPlugins, start, stop, remove, getLogs, refresh } =
+  const { plugins, selectedPlugin, busyPlugins, start } =
     usePlugins();
-  const { setView, addNotification } = useAppStore();
-  const [showLogs, setShowLogs] = useState<string | null>(null);
-
-  const handleRebuild = useCallback(
-    async (pluginId: string) => {
-      try {
-        await pluginRebuild(pluginId);
-      } catch (e) {
-        addNotification(`Rebuild failed: ${e}`, "error");
-      }
-    },
-    [addNotification]
-  );
-
-  const handleToggleDevMode = useCallback(
-    async (pluginId: string, enabled: boolean) => {
-      try {
-        await pluginDevModeToggle(pluginId, enabled);
-        addNotification(enabled ? "Dev mode enabled" : "Dev mode disabled", "info");
-        await refresh();
-      } catch (e) {
-        addNotification(`Dev mode toggle failed: ${e}`, "error");
-      }
-    },
-    [addNotification, refresh]
-  );
+  const { setView, showLogsPluginId, setShowLogs } = useAppStore();
 
   if (!selectedPlugin) {
     return (
@@ -79,17 +54,12 @@ function PluginsView() {
           plugin={selectedPlugin}
           busyAction={busyPlugins[selectedPlugin.manifest.id] ?? null}
           onStart={() => start(selectedPlugin.manifest.id)}
-          onStop={() => stop(selectedPlugin.manifest.id)}
-          onRemove={() => remove(selectedPlugin.manifest.id)}
-          onShowLogs={() => setShowLogs(selectedPlugin.manifest.id)}
-          onRebuild={() => handleRebuild(selectedPlugin.manifest.id)}
-          onToggleDevMode={(enabled) => handleToggleDevMode(selectedPlugin.manifest.id, enabled)}
         />
       </ErrorBoundary>
-      {showLogs && (
+      {showLogsPluginId && (
         <PluginLogs
-          pluginId={showLogs}
-          getLogs={getLogs}
+          pluginId={showLogsPluginId}
+          getLogs={(id, tail) => pluginLogs(id, tail)}
           onClose={() => setShowLogs(null)}
         />
       )}

@@ -2,7 +2,6 @@ import { useState } from "react";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
-import { PluginControls } from "./PluginControls";
 import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,22 +50,12 @@ interface Props {
   plugin: InstalledPlugin;
   busyAction: PluginAction | null;
   onStart: () => void;
-  onStop: () => void;
-  onRemove: () => void;
-  onShowLogs: () => void;
-  onRebuild?: () => void;
-  onToggleDevMode?: (enabled: boolean) => void;
 }
 
 export function PluginViewport({
   plugin,
   busyAction,
   onStart,
-  onStop,
-  onRemove,
-  onShowLogs,
-  onRebuild,
-  onToggleDevMode,
 }: Props) {
   const isRunning = plugin.status === "running";
   const isBusy = busyAction !== null;
@@ -77,31 +66,6 @@ export function PluginViewport({
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Plugin header */}
-      <div className="flex items-center justify-between px-5 py-3 bg-nx-raised/60 border-b border-nx-border">
-        <div>
-          <h3 className="text-[13px] font-semibold text-nx-text">
-            {plugin.manifest.name}
-          </h3>
-          <p className="text-[11px] text-nx-text-muted">
-            {plugin.manifest.author} &middot; <span className="font-mono">v{plugin.manifest.version}</span>
-          </p>
-        </div>
-        <PluginControls
-          status={plugin.status}
-          pluginName={plugin.manifest.name}
-          disabled={isBusy}
-          isLocal={!!plugin.local_manifest_path}
-          devMode={plugin.dev_mode}
-          onStart={onStart}
-          onStop={onStop}
-          onRemove={onRemove}
-          onShowLogs={onShowLogs}
-          onRebuild={onRebuild}
-          onToggleDevMode={onToggleDevMode}
-        />
-      </div>
-
       {/* Plugin content */}
       <div className="flex-1 relative">
         {isRunning && !isBusy && hasUi ? (

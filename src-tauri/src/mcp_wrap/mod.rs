@@ -13,17 +13,31 @@ pub struct PluginMetadata {
     pub author: String,
 }
 
-/// Extract an npm package name from an MCP server command.
+/// Extract an npm package name (without version tag) from an MCP server command.
 ///
 /// "npx -y @modelcontextprotocol/server-everything" → "@modelcontextprotocol/server-everything"
-/// "npx @org/pkg --flag value" → "@org/pkg"
+/// "npx -y shadcn@latest"                           → "shadcn"
+/// "npx -y @scope/pkg@1.2.3"                        → "@scope/pkg"
 fn extract_npm_package(cmd: &str) -> Option<String> {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     for part in parts.iter().skip(1) {
         if part.starts_with('-') {
             continue;
         }
-        if part.starts_with('@') || part.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+        if part.starts_with('@') {
+            // Scoped package: strip version tag after the slash
+            if let Some(slash_pos) = part.find('/') {
+                if let Some(ver_pos) = part[slash_pos..].find('@') {
+                    return Some(part[..slash_pos + ver_pos].to_string());
+                }
+            }
+            return Some(part.to_string());
+        }
+        if part.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+            // Unscoped package: strip version tag
+            if let Some(at_pos) = part.find('@') {
+                return Some(part[..at_pos].to_string());
+            }
             return Some(part.to_string());
         }
     }
@@ -100,6 +114,15 @@ mod tests {
             Some("@modelcontextprotocol/server-everything".to_string())
         );
         assert_eq!(extract_npm_package("npx -y"), None);
+        // Version tags get stripped
+        assert_eq!(
+            extract_npm_package("npx -y shadcn@latest"),
+            Some("shadcn".to_string())
+        );
+        assert_eq!(
+            extract_npm_package("npx -y @scope/pkg@1.2.3"),
+            Some("@scope/pkg".to_string())
+        );
     }
 
     #[test]
@@ -111,5 +134,10 @@ mod tests {
         let meta2 = suggest_metadata("npx -y @modelcontextprotocol/server-filesystem");
         assert_eq!(meta2.id, "mcp.filesystem");
         assert_eq!(meta2.name, "filesystem (MCP)");
+
+        // Version tags don't leak into the ID
+        let meta3 = suggest_metadata("npx -y shadcn@latest");
+        assert_eq!(meta3.id, "mcp.shadcn");
+        assert_eq!(meta3.name, "shadcn (MCP)");
     }
 }

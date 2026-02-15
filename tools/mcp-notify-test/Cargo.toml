@@ -1,0 +1,11 @@
+[package]
+name = "mcp-notify-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rmcp = { version = "0.15", features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

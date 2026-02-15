@@ -6,15 +6,38 @@ use std::path::{Path, PathBuf};
 /// The MCP bridge server source, embedded at compile time.
 const BRIDGE_SERVER_JS: &str = include_str!("../../../tools/mcp-bridge/src/server.js");
 
-/// Extract an npm package name from an MCP server command for the package.json dependency.
-fn extract_npm_package(cmd: &str) -> Option<String> {
+/// Extract an npm package name and version from an MCP server command.
+///
+/// Handles version tags correctly:
+/// - `npx -y shadcn@latest`         → ("shadcn", "latest")
+/// - `npx -y @scope/pkg@1.2.3`      → ("@scope/pkg", "1.2.3")
+/// - `npx -y @scope/pkg`            → ("@scope/pkg", "*")
+fn extract_npm_package(cmd: &str) -> Option<(String, String)> {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     for part in parts.iter().skip(1) {
         if part.starts_with('-') {
             continue;
         }
-        if part.starts_with('@') || part.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
-            return Some(part.to_string());
+        if part.starts_with('@') {
+            // Scoped package: @scope/pkg or @scope/pkg@version
+            // Find the version tag — second '@' after the scope
+            if let Some(slash_pos) = part.find('/') {
+                if let Some(ver_pos) = part[slash_pos..].find('@') {
+                    let name = &part[..slash_pos + ver_pos];
+                    let version = &part[slash_pos + ver_pos + 1..];
+                    return Some((name.to_string(), version.to_string()));
+                }
+            }
+            return Some((part.to_string(), "*".to_string()));
+        }
+        if part.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+            // Unscoped package: pkg or pkg@version
+            if let Some(at_pos) = part.find('@') {
+                let name = &part[..at_pos];
+                let version = &part[at_pos + 1..];
+                return Some((name.to_string(), version.to_string()));
+            }
+            return Some((part.to_string(), "*".to_string()));
         }
     }
     None
@@ -93,8 +116,8 @@ pub fn generate_plugin(
         "@modelcontextprotocol/sdk".to_string(),
         serde_json::json!("^1.12.1"),
     );
-    if let Some(ref pkg) = npm_pkg {
-        deps.insert(pkg.clone(), serde_json::json!("*"));
+    if let Some((ref name, ref version)) = npm_pkg {
+        deps.insert(name.clone(), serde_json::Value::String(version.clone()));
     }
 
     let package_json = serde_json::json!({

@@ -233,6 +233,7 @@ pub fn run() {
             commands::system::get_update_check_interval,
             commands::system::set_update_check_interval,
             commands::system::check_url_reachable,
+            commands::system::set_language,
             commands::permissions::runtime_approval_respond,
             commands::registries::registry_list,
             commands::registries::registry_add,

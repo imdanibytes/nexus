@@ -22,6 +22,10 @@
     "nativeHint": "Approval requests trigger an OS notification when Nexus is not focused",
     "notifDisabled": "Notifications are disabled. You will still see in-app approval dialogs."
   },
+  "general.language": "Language",
+  "general.languageHint": "Interface language for Nexus",
+  "general.searchLanguage": "Search languages...",
+  "general.noLanguageFound": "No language found.",
   "system": {
     "containerEngine": "Container Engine",
     "status": "Status",

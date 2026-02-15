@@ -149,6 +149,16 @@ pub async fn set_update_check_interval(
     mgr.settings.save().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn set_language(
+    state: tauri::State<'_, AppState>,
+    language: String,
+) -> Result<(), String> {
+    let mut mgr = state.write().await;
+    mgr.settings.language = language;
+    mgr.settings.save().map_err(|e| e.to_string())
+}
+
 /// HEAD a URL to check if it's reachable (2xx/3xx = true).
 /// Used by the extension marketplace to verify manifest URLs exist before enabling install.
 #[tauri::command]

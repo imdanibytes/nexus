@@ -3,17 +3,30 @@ import { useTranslation } from "react-i18next";
 import { appVersion, type AppVersionInfo } from "../../lib/tauri";
 import { RegistrySettings } from "./RegistrySettings";
 import { UpdateCheck } from "./UpdateCheck";
-import { Info, Bug, Bell, BellOff } from "lucide-react";
+import { Info, Bug, Bell, BellOff, Globe, Check, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Button } from "@/components/ui/button";
 import {
   notificationsEnabled,
   setNotificationsEnabled,
 } from "../../hooks/useOsNotification";
+import { LANGUAGES } from "../../i18n";
+import { cn } from "../../lib/utils";
 
 export function GeneralTab() {
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
   const [version, setVersion] = useState<AppVersionInfo | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(notificationsEnabled);
+  const [langOpen, setLangOpen] = useState(false);
 
   useEffect(() => {
     appVersion().then(setVersion).catch(() => {});
@@ -100,6 +113,73 @@ export function GeneralTab() {
             </p>
           </div>
         )}
+      </section>
+
+      {/* Language */}
+      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Globe size={15} strokeWidth={1.5} className="text-nx-text-muted" />
+          <h3 className="text-[14px] font-semibold text-nx-text">
+            {t("general.language")}
+          </h3>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[13px] text-nx-text">
+              {t("general.languageHint")}
+            </p>
+          </div>
+          <Popover open={langOpen} onOpenChange={setLangOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={langOpen}
+                className="w-[180px] justify-between text-[12px] font-medium bg-nx-overlay border-nx-border hover:bg-nx-wash"
+              >
+                {LANGUAGES.find((l) => l.code === i18n.language)?.label ?? i18n.language}
+                <ChevronsUpDown className="ml-2 size-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[180px] p-0 bg-nx-raised border-nx-border-strong shadow-[var(--shadow-dropdown)] rounded-[var(--radius-input)]"
+              align="end"
+            >
+              <Command className="bg-transparent">
+                <CommandInput
+                  placeholder={t("general.searchLanguage")}
+                  className="text-[12px] h-8"
+                />
+                <CommandList>
+                  <CommandEmpty className="text-[12px] text-nx-text-ghost py-4">
+                    {t("general.noLanguageFound")}
+                  </CommandEmpty>
+                  <CommandGroup>
+                    {LANGUAGES.map((lang) => (
+                      <CommandItem
+                        key={lang.code}
+                        value={lang.label}
+                        onSelect={() => {
+                          i18n.changeLanguage(lang.code);
+                          setLangOpen(false);
+                        }}
+                        className="text-[12px] rounded-[var(--radius-tag)]"
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 size-3.5",
+                            i18n.language === lang.code ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {lang.label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
       </section>
 
       {/* Registries */}

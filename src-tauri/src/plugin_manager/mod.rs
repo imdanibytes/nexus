@@ -266,6 +266,8 @@ impl PluginManager {
         env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
         // Persistent data directory inside the container
         env_vars.push("NEXUS_DATA_DIR=/data".to_string());
+        // UI language (BCP-47 code)
+        env_vars.push(format!("NEXUS_LANGUAGE={}", self.settings.language));
 
         // Labels for tracking
         let mut labels = HashMap::new();
@@ -383,6 +385,7 @@ impl PluginManager {
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
         env_vars.push("NEXUS_DATA_DIR=/data".to_string());
+        env_vars.push(format!("NEXUS_LANGUAGE={}", self.settings.language));
 
         let mut labels = HashMap::new();
         labels.insert("nexus.plugin.id".to_string(), manifest.id.clone());

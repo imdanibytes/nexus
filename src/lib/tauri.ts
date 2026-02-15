@@ -349,6 +349,10 @@ export async function lastUpdateCheck(): Promise<string | null> {
   return invoke("last_update_check");
 }
 
+export async function setLanguage(language: string): Promise<void> {
+  return invoke("set_language", { language });
+}
+
 export async function getUpdateCheckInterval(): Promise<number> {
   return invoke("get_update_check_interval");
 }

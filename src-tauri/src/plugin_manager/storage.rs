@@ -473,12 +473,19 @@ pub struct NexusSettings {
     /// 0 = manual only. Default: 30.
     #[serde(default = "default_update_interval")]
     pub update_check_interval_minutes: u32,
+    /// UI language code (BCP-47). Injected as NEXUS_LANGUAGE into plugin containers.
+    #[serde(default = "default_language")]
+    pub language: String,
     #[serde(skip)]
     path: PathBuf,
 }
 
 fn default_update_interval() -> u32 {
     30
+}
+
+fn default_language() -> String {
+    "en".to_string()
 }
 
 impl NexusSettings {

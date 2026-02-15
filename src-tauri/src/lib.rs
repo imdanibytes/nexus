@@ -10,6 +10,7 @@ mod update_checker;
 mod version;
 
 use host_api::approval::ApprovalBridge;
+use plugin_manager::dev_watcher::DevWatcher;
 use plugin_manager::PluginManager;
 use std::sync::Arc;
 use tauri::Manager;
@@ -65,6 +66,41 @@ pub fn run() {
             let approval_bridge = Arc::new(ApprovalBridge::new(app_handle.clone()));
             app.manage(approval_bridge.clone());
 
+            let dev_watcher = Arc::new(DevWatcher::new());
+            app.manage(dev_watcher.clone());
+
+            // Restore dev watchers for plugins with dev_mode enabled
+            {
+                let mgr = state.blocking_read();
+                let dev_plugins: Vec<(String, std::path::PathBuf)> = mgr
+                    .storage
+                    .list()
+                    .iter()
+                    .filter(|p| p.dev_mode)
+                    .filter_map(|p| {
+                        p.local_manifest_path.as_ref().and_then(|mp| {
+                            std::path::Path::new(mp)
+                                .parent()
+                                .map(|dir| (p.manifest.id.clone(), dir.to_path_buf()))
+                        })
+                    })
+                    .collect();
+                drop(mgr);
+
+                if !dev_plugins.is_empty() {
+                    let dw = dev_watcher.clone();
+                    let s = state.clone();
+                    let ah = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        for (id, dir) in dev_plugins {
+                            if let Err(e) = dw.start_watching(id.clone(), dir, s.clone(), ah.clone()).await {
+                                log::warn!("Failed to restore dev watcher for '{}': {}", id, e);
+                            }
+                        }
+                    });
+                }
+            }
+
             // Spawn Host API server and Docker network setup
             let state_clone = state.clone();
             tauri::async_runtime::spawn(async move {
@@ -97,6 +133,8 @@ pub fn run() {
             commands::plugins::plugin_save_settings,
             commands::plugins::plugin_storage_info,
             commands::plugins::plugin_clear_storage,
+            commands::plugins::plugin_dev_mode_toggle,
+            commands::plugins::plugin_rebuild,
             commands::marketplace::marketplace_search,
             commands::marketplace::marketplace_refresh,
             commands::permissions::permission_grant,

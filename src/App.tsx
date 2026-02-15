@@ -9,16 +9,41 @@ import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarke
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
-import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval } from "./lib/tauri";
+import { useDevRebuild } from "./hooks/useDevRebuild";
+import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginDevModeToggle, pluginRebuild } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InstallOverlay } from "./components/InstallOverlay";
 
 function PluginsView() {
-  const { plugins, selectedPlugin, busyPlugins, start, stop, remove, getLogs } =
+  const { plugins, selectedPlugin, busyPlugins, start, stop, remove, getLogs, refresh } =
     usePlugins();
-  const { setView } = useAppStore();
+  const { setView, addNotification } = useAppStore();
   const [showLogs, setShowLogs] = useState<string | null>(null);
+
+  const handleRebuild = useCallback(
+    async (pluginId: string) => {
+      try {
+        await pluginRebuild(pluginId);
+      } catch (e) {
+        addNotification(`Rebuild failed: ${e}`, "error");
+      }
+    },
+    [addNotification]
+  );
+
+  const handleToggleDevMode = useCallback(
+    async (pluginId: string, enabled: boolean) => {
+      try {
+        await pluginDevModeToggle(pluginId, enabled);
+        addNotification(enabled ? "Dev mode enabled" : "Dev mode disabled", "info");
+        await refresh();
+      } catch (e) {
+        addNotification(`Dev mode toggle failed: ${e}`, "error");
+      }
+    },
+    [addNotification, refresh]
+  );
 
   if (!selectedPlugin) {
     return (
@@ -56,6 +81,8 @@ function PluginsView() {
           onStop={() => stop(selectedPlugin.manifest.id)}
           onRemove={() => remove(selectedPlugin.manifest.id)}
           onShowLogs={() => setShowLogs(selectedPlugin.manifest.id)}
+          onRebuild={() => handleRebuild(selectedPlugin.manifest.id)}
+          onToggleDevMode={(enabled) => handleToggleDevMode(selectedPlugin.manifest.id, enabled)}
         />
       </ErrorBoundary>
       {showLogs && (
@@ -80,6 +107,7 @@ function App() {
     selectExtensionEntry,
   } = useAppStore();
   const { refresh } = usePlugins();
+  useDevRebuild();
   const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval } = useAppStore();
 
   const checkForPluginUpdates = useCallback(async () => {

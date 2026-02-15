@@ -58,7 +58,7 @@ pub async fn mcp_generate_and_install(
 
     // 3. Install via PluginManager
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions, None)
+    mgr.install(manifest, approved_permissions, deferred_permissions, None, None)
         .await
         .map_err(|e| e.to_string())
 }

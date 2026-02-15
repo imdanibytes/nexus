@@ -1,3 +1,4 @@
+pub mod dev_watcher;
 pub mod docker;
 pub mod health;
 pub mod manifest;
@@ -152,6 +153,7 @@ impl PluginManager {
         approved_permissions: Vec<crate::permissions::Permission>,
         deferred_permissions: Vec<crate::permissions::Permission>,
         manifest_url: Option<&str>,
+        local_manifest_path: Option<String>,
     ) -> NexusResult<InstalledPlugin> {
         manifest
             .validate()
@@ -159,7 +161,11 @@ impl PluginManager {
 
         check_min_nexus_version(&manifest)?;
 
-        if let Some(existing) = self.storage.get(&manifest.id) {
+        // Preserve dev_mode and local_manifest_path across reinstalls
+        let (prev_dev_mode, prev_local_path) = if let Some(existing) = self.storage.get(&manifest.id) {
+            let dm = existing.dev_mode;
+            let lp = existing.local_manifest_path.clone();
+
             log::info!("Reinstalling plugin '{}' (replacing existing)", manifest.id);
 
             // Stop and remove old container, but keep volume (data) and permissions
@@ -171,7 +177,10 @@ impl PluginManager {
             }
 
             self.storage.remove(&manifest.id)?;
-        }
+            (dm, lp)
+        } else {
+            (false, None)
+        };
 
         // Pull the Docker image (skip if already present — e.g. locally built)
         let image_exists = docker::image_exists(&manifest.image).await.unwrap_or(false);
@@ -271,6 +280,8 @@ impl PluginManager {
             auth_token: token_hash,
             installed_at: chrono::Utc::now(),
             manifest_url_origin: manifest_url.and_then(storage::extract_url_host),
+            dev_mode: prev_dev_mode,
+            local_manifest_path: local_manifest_path.or(prev_local_path),
         };
 
         // Grant only user-approved permissions.
@@ -521,6 +532,8 @@ impl PluginManager {
         let port = plugin.assigned_port;
         let old_container_id = plugin.container_id.clone();
         let preserved_origin = plugin.manifest_url_origin.clone();
+        let preserved_dev_mode = plugin.dev_mode;
+        let preserved_local_path = plugin.local_manifest_path.clone();
 
         // Stop old container
         if let Some(ref cid) = old_container_id {
@@ -610,6 +623,8 @@ impl PluginManager {
             auth_token: new_hash,
             installed_at: chrono::Utc::now(),
             manifest_url_origin: preserved_origin,
+            dev_mode: preserved_dev_mode,
+            local_manifest_path: preserved_local_path,
         };
 
         // Update storage

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { PluginAction } from "../../stores/appStore";
 import { PluginControls } from "./PluginControls";
-import { Play, StopCircle, Loader2, Trash2, Square, Terminal } from "lucide-react";
+import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer } from "lucide-react";
 
 const overlayConfig: Record<
   PluginAction,
@@ -29,6 +29,13 @@ const overlayConfig: Record<
     color: "text-nx-success",
     bg: "bg-nx-success-muted",
   },
+  rebuilding: {
+    icon: Hammer,
+    label: "Rebuilding",
+    sub: "Building image and restarting...",
+    color: "text-nx-accent",
+    bg: "bg-nx-accent-muted",
+  },
 };
 
 interface Props {
@@ -38,6 +45,8 @@ interface Props {
   onStop: () => void;
   onRemove: () => void;
   onShowLogs: () => void;
+  onRebuild?: () => void;
+  onToggleDevMode?: (enabled: boolean) => void;
 }
 
 export function PluginViewport({
@@ -47,6 +56,8 @@ export function PluginViewport({
   onStop,
   onRemove,
   onShowLogs,
+  onRebuild,
+  onToggleDevMode,
 }: Props) {
   const isRunning = plugin.status === "running";
   const isBusy = busyAction !== null;
@@ -70,10 +81,14 @@ export function PluginViewport({
         <PluginControls
           status={plugin.status}
           disabled={isBusy}
+          isLocal={!!plugin.local_manifest_path}
+          devMode={plugin.dev_mode}
           onStart={onStart}
           onStop={onStop}
           onRemove={onRemove}
           onShowLogs={onShowLogs}
+          onRebuild={onRebuild}
+          onToggleDevMode={onToggleDevMode}
         />
       </div>
 

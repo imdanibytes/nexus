@@ -4,7 +4,7 @@ import type { ExtensionRegistryEntry } from "../types/extension";
 import type { AvailableUpdate } from "../types/updates";
 
 type View = "plugins" | "marketplace" | "settings" | "plugin-detail" | "extension-marketplace" | "extension-detail";
-export type PluginAction = "starting" | "stopping" | "removing";
+export type PluginAction = "starting" | "stopping" | "removing" | "rebuilding";
 
 interface Notification {
   id: string;

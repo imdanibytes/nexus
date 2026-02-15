@@ -46,6 +46,7 @@ base64 = "0.22"
 async-stream = "0.3"
 async-trait = "0.1"
 jsonschema = "0.41"
+notify = { version = "7", default-features = false, features = ["macos_fsevent"] }
 notify-rust = "4"
 semver = "1"
 serde_yaml = "0.9"

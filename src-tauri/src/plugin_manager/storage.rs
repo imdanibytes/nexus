@@ -47,6 +47,12 @@ pub struct InstalledPlugin {
     /// If a registry entry later points to a different host, flagged as suspicious.
     #[serde(default)]
     pub manifest_url_origin: Option<String>,
+    /// When true, a file watcher auto-rebuilds this plugin on source changes.
+    #[serde(default)]
+    pub dev_mode: bool,
+    /// Absolute path to the plugin.json used for local installs (needed for dev rebuilds).
+    #[serde(default)]
+    pub local_manifest_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -198,6 +204,8 @@ mod tests {
             auth_token: hash_token(raw_token),
             installed_at: chrono::Utc::now(),
             manifest_url_origin: None,
+            dev_mode: false,
+            local_manifest_path: None,
         };
         storage.add(plugin).unwrap();
 
@@ -245,6 +253,8 @@ mod tests {
             auth_token: hash_token("correct-token"),
             installed_at: chrono::Utc::now(),
             manifest_url_origin: None,
+            dev_mode: false,
+            local_manifest_path: None,
         };
         storage.add(plugin).unwrap();
 

@@ -44,11 +44,18 @@ export function InstalledPluginCard({
           </h3>
           <p className="text-[11px] text-nx-text-muted font-mono">v{plugin.manifest.version}</p>
         </div>
-        <span
-          className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium ${badge.className}`}
-        >
-          {badge.label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {plugin.dev_mode && (
+            <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-accent-muted text-nx-accent">
+              DEV
+            </span>
+          )}
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium ${badge.className}`}
+          >
+            {badge.label}
+          </span>
+        </div>
       </div>
       <p className="text-[11px] text-nx-text-secondary line-clamp-2">
         {plugin.manifest.description}

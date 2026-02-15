@@ -1,4 +1,5 @@
 use crate::permissions::Permission;
+use crate::plugin_manager::dev_watcher::DevWatcher;
 use crate::plugin_manager::{docker, health};
 use crate::plugin_manager::manifest::PluginManifest;
 use crate::plugin_manager::registry;
@@ -6,6 +7,7 @@ use crate::plugin_manager::storage::InstalledPlugin;
 use crate::AppState;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 #[tauri::command]
 pub async fn plugin_list(state: tauri::State<'_, AppState>) -> Result<Vec<InstalledPlugin>, String> {
@@ -73,7 +75,7 @@ pub async fn plugin_install(
     }
 
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url))
+    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url), None)
         .await
         .map_err(|e| e.to_string())
 }
@@ -111,7 +113,7 @@ pub async fn plugin_install_local(
     }
 
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), None)
+    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), None, Some(manifest_path))
         .await
         .map_err(|e| e.to_string())
 }
@@ -141,8 +143,12 @@ pub async fn plugin_stop(
 #[tauri::command]
 pub async fn plugin_remove(
     state: tauri::State<'_, AppState>,
+    dev_watcher: tauri::State<'_, Arc<DevWatcher>>,
     plugin_id: String,
 ) -> Result<(), String> {
+    // Stop dev watcher before removing the plugin
+    dev_watcher.stop_watching(&plugin_id).await;
+
     let mut mgr = state.write().await;
     mgr.remove(&plugin_id).await.map_err(|e| e.to_string())?;
     mgr.notify_tools_changed();
@@ -237,5 +243,95 @@ pub async fn plugin_clear_storage(
 ) -> Result<(), String> {
     let mgr = state.read().await;
     crate::host_api::storage::remove_plugin_storage(&mgr.data_dir, &plugin_id);
+    Ok(())
+}
+
+/// Toggle dev mode for a locally installed plugin.
+/// When enabled, starts a file watcher that auto-rebuilds on changes.
+#[tauri::command]
+pub async fn plugin_dev_mode_toggle(
+    state: tauri::State<'_, AppState>,
+    dev_watcher: tauri::State<'_, Arc<DevWatcher>>,
+    app_handle: tauri::AppHandle,
+    plugin_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    // Update the stored flag
+    {
+        let mut mgr = state.write().await;
+        let plugin = mgr
+            .storage
+            .get_mut(&plugin_id)
+            .ok_or_else(|| format!("Plugin '{}' not found", plugin_id))?;
+
+        let manifest_path = plugin
+            .local_manifest_path
+            .as_ref()
+            .ok_or("Dev mode requires a locally installed plugin")?
+            .clone();
+
+        plugin.dev_mode = enabled;
+        mgr.storage.save().map_err(|e| e.to_string())?;
+
+        if enabled {
+            let watch_dir = std::path::Path::new(&manifest_path)
+                .parent()
+                .ok_or("Invalid manifest path")?
+                .to_path_buf();
+
+            dev_watcher
+                .start_watching(
+                    plugin_id.clone(),
+                    watch_dir,
+                    state.inner().clone(),
+                    app_handle,
+                )
+                .await?;
+        } else {
+            dev_watcher.stop_watching(&plugin_id).await;
+        }
+    }
+
+    Ok(())
+}
+
+/// Manually trigger a rebuild for a dev-mode plugin.
+#[tauri::command]
+pub async fn plugin_rebuild(
+    state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+    plugin_id: String,
+) -> Result<(), String> {
+    let source_dir = {
+        let mgr = state.read().await;
+        let plugin = mgr
+            .storage
+            .get(&plugin_id)
+            .ok_or_else(|| format!("Plugin '{}' not found", plugin_id))?;
+
+        let manifest_path = plugin
+            .local_manifest_path
+            .as_ref()
+            .ok_or("Rebuild requires a locally installed plugin")?;
+
+        std::path::Path::new(manifest_path)
+            .parent()
+            .ok_or("Invalid manifest path")?
+            .to_path_buf()
+    };
+
+    // Spawn in background so the command returns immediately
+    let state_arc = state.inner().clone();
+    let pid = plugin_id.clone();
+    tokio::spawn(async move {
+        crate::plugin_manager::dev_watcher::rebuild_plugin(
+            &state_arc,
+            &app_handle,
+            &pid,
+            &source_dir,
+        )
+        .await;
+    });
+
     Ok(())
 }

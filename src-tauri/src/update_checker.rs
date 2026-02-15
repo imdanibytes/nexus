@@ -248,6 +248,8 @@ mod tests {
             auth_token: "hash".to_string(),
             installed_at: chrono::Utc::now(),
             manifest_url_origin: origin.map(|o| o.to_string()),
+            dev_mode: false,
+            local_manifest_path: None,
         }
     }
 

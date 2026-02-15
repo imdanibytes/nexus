@@ -369,6 +369,17 @@ export async function pluginClearStorage(pluginId: string): Promise<void> {
   return invoke("plugin_clear_storage", { pluginId });
 }
 
+export async function pluginDevModeToggle(
+  pluginId: string,
+  enabled: boolean
+): Promise<void> {
+  return invoke("plugin_dev_mode_toggle", { pluginId, enabled });
+}
+
+export async function pluginRebuild(pluginId: string): Promise<void> {
+  return invoke("plugin_rebuild", { pluginId });
+}
+
 // MCP Wrap
 
 export async function mcpDiscoverTools(

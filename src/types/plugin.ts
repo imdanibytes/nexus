@@ -49,6 +49,8 @@ export interface InstalledPlugin {
   assigned_port: number;
   auth_token: string;
   installed_at: string;
+  dev_mode: boolean;
+  local_manifest_path: string | null;
 }
 
 export interface RegistryEntry {

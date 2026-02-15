@@ -129,7 +129,7 @@ export function PluginViewport({
   );
 }
 
-function PluginMenuBar({ plugin, disabled, onStart: _onStart, onOpenChange }: { plugin: InstalledPlugin; disabled: boolean; onStart: () => void; onOpenChange?: (open: boolean) => void }) {
+function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPlugin; disabled: boolean; onStart: () => void; onOpenChange?: (open: boolean) => void }) {
   const { setBusy, removePlugin, addNotification, setShowLogs } = useAppStore();
   const isRunning = plugin.status === "running";
   const isLocal = !!plugin.local_manifest_path;

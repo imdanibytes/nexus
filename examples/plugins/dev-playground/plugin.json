@@ -1,0 +1,65 @@
+{
+  "id": "com.nexus.dev-playground",
+  "name": "Dev Playground",
+  "version": "0.1.0",
+  "description": "Interactive reference plugin showcasing every Nexus feature — components, APIs, storage, network, settings, and MCP tools",
+  "author": "Nexus Team",
+  "license": "MIT",
+  "homepage": "https://github.com/imdanibytes/nexus",
+  "image": "nexus-plugin-dev-playground:latest",
+  "ui": {
+    "port": 80,
+    "path": "/"
+  },
+  "permissions": [
+    "system:info",
+    "network:internet"
+  ],
+  "health": {
+    "endpoint": "/health",
+    "interval_secs": 30
+  },
+  "mcp": {
+    "tools": [
+      {
+        "name": "get_system_info",
+        "description": "Fetch host system info (OS, hostname, uptime, CPUs, memory, Nexus version)",
+        "permissions": ["system:info"],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      {
+        "name": "list_storage_keys",
+        "description": "List all key-value storage keys for this plugin",
+        "permissions": [],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    ]
+  },
+  "env": {},
+  "min_nexus_version": "0.1.0",
+  "settings": [
+    {
+      "key": "accent_color",
+      "type": "select",
+      "label": "Accent Color",
+      "description": "Color accent used in the playground UI",
+      "default": "teal",
+      "options": ["teal", "amber", "blue"]
+    },
+    {
+      "key": "show_code_snippets",
+      "type": "boolean",
+      "label": "Show Code Snippets",
+      "description": "Display import snippets alongside component demos",
+      "default": true
+    }
+  ]
+}

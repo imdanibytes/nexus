@@ -51,7 +51,7 @@ export {
   TooltipContent,
   TooltipProvider,
 } from "./components/tooltip"
-export { Toaster } from "./components/sonner"
+export { toast, Toaster } from "./components/sonner"
 
 // Provider
 export { NexusProvider, useNexus } from "./provider/nexus-provider"

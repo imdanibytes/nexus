@@ -1,0 +1,11 @@
+@import "@imdanibytes/plugin-ui/styles";
+/* plugin-ui src for basic classes + safelist.tsx for complex patterns */
+@source "../../../../packages/plugin-ui/src";
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-nx-deep);
+  color: var(--color-nx-text);
+  -webkit-font-smoothing: antialiased;
+}

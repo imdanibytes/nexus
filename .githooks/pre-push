@@ -5,7 +5,7 @@ echo "pre-push: running clippy..."
 (cd src-tauri && cargo clippy -- -D warnings)
 
 echo "pre-push: running tsc..."
-npx tsc --noEmit
+pnpm tsc -b
 
 echo "pre-push: running eslint..."
 pnpm lint

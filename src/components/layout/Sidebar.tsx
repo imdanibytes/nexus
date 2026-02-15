@@ -1,6 +1,18 @@
 import { useAppStore } from "../../stores/appStore";
 import type { InstalledPlugin } from "../../types/plugin";
 import { Plus, Settings, ArrowUp } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 
 const statusColor: Record<string, string> = {
   running: "bg-nx-success",
@@ -16,99 +28,103 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
   const hasUpdate = availableUpdates.some((u) => u.item_id === plugin.manifest.id);
 
   return (
-    <button
-      onClick={() => {
-        selectPlugin(plugin.manifest.id);
-        setView("plugins");
-      }}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] text-left transition-all duration-150 ${
-        isSelected
-          ? "bg-nx-accent-muted text-nx-accent"
-          : "text-nx-text-secondary hover:bg-nx-overlay hover:text-nx-text"
-      }`}
-    >
-      <span
-        className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor[plugin.status] ?? "bg-nx-text-muted"}`}
-        style={isRunning ? { animation: "pulse-status 2s ease-in-out infinite" } : undefined}
-      />
-      <span className="truncate text-[12px] font-medium">{plugin.manifest.name}</span>
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        size="sm"
+        isActive={isSelected}
+        onClick={() => {
+          selectPlugin(plugin.manifest.id);
+          setView("plugins");
+        }}
+        className="text-[12px]"
+      >
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor[plugin.status] ?? "bg-nx-text-muted"}`}
+          style={isRunning ? { animation: "pulse-status 2s ease-in-out infinite" } : undefined}
+        />
+        <span className="truncate">{plugin.manifest.name}</span>
+      </SidebarMenuButton>
       {hasUpdate && (
-        <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent shrink-0" />
+        <SidebarMenuBadge>
+          <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent" />
+        </SidebarMenuBadge>
       )}
-    </button>
+    </SidebarMenuItem>
   );
 }
 
-export function Sidebar() {
+export function AppSidebar() {
   const { currentView, setView, installedPlugins, availableUpdates } = useAppStore();
 
   return (
-    <aside
-      className="w-60 border-r border-nx-border flex flex-col h-full"
+    <Sidebar
+      collapsible="none"
+      className="border-r border-nx-border"
       style={{
         background: "rgba(34, 38, 49, 0.85)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
       }}
     >
-      {/* Logo */}
-      <div className="px-4 py-4 border-b border-nx-border-subtle">
+      <SidebarHeader className="px-4 py-4 border-b border-nx-border-subtle">
         <h1 className="text-[15px] font-bold tracking-tight">
           <span className="text-nx-accent">Nexus</span>
         </h1>
         <p className="text-[10px] text-nx-text-muted font-medium tracking-wide uppercase mt-0.5">
           Plugin Dashboard
         </p>
-      </div>
+      </SidebarHeader>
 
-      {/* Installed plugins */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        <h2 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider px-3 mb-2">
-          Installed
-        </h2>
-        {installedPlugins.length === 0 ? (
-          <p className="text-[11px] text-nx-text-ghost px-3 py-2">
-            No plugins installed
-          </p>
-        ) : (
-          <div className="space-y-0.5">
-            {installedPlugins.map((plugin) => (
-              <PluginItem key={plugin.manifest.id} plugin={plugin} />
-            ))}
-          </div>
-        )}
-      </div>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
+            Installed
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            {installedPlugins.length === 0 ? (
+              <p className="text-[11px] text-nx-text-ghost px-2 py-2">
+                No plugins installed
+              </p>
+            ) : (
+              installedPlugins.map((plugin) => (
+                <PluginItem key={plugin.manifest.id} plugin={plugin} />
+              ))
+            )}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
 
-      {/* Navigation */}
-      <nav className="px-3 py-3 border-t border-nx-border-subtle space-y-0.5">
-        <button
-          onClick={() => setView("marketplace")}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] text-[12px] font-medium transition-all duration-150 ${
-            currentView === "marketplace" || currentView === "plugin-detail"
-              ? "bg-nx-accent-muted text-nx-accent"
-              : "text-nx-text-secondary hover:bg-nx-overlay hover:text-nx-text"
-          }`}
-        >
-          <Plus size={15} strokeWidth={1.5} />
-          Add Plugins
-        </button>
-        <button
-          onClick={() => setView("settings")}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] text-[12px] font-medium transition-all duration-150 ${
-            currentView === "settings"
-              ? "bg-nx-accent-muted text-nx-accent"
-              : "text-nx-text-secondary hover:bg-nx-overlay hover:text-nx-text"
-          }`}
-        >
-          <Settings size={15} strokeWidth={1.5} />
-          Settings
-          {availableUpdates.length > 0 && (
-            <span className="ml-auto min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold rounded-full bg-nx-accent text-nx-deep">
-              {availableUpdates.length}
-            </span>
-          )}
-        </button>
-      </nav>
-    </aside>
+      <SidebarFooter className="border-t border-nx-border-subtle">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="sm"
+              isActive={currentView === "marketplace" || currentView === "plugin-detail"}
+              onClick={() => setView("marketplace")}
+              className="text-[12px]"
+            >
+              <Plus size={15} strokeWidth={1.5} />
+              Add Plugins
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="sm"
+              isActive={currentView === "settings"}
+              onClick={() => setView("settings")}
+              className="text-[12px]"
+            >
+              <Settings size={15} strokeWidth={1.5} />
+              Settings
+            </SidebarMenuButton>
+            {availableUpdates.length > 0 && (
+              <SidebarMenuBadge className="min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-nx-accent text-nx-deep">
+                {availableUpdates.length}
+              </SidebarMenuBadge>
+            )}
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
   );
 }

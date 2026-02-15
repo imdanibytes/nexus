@@ -14,6 +14,7 @@ import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, 
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InstallOverlay } from "./components/InstallOverlay";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function PluginsView() {
   const { plugins, selectedPlugin, busyPlugins, start, stop, remove, getLogs, refresh } =
@@ -165,6 +166,7 @@ function App() {
   const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));
 
   return (
+    <TooltipProvider>
     <Shell>
       <InstallOverlay />
       {currentView === "plugins" && (
@@ -211,6 +213,7 @@ function App() {
         </ErrorBoundary>
       )}
     </Shell>
+    </TooltipProvider>
   );
 }
 

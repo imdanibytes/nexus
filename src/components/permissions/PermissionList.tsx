@@ -3,6 +3,17 @@ import { usePermissions } from "../../hooks/usePermissions";
 import { getPermissionInfo } from "../../types/permissions";
 import type { Permission, GrantedPermission } from "../../types/permissions";
 import { ChevronDown, FolderOpen, RotateCcw, X, ShieldCheck, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   pluginId: string;
@@ -94,20 +105,22 @@ export function PermissionList({ pluginId }: Props) {
                     </p>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 ml-2">
-                    <button
+                    <Button
+                      size="xs"
                       onClick={() => unrevoke(pluginId, [grant.permission as Permission])}
-                      className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[var(--radius-tag)] bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20 transition-colors duration-150"
+                      className="bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20"
                       title="Activate this permission now"
                     >
                       <ShieldCheck size={11} strokeWidth={1.5} />
                       Activate
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="xs"
                       onClick={() => revoke(pluginId, [grant.permission as Permission])}
-                      className="text-[11px] font-medium px-2 py-1 rounded-[var(--radius-tag)] bg-nx-error-muted text-nx-error hover:bg-nx-error/20 transition-colors duration-150"
                     >
                       Revoke
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -157,13 +170,14 @@ export function PermissionList({ pluginId }: Props) {
                       {info?.description ?? "Unknown permission"}
                     </p>
                   </div>
-                  <button
+                  <Button
+                    size="xs"
                     onClick={() => setConfirmRestore(grant.permission)}
-                    className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[var(--radius-tag)] bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20 transition-colors duration-150 flex-shrink-0 ml-2"
+                    className="bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20 flex-shrink-0 ml-2"
                   >
                     <RotateCcw size={11} strokeWidth={1.5} />
                     Restore
-                  </button>
+                  </Button>
                 </div>
               </div>
             );
@@ -172,38 +186,37 @@ export function PermissionList({ pluginId }: Props) {
       )}
 
       {/* Confirm restore modal */}
-      {confirmRestore && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-nx-surface border border-nx-border rounded-[var(--radius-card)] p-5 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="text-[14px] font-semibold text-nx-text mb-2">
+      <AlertDialog open={confirmRestore !== null} onOpenChange={(open) => { if (!open) setConfirmRestore(null); }}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[14px]">
               Restore Permission
-            </h3>
-            <p className="text-[12px] text-nx-text-muted mb-1">
-              Restore <span className="font-mono font-medium text-nx-text">{confirmRestore}</span> for this plugin?
-            </p>
-            <p className="text-[11px] text-nx-text-ghost mb-4">
-              Previously approved scopes will be preserved. The plugin will regain access immediately.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setConfirmRestore(null)}
-                className="px-3 py-1.5 text-[12px] font-medium text-nx-text-muted bg-nx-wash border border-nx-border-subtle rounded-[var(--radius-button)] hover:bg-nx-base transition-colors duration-150"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  unrevoke(pluginId, [confirmRestore as Permission]);
-                  setConfirmRestore(null);
-                }}
-                className="px-3 py-1.5 text-[12px] font-medium text-nx-text bg-nx-accent-muted border border-nx-accent/30 rounded-[var(--radius-button)] hover:bg-nx-accent/20 transition-colors duration-150"
-              >
-                Restore
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="text-[12px] text-nx-text-muted mb-1">
+                  Restore <span className="font-mono font-medium text-nx-text">{confirmRestore}</span> for this plugin?
+                </p>
+                <p className="text-[11px] text-nx-text-ghost">
+                  Previously approved scopes will be preserved. The plugin will regain access immediately.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                unrevoke(pluginId, [confirmRestore as Permission]);
+                setConfirmRestore(null);
+              }}
+              className="bg-nx-accent-muted border border-nx-accent/30 text-nx-text hover:bg-nx-accent/20"
+            >
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -275,15 +288,17 @@ function ActivePermissionRow({
             </p>
           </div>
         </div>
-        <button
+        <Button
+          variant="destructive"
+          size="xs"
           onClick={(e) => {
             e.stopPropagation();
             onRevoke(pluginId, [grant.permission as Permission]);
           }}
-          className="text-[11px] font-medium px-2 py-1 rounded-[var(--radius-tag)] bg-nx-error-muted text-nx-error hover:bg-nx-error/20 transition-colors duration-150 flex-shrink-0 ml-2"
+          className="flex-shrink-0 ml-2"
         >
           Revoke
-        </button>
+        </Button>
       </div>
 
       {/* Approved paths (expanded) */}
@@ -311,7 +326,9 @@ function ActivePermissionRow({
                       {p}
                     </span>
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() =>
                       onRemovePath(
                         pluginId,
@@ -320,10 +337,10 @@ function ActivePermissionRow({
                       )
                     }
                     title={`Revoke access to ${p}`}
-                    className="text-nx-text-ghost hover:text-nx-error transition-colors duration-150 flex-shrink-0 p-1.5 -m-1.5"
+                    className="text-nx-text-ghost hover:text-nx-error flex-shrink-0"
                   >
                     <X size={12} strokeWidth={1.5} />
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>

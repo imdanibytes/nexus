@@ -10,6 +10,7 @@ import type { PluginManifest } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
 import { FolderOpen, RefreshCw, Package, Wand2 } from "lucide-react";
 import { McpWrapWizard } from "./McpWrapWizard";
+import { Button } from "@/components/ui/button";
 
 export function MarketplacePage() {
   const { plugins, isLoading, refresh, search } = useMarketplace();
@@ -70,29 +71,31 @@ export function MarketplacePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            size="sm"
             onClick={() => setShowMcpWizard(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
           >
             <Wand2 size={12} strokeWidth={1.5} />
             Wrap MCP Server
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleLocalInstall}
             disabled={installing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash disabled:opacity-40 text-nx-text-secondary transition-all duration-150"
           >
             <FolderOpen size={12} strokeWidth={1.5} />
             {installing ? "Installing..." : "Install Local"}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={refresh}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
           >
             <RefreshCw size={12} strokeWidth={1.5} className={isLoading ? "animate-spin" : ""} />
             {isLoading ? "Refreshing..." : "Refresh"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -113,14 +116,14 @@ export function MarketplacePage() {
           <p className="text-nx-text-muted text-[11px] mb-4">
             You can install a plugin from a local <code className="bg-nx-deep text-nx-text-secondary px-1.5 py-0.5 rounded-[var(--radius-tag)] font-mono">plugin.json</code> manifest.
           </p>
-          <button
+          <Button
             onClick={handleLocalInstall}
             disabled={installing}
-            className="flex items-center gap-2 mx-auto px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
+            className="mx-auto"
           >
             <FolderOpen size={14} strokeWidth={1.5} />
             {installing ? "Installing..." : "Install Local Plugin"}
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

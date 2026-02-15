@@ -1,18 +1,13 @@
 import type { InstalledPlugin, RegistryEntry } from "../../types/plugin";
 import type { PluginStatus } from "../../types/plugin";
 import { timeAgo } from "../../lib/timeAgo";
+import { Badge } from "@/components/ui/badge";
 
-const statusBadge: Record<
-  PluginStatus,
-  { label: string; className: string }
-> = {
-  running: { label: "Running", className: "bg-nx-success-muted text-nx-success" },
-  stopped: { label: "Stopped", className: "bg-nx-overlay text-nx-text-muted" },
-  error: { label: "Error", className: "bg-nx-error-muted text-nx-error" },
-  installing: {
-    label: "Installing",
-    className: "bg-nx-warning-muted text-nx-warning",
-  },
+const statusVariant: Record<PluginStatus, "success" | "secondary" | "error" | "warning"> = {
+  running: "success",
+  stopped: "secondary",
+  error: "error",
+  installing: "warning",
 };
 
 interface InstalledPluginCardProps {
@@ -26,7 +21,7 @@ export function InstalledPluginCard({
   onSelect,
   isSelected,
 }: InstalledPluginCardProps) {
-  const badge = statusBadge[plugin.status];
+  const variant = statusVariant[plugin.status];
 
   return (
     <div
@@ -46,15 +41,9 @@ export function InstalledPluginCard({
         </div>
         <div className="flex items-center gap-1.5">
           {plugin.dev_mode && (
-            <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-accent-muted text-nx-accent">
-              DEV
-            </span>
+            <Badge variant="accent">DEV</Badge>
           )}
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium ${badge.className}`}
-          >
-            {badge.label}
-          </span>
+          <Badge variant={variant}>{plugin.status}</Badge>
         </div>
       </div>
       <p className="text-[11px] text-nx-text-secondary line-clamp-2">
@@ -117,14 +106,10 @@ export function RegistryPluginCard({
         </div>
         <div className="flex gap-1.5 flex-shrink-0">
           {entry.status === "deprecated" && (
-            <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-warning-muted text-nx-warning">
-              Deprecated
-            </span>
+            <Badge variant="warning">Deprecated</Badge>
           )}
           {isInstalled && (
-            <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-accent-muted text-nx-accent">
-              Installed
-            </span>
+            <Badge variant="accent">Installed</Badge>
           )}
         </div>
       </div>
@@ -133,17 +118,10 @@ export function RegistryPluginCard({
       </p>
       <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
         {entry.source && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-accent-muted text-nx-accent font-medium">
-            {entry.source}
-          </span>
+          <Badge variant="accent">{entry.source}</Badge>
         )}
         {entry.categories.map((cat) => (
-          <span
-            key={cat}
-            className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary"
-          >
-            {cat}
-          </span>
+          <Badge key={cat} variant="secondary">{cat}</Badge>
         ))}
         {entry.created_at && (
           <span className="text-[10px] text-nx-text-ghost ml-auto">

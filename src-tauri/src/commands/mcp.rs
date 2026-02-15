@@ -51,12 +51,14 @@ pub async fn mcp_set_enabled(
         // Format: "tool:{plugin_id}.{tool_name}"
         // Find the split point — plugin IDs contain dots, so find the matching plugin
         let mut found = false;
-        let plugin_ids: Vec<String> = mgr
+        let mut plugin_ids: Vec<String> = mgr
             .storage
             .list()
             .iter()
             .map(|p| p.manifest.id.clone())
             .collect();
+        // Include the virtual "nexus" plugin for built-in MCP tools
+        plugin_ids.push("nexus".to_string());
 
         for pid in &plugin_ids {
             let prefix = format!("{}.", pid);
@@ -144,6 +146,30 @@ pub async fn mcp_list_tools(
                 requires_approval: tool.requires_approval,
             });
         }
+    }
+
+    // Append built-in Nexus management tools
+    let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
+    let nexus_plugin_enabled = nexus_mcp.map_or(true, |s| s.enabled);
+    for builtin in crate::host_api::nexus_mcp::builtin_tools() {
+        let local_name = builtin.name.strip_prefix("nexus.").unwrap_or(&builtin.name);
+        let tool_disabled =
+            nexus_mcp.is_some_and(|s| s.disabled_tools.contains(&local_name.to_string()));
+
+        tools.push(McpToolStatus {
+            name: builtin.name,
+            description: builtin.description,
+            input_schema: builtin.input_schema,
+            plugin_id: "nexus".to_string(),
+            plugin_name: "Nexus".to_string(),
+            plugin_running: true,
+            mcp_global_enabled: mgr.mcp_settings.enabled,
+            mcp_plugin_enabled: nexus_plugin_enabled,
+            tool_enabled: !tool_disabled,
+            required_permissions: vec![],
+            permissions_granted: true,
+            requires_approval: builtin.requires_approval,
+        });
     }
 
     Ok(tools)

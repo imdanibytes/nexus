@@ -15,6 +15,8 @@ import type {
   ApprovalDecision,
   RuntimeApprovalRequest,
 } from "../../types/permissions";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 /** Derive a human-readable header from the approval category. */
 function resolveHeader(req: RuntimeApprovalRequest): {
@@ -169,23 +171,59 @@ export function RuntimeApprovalDialog() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  if (!current) return null;
-
   async function respond(decision: ApprovalDecision) {
+    if (!current) return;
     await runtimeApprovalRespond(
-      current!.id,
+      current.id,
       decision,
-      current!.plugin_id,
-      current!.category,
+      current.plugin_id,
+      current.category,
       {
-        ...current!.context,
-        permission: current!.permission,
+        ...current.context,
+        permission: current.permission,
       }
     );
-    seenIds.current.delete(current!.id);
+    seenIds.current.delete(current.id);
     setQueue((prev) => prev.slice(1));
   }
 
+  return (
+    <Dialog
+      open={current !== null}
+      onOpenChange={(open) => {
+        if (!open) respond("deny");
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[60]"
+        className="z-[60] max-w-md border-border p-0 gap-0 overflow-hidden"
+      >
+        {current && (
+          <RuntimeApprovalContent
+            current={current}
+            queue={queue}
+            cooldown={cooldown}
+            respond={respond}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Inner content extracted to avoid deriving from a potentially-null `current`. */
+function RuntimeApprovalContent({
+  current,
+  queue,
+  cooldown,
+  respond,
+}: {
+  current: RuntimeApprovalRequest;
+  queue: RuntimeApprovalRequest[];
+  cooldown: number;
+  respond: (decision: ApprovalDecision) => void;
+}) {
   const header = resolveHeader(current);
   const HeaderIcon = header.icon;
   const isHighRisk = current.context.risk_level === "high";
@@ -196,117 +234,92 @@ export function RuntimeApprovalDialog() {
   const approveDisabled = cooldown > 0;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => respond("deny")}
-      />
-      <div
-        className="relative bg-nx-surface border border-nx-border rounded-[var(--radius-modal)] shadow-[var(--shadow-modal)] max-w-md w-full mx-4 overflow-hidden"
-        style={{ animation: "toast-enter 200ms ease-out" }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 px-6 pt-6 pb-4">
-          <div
-            className={`w-10 h-10 rounded-[var(--radius-card)] ${header.iconBg} border border-nx-border-subtle flex items-center justify-center flex-shrink-0`}
-          >
-            <HeaderIcon
-              size={20}
-              strokeWidth={1.5}
-              className={header.iconColor}
-            />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-[16px] font-bold text-nx-text">
-              {header.title}
-            </h3>
-            <p className="text-[12px] text-nx-text-muted leading-snug">
-              {header.subtitle}
-            </p>
-          </div>
+    <>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6 pt-6 pb-4">
+        <div
+          className={`w-10 h-10 rounded-[var(--radius-card)] ${header.iconBg} border border-nx-border-subtle flex items-center justify-center flex-shrink-0`}
+        >
+          <HeaderIcon
+            size={20}
+            strokeWidth={1.5}
+            className={header.iconColor}
+          />
         </div>
-
-        {/* Category-specific content */}
-        <div className="px-6 pb-4">
-          {isDeferred ? (
-            <DeferredPermissionDetail context={current.context} permission={current.permission} />
-          ) : current.category === "filesystem" ? (
-            <FilesystemDetail context={current.context} />
-          ) : isExtension ? (
-            <ExtensionDetail
-              context={current.context}
-              isHighRisk={isHighRisk}
-            />
-          ) : current.category === "mcp_tool" ? (
-            <McpToolDetail context={current.context} />
-          ) : (
-            <GenericDetail context={current.context} />
-          )}
+        <div className="min-w-0">
+          <h3 className="text-[16px] font-bold text-nx-text">
+            {header.title}
+          </h3>
+          <p className="text-[12px] text-nx-text-muted leading-snug">
+            {header.subtitle}
+          </p>
         </div>
+      </div>
 
-        {/* Queue indicator */}
-        {queue.length > 1 && (
-          <div className="px-6 pb-3">
-            <p className="text-[11px] text-nx-text-ghost">
-              +{queue.length - 1} more{" "}
-              {queue.length - 1 === 1 ? "request" : "requests"} pending
-            </p>
-          </div>
+      {/* Category-specific content */}
+      <div className="px-6 pb-4">
+        {isDeferred ? (
+          <DeferredPermissionDetail context={current.context} permission={current.permission} />
+        ) : current.category === "filesystem" ? (
+          <FilesystemDetail context={current.context} />
+        ) : isExtension ? (
+          <ExtensionDetail
+            context={current.context}
+            isHighRisk={isHighRisk}
+          />
+        ) : current.category === "mcp_tool" ? (
+          <McpToolDetail context={current.context} />
+        ) : (
+          <GenericDetail context={current.context} />
         )}
+      </div>
 
-        {/* Actions */}
-        <div className="flex gap-3 justify-end px-6 pb-6">
-          <button
-            onClick={() => respond("deny")}
-            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
+      {/* Queue indicator */}
+      {queue.length > 1 && (
+        <div className="px-6 pb-3">
+          <p className="text-[11px] text-nx-text-ghost">
+            +{queue.length - 1} more{" "}
+            {queue.length - 1 === 1 ? "request" : "requests"} pending
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-3 justify-end px-6 pb-6">
+        <Button variant="secondary" onClick={() => respond("deny")}>
+          <ShieldX size={14} strokeWidth={1.5} />
+          Deny
+        </Button>
+        {isHighRisk ? (
+          <Button
+            disabled={approveDisabled}
+            onClick={() => respond("approve_once")}
           >
-            <ShieldX size={14} strokeWidth={1.5} />
-            Deny
-          </button>
-          {isHighRisk ? (
-            <button
+            <ShieldCheck size={14} strokeWidth={1.5} />
+            {approveDisabled ? `Allow Once (${cooldown}s)` : "Allow Once"}
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="secondary"
               disabled={approveDisabled}
               onClick={() => respond("approve_once")}
-              className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                approveDisabled
-                  ? "bg-nx-overlay text-nx-text-ghost cursor-not-allowed"
-                  : "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
-              }`}
+              className={!approveDisabled ? "text-nx-text" : undefined}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               {approveDisabled ? `Allow Once (${cooldown}s)` : "Allow Once"}
-            </button>
-          ) : (
-            <>
-              <button
-                disabled={approveDisabled}
-                onClick={() => respond("approve_once")}
-                className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                  approveDisabled
-                    ? "bg-nx-overlay text-nx-text-ghost cursor-not-allowed"
-                    : "bg-nx-overlay hover:bg-nx-wash text-nx-text"
-                }`}
-              >
-                <ShieldCheck size={14} strokeWidth={1.5} />
-                {approveDisabled ? `Allow Once (${cooldown}s)` : "Allow Once"}
-              </button>
-              <button
-                disabled={approveDisabled}
-                onClick={() => respond("approve")}
-                className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                  approveDisabled
-                    ? "bg-nx-overlay text-nx-text-ghost cursor-not-allowed"
-                    : "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
-                }`}
-              >
-                <ShieldCheck size={14} strokeWidth={1.5} />
-                {approveDisabled ? `Allow (${cooldown}s)` : "Allow"}
-              </button>
-            </>
-          )}
-        </div>
+            </Button>
+            <Button
+              disabled={approveDisabled}
+              onClick={() => respond("approve")}
+            >
+              <ShieldCheck size={14} strokeWidth={1.5} />
+              {approveDisabled ? `Allow (${cooldown}s)` : "Allow"}
+            </Button>
+          </>
+        )}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -519,12 +532,14 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
             {description}
           </p>
           {!showFullDesc && description.length > 150 && (
-            <button
+            <Button
+              variant="link"
+              size="sm"
               onClick={() => setShowFullDesc(true)}
-              className="text-[11px] text-nx-accent hover:text-nx-accent-hover mt-1"
+              className="h-auto p-0 text-[11px] mt-1"
             >
               Show more
-            </button>
+            </Button>
           )}
         </div>
       )}

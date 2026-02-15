@@ -17,6 +17,12 @@ import {
   Wrench,
   Terminal,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
 type ConfigTab = "desktop" | "code";
 
@@ -88,8 +94,8 @@ export function McpTab() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // Group tools by plugin
-  const pluginGroups = tools.reduce<
+  // Group tools by plugin, with built-in "nexus" group sorted first
+  const pluginGroupMap = tools.reduce<
     Record<string, { pluginName: string; pluginId: string; tools: McpToolStatus[] }>
   >((acc, tool) => {
     if (!acc[tool.plugin_id]) {
@@ -102,6 +108,15 @@ export function McpTab() {
     acc[tool.plugin_id].tools.push(tool);
     return acc;
   }, {});
+
+  // Sort: "nexus" first, then alphabetical by plugin name
+  const pluginGroups = Object.fromEntries(
+    Object.entries(pluginGroupMap).sort(([a], [b]) => {
+      if (a === "nexus") return -1;
+      if (b === "nexus") return 1;
+      return (pluginGroupMap[a].pluginName).localeCompare(pluginGroupMap[b].pluginName);
+    })
+  );
 
   if (loading) {
     return (
@@ -128,18 +143,7 @@ export function McpTab() {
           </div>
 
           {/* Global toggle */}
-          <button
-            onClick={() => toggleGlobal(!globalEnabled)}
-            className={`relative w-10 h-[22px] rounded-full transition-colors duration-200 ${
-              globalEnabled ? "bg-nx-accent" : "bg-nx-overlay"
-            }`}
-          >
-            <span
-              className={`absolute top-[3px] left-[3px] w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                globalEnabled ? "translate-x-[18px]" : ""
-              }`}
-            />
-          </button>
+          <Switch checked={globalEnabled} onCheckedChange={(checked) => toggleGlobal(checked)} />
         </div>
 
         <div className="flex items-center gap-2 mb-2">
@@ -174,26 +178,12 @@ export function McpTab() {
           </div>
 
           {/* Client tabs */}
-          <div className="flex gap-1 mb-3">
-            {(
-              [
-                { id: "desktop" as ConfigTab, label: "Claude Desktop" },
-                { id: "code" as ConfigTab, label: "Claude Code" },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => { setConfigTab(tab.id); setCopied(false); }}
-                className={`px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                  configTab === tab.id
-                    ? "bg-nx-accent text-nx-deep"
-                    : "bg-nx-overlay text-nx-text-muted hover:text-nx-text-secondary"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <Tabs value={configTab} onValueChange={(v) => { setConfigTab(v as ConfigTab); setCopied(false); }} className="mb-3">
+            <TabsList>
+              <TabsTrigger value="desktop">Claude Desktop</TabsTrigger>
+              <TabsTrigger value="code">Claude Code</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <p className="text-[11px] text-nx-text-ghost mb-3">
             {configTab === "desktop"
@@ -205,9 +195,11 @@ export function McpTab() {
             <pre className="bg-nx-deep border border-nx-border-subtle rounded-[var(--radius-button)] p-3 text-[11px] text-nx-text-secondary font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
               {activeSnippet}
             </pre>
-            <button
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={copySnippet}
-              className="absolute top-2 right-2 p-1.5 rounded-[var(--radius-button)] bg-nx-surface border border-nx-border-subtle hover:bg-nx-wash transition-colors duration-150"
+              className="absolute top-2 right-2 bg-nx-surface border border-nx-border-subtle hover:bg-nx-wash"
               title="Copy to clipboard"
             >
               {copied ? (
@@ -215,7 +207,7 @@ export function McpTab() {
               ) : (
                 <Copy size={12} strokeWidth={1.5} className="text-nx-text-ghost" />
               )}
-            </button>
+            </Button>
           </div>
         </section>
       )}
@@ -231,7 +223,7 @@ export function McpTab() {
 
         {Object.keys(pluginGroups).length === 0 ? (
           <p className="text-[11px] text-nx-text-ghost">
-            No plugins with MCP tools installed.
+            No MCP tools available.
           </p>
         ) : (
           <div className="space-y-2">
@@ -243,127 +235,115 @@ export function McpTab() {
               const pluginRunning = firstTool?.plugin_running ?? false;
 
               return (
-                <div
+                <Collapsible
                   key={group.pluginId}
-                  className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden"
+                  open={isOpen}
+                  onOpenChange={() => toggleExpanded(group.pluginId)}
                 >
-                  {/* Plugin header */}
-                  <div className="flex items-center justify-between p-3">
-                    <button
-                      onClick={() => toggleExpanded(group.pluginId)}
-                      className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity"
-                    >
-                      <CircleDot
-                        size={10}
-                        strokeWidth={2.5}
-                        className={
-                          pluginRunning ? "text-nx-success" : "text-nx-text-ghost"
-                        }
-                      />
-                      <span className="text-[13px] text-nx-text font-medium truncate">
-                        {group.pluginName}
-                      </span>
-                      <span className="text-[11px] text-nx-text-ghost flex-shrink-0">
-                        {group.tools.length} tool{group.tools.length !== 1 ? "s" : ""}
-                      </span>
-                      <ChevronDown
-                        size={14}
-                        strokeWidth={1.5}
-                        className={`text-nx-text-ghost transition-transform duration-200 ${
-                          isOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-
-                    {/* Plugin-level toggle */}
-                    <button
-                      onClick={() => togglePlugin(group.pluginId, !pluginEnabled)}
-                      className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 flex-shrink-0 ml-3 ${
-                        pluginEnabled ? "bg-nx-accent" : "bg-nx-overlay"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform duration-200 ${
-                          pluginEnabled ? "translate-x-[14px]" : ""
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Expanded tool list */}
-                  {isOpen && (
-                    <div className="border-t border-nx-border-subtle">
-                      {group.tools.map((tool) => (
-                        <div
-                          key={tool.name}
-                          className="flex items-center justify-between px-3 py-2.5 border-b border-nx-border-subtle last:border-b-0 hover:bg-nx-wash/20 transition-colors"
+                  <div className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden">
+                    {/* Plugin header */}
+                    <div className="flex items-center justify-between p-3">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity"
                         >
-                          <div className="min-w-0 flex-1 mr-3">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-[12px] text-nx-text font-mono truncate">
-                                {tool.name.split(".").pop()}
-                              </span>
-                              {/* Permission badge with tooltip */}
-                              <span className="relative group flex-shrink-0">
-                                {tool.permissions_granted ? (
-                                  <Shield
-                                    size={11}
-                                    strokeWidth={1.5}
-                                    className="text-nx-success cursor-help"
-                                  />
-                                ) : (
-                                  <ShieldAlert
-                                    size={11}
-                                    strokeWidth={1.5}
-                                    className="text-nx-warning cursor-help"
-                                  />
-                                )}
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[10px] font-medium text-nx-text bg-nx-surface border border-nx-border rounded-[var(--radius-tag)] shadow-sm whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-10">
-                                  {tool.permissions_granted
-                                    ? "All required permissions granted"
-                                    : `Missing permissions: ${tool.required_permissions.join(", ")}`}
-                                </span>
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-nx-text-ghost truncate">
-                              {tool.description}
-                            </p>
-                            {tool.required_permissions.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {tool.required_permissions.map((perm) => (
-                                  <span
-                                    key={perm}
-                                    className={`text-[9px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] ${
-                                      tool.permissions_granted
-                                        ? "bg-nx-success-muted text-nx-success"
-                                        : "bg-nx-warning-muted text-nx-warning"
-                                    }`}
-                                  >
-                                    {perm}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Tool-level toggle */}
-                          <button
-                            onClick={() => toggleTool(tool.name, !tool.tool_enabled)}
-                            className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 flex-shrink-0 ${
-                              tool.tool_enabled ? "bg-nx-accent" : "bg-nx-overlay"
+                          <CircleDot
+                            size={10}
+                            strokeWidth={2.5}
+                            className={
+                              pluginRunning ? "text-nx-success" : "text-nx-text-ghost"
+                            }
+                          />
+                          <span className="text-[13px] text-nx-text font-medium truncate">
+                            {group.pluginName}
+                          </span>
+                          {group.pluginId === "nexus" && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 flex-shrink-0">
+                              Built-in
+                            </Badge>
+                          )}
+                          <span className="text-[11px] text-nx-text-ghost flex-shrink-0">
+                            {group.tools.length} tool{group.tools.length !== 1 ? "s" : ""}
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            strokeWidth={1.5}
+                            className={`text-nx-text-ghost transition-transform duration-200 ${
+                              isOpen ? "rotate-180" : ""
                             }`}
-                          >
-                            <span
-                              className={`absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform duration-200 ${
-                                tool.tool_enabled ? "translate-x-[14px]" : ""
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      ))}
+                          />
+                        </button>
+                      </CollapsibleTrigger>
+
+                      {/* Plugin-level toggle */}
+                      <Switch size="sm" className="flex-shrink-0 ml-3" checked={pluginEnabled} onCheckedChange={(checked) => togglePlugin(group.pluginId, checked)} />
                     </div>
-                  )}
-                </div>
+
+                    {/* Expanded tool list */}
+                    <CollapsibleContent>
+                      <div className="border-t border-nx-border-subtle">
+                        {group.tools.map((tool) => (
+                          <div
+                            key={tool.name}
+                            className="flex items-center justify-between px-3 py-2.5 border-b border-nx-border-subtle last:border-b-0 hover:bg-nx-wash/20 transition-colors"
+                          >
+                            <div className="min-w-0 flex-1 mr-3">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-[12px] text-nx-text font-mono truncate">
+                                  {tool.name.split(".").pop()}
+                                </span>
+                                {/* Permission badge with tooltip */}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex-shrink-0">
+                                      {tool.permissions_granted ? (
+                                        <Shield
+                                          size={11}
+                                          strokeWidth={1.5}
+                                          className="text-nx-success cursor-help"
+                                        />
+                                      ) : (
+                                        <ShieldAlert
+                                          size={11}
+                                          strokeWidth={1.5}
+                                          className="text-nx-warning cursor-help"
+                                        />
+                                      )}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {tool.permissions_granted
+                                      ? "All required permissions granted"
+                                      : `Missing permissions: ${tool.required_permissions.join(", ")}`}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                              <p className="text-[11px] text-nx-text-ghost truncate">
+                                {tool.description}
+                              </p>
+                              {tool.required_permissions.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {tool.required_permissions.map((perm) => (
+                                    <Badge
+                                      key={perm}
+                                      variant={tool.permissions_granted ? "success" : "warning"}
+                                      className="text-[9px]"
+                                    >
+                                      {perm}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Tool-level toggle */}
+                            <Switch size="sm" checked={tool.tool_enabled} onCheckedChange={(checked) => toggleTool(tool.name, checked)} />
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
               );
             })}
           </div>

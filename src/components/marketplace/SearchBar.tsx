@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   onSearch: (query: string) => void;
@@ -31,12 +32,14 @@ export function SearchBar({ onSearch, initialQuery = "" }: Props) {
         className="w-full pl-10 pr-10 py-2.5 bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-[13px] text-nx-text placeholder:text-nx-text-muted focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150"
       />
       {value && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={() => setValue("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-nx-text-muted hover:text-nx-text transition-colors duration-150"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-nx-text-muted hover:text-nx-text"
         >
           <X size={14} strokeWidth={1.5} />
-        </button>
+        </Button>
       )}
     </div>
   );

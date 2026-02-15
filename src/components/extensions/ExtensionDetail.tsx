@@ -21,6 +21,7 @@ import {
   Clock,
 } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
+import { Button } from "@/components/ui/button";
 
 const RISK_STYLES: Record<string, { bg: string; text: string }> = {
   low: { bg: "bg-nx-success-muted", text: "text-nx-success" },
@@ -113,13 +114,15 @@ export function ExtensionDetail({ entry, onBack }: Props) {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={onBack}
-        className="flex items-center gap-1.5 text-[12px] font-medium text-nx-text-muted hover:text-nx-text mb-6 transition-colors duration-150"
+        className="text-nx-text-muted hover:text-nx-text mb-6"
       >
         <ArrowLeft size={14} strokeWidth={1.5} />
         Back to Extensions
-      </button>
+      </Button>
 
       <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-6">
         <div className="flex items-start justify-between mb-4">
@@ -136,10 +139,9 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                 Unavailable
               </span>
             ) : (
-              <button
+              <Button
                 onClick={handlePreview}
                 disabled={loading || manifestReachable === null}
-                className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-60 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
               >
                 {loading || manifestReachable === null ? (
                   <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
@@ -147,13 +149,12 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                   <Shield size={14} strokeWidth={1.5} />
                 )}
                 {manifestReachable === null ? "Checking..." : loading ? "Loading..." : "Review & Install"}
-              </button>
+              </Button>
             )
           ) : (
-            <button
+            <Button
               onClick={handleInstall}
               disabled={installing}
-              className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-60 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
             >
               {installing ? (
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
@@ -161,7 +162,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                 <Download size={14} strokeWidth={1.5} />
               )}
               {installing ? "Installing..." : "Install Extension"}
-            </button>
+            </Button>
           )}
         </div>
 

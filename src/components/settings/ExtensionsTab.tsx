@@ -13,11 +13,15 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
-const RISK_STYLES: Record<string, { bg: string; text: string }> = {
-  low: { bg: "bg-nx-success-muted", text: "text-nx-success" },
-  medium: { bg: "bg-nx-warning-muted", text: "text-nx-warning" },
-  high: { bg: "bg-nx-error-muted", text: "text-nx-error" },
+const RISK_VARIANT: Record<string, "success" | "warning" | "error"> = {
+  low: "success",
+  medium: "warning",
+  high: "error",
 };
 
 export function ExtensionsTab() {
@@ -122,13 +126,14 @@ export function ExtensionsTab() {
               </span>
             </div>
           </div>
-          <button
+          <Button
             onClick={() => setView("extension-marketplace")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150 flex-shrink-0 ml-4"
+            size="sm"
+            className="flex-shrink-0 ml-4"
           >
             <Plus size={12} strokeWidth={1.5} />
             Add Extension
-          </button>
+          </Button>
         </div>
       </section>
 
@@ -144,116 +149,111 @@ export function ExtensionsTab() {
           const isOpen = expanded.has(ext.id);
           const isBusy = busyExt === ext.id;
           return (
-            <section
+            <Collapsible
               key={ext.id}
-              className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border overflow-hidden"
+              open={isOpen}
+              onOpenChange={() => toggleExpanded(ext.id)}
             >
-              {/* Extension header */}
-              <button
-                onClick={() => toggleExpanded(ext.id)}
-                className="w-full flex items-center justify-between p-5 hover:bg-nx-wash/20 transition-colors"
-              >
-                <div className="min-w-0 flex-1 text-left">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-[13px] font-semibold text-nx-text">
-                      {ext.display_name}
-                    </h4>
-                    <span className="text-[10px] text-nx-text-ghost font-mono">
-                      {ext.id}
-                    </span>
-                    {ext.installed && (
-                      <span
-                        className={`text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] font-medium ${
-                          ext.enabled
-                            ? "bg-nx-success-muted text-nx-success"
-                            : "bg-nx-overlay text-nx-text-muted"
-                        }`}
-                      >
-                        {ext.enabled ? "Enabled" : "Disabled"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-nx-text-ghost">
-                    {ext.description}
-                  </p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className="text-[10px] text-nx-text-muted">
-                      {ext.operations.length} operation
-                      {ext.operations.length !== 1 ? "s" : ""}
-                    </span>
-                    {ext.consumers.length > 0 && (
-                      <span className="text-[10px] text-nx-text-muted">
-                        {ext.consumers.length} plugin
-                        {ext.consumers.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <ChevronDown
-                  size={14}
-                  strokeWidth={1.5}
-                  className={`text-nx-text-ghost transition-transform duration-200 flex-shrink-0 ml-3 ${
-                    isOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              {/* Expanded detail */}
-              {isOpen && (
-                <div className="border-t border-nx-border">
-                  {/* Enable/Disable + Remove controls */}
-                  {ext.installed && (
-                    <div className="px-4 pt-4 flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggle(ext);
-                        }}
-                        disabled={isBusy}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] transition-all duration-150 disabled:opacity-50 ${
-                          ext.enabled
-                            ? "bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary"
-                            : "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
-                        }`}
-                      >
-                        {isBusy ? (
-                          <Loader2 size={12} strokeWidth={1.5} className="animate-spin" />
-                        ) : (
-                          <Power size={12} strokeWidth={1.5} />
+              <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border overflow-hidden">
+                {/* Extension header */}
+                <CollapsibleTrigger asChild>
+                  <button
+                    className="w-full flex items-center justify-between p-5 hover:bg-nx-wash/20 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-[13px] font-semibold text-nx-text">
+                          {ext.display_name}
+                        </h4>
+                        <span className="text-[10px] text-nx-text-ghost font-mono">
+                          {ext.id}
+                        </span>
+                        {ext.installed && (
+                          <Badge
+                            variant={ext.enabled ? "success" : "secondary"}
+                            className="text-[9px]"
+                          >
+                            {ext.enabled ? "Enabled" : "Disabled"}
+                          </Badge>
                         )}
-                        {ext.enabled ? "Disable" : "Enable"}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemove(ext);
-                        }}
-                        disabled={isBusy}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted hover:bg-nx-error/20 text-nx-error transition-all duration-150 disabled:opacity-50"
-                      >
-                        <Trash2 size={12} strokeWidth={1.5} />
-                        Remove
-                      </button>
+                      </div>
+                      <p className="text-[11px] text-nx-text-ghost">
+                        {ext.description}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-[10px] text-nx-text-muted">
+                          {ext.operations.length} operation
+                          {ext.operations.length !== 1 ? "s" : ""}
+                        </span>
+                        {ext.consumers.length > 0 && (
+                          <span className="text-[10px] text-nx-text-muted">
+                            {ext.consumers.length} plugin
+                            {ext.consumers.length !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
+                    <ChevronDown
+                      size={14}
+                      strokeWidth={1.5}
+                      className={`text-nx-text-ghost transition-transform duration-200 flex-shrink-0 ml-3 ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
 
-                  {/* Operations */}
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Blocks
-                        size={12}
-                        strokeWidth={1.5}
-                        className="text-nx-text-ghost"
-                      />
-                      <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
-                        Operations
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {ext.operations.map((op) => {
-                        const risk =
-                          RISK_STYLES[op.risk_level] ?? RISK_STYLES.medium;
-                        return (
+                {/* Expanded detail */}
+                <CollapsibleContent>
+                  <div className="border-t border-nx-border">
+                    {/* Enable/Disable + Remove controls */}
+                    {ext.installed && (
+                      <div className="px-4 pt-4 flex items-center gap-2">
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggle(ext);
+                          }}
+                          disabled={isBusy}
+                          variant={ext.enabled ? "secondary" : "default"}
+                          size="xs"
+                        >
+                          {isBusy ? (
+                            <Loader2 size={12} strokeWidth={1.5} className="animate-spin" />
+                          ) : (
+                            <Power size={12} strokeWidth={1.5} />
+                          )}
+                          {ext.enabled ? "Disable" : "Enable"}
+                        </Button>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemove(ext);
+                          }}
+                          disabled={isBusy}
+                          variant="destructive"
+                          size="xs"
+                        >
+                          <Trash2 size={12} strokeWidth={1.5} />
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Operations */}
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Blocks
+                          size={12}
+                          strokeWidth={1.5}
+                          className="text-nx-text-ghost"
+                        />
+                        <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
+                          Operations
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {ext.operations.map((op) => (
                           <div
                             key={op.name}
                             className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
@@ -261,105 +261,107 @@ export function ExtensionsTab() {
                             <span className="text-[12px] text-nx-text font-mono min-w-0 flex-shrink-0">
                               {op.name}
                             </span>
-                            <span
-                              className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-[var(--radius-tag)] flex-shrink-0 ${risk.bg} ${risk.text}`}
+                            <Badge
+                              variant={RISK_VARIANT[op.risk_level] ?? "warning"}
+                              className="text-[9px]"
                             >
                               {op.risk_level}
-                            </span>
+                            </Badge>
                             {op.scope_key && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-muted font-mono flex-shrink-0">
+                              <Badge variant="secondary" className="text-[9px] font-mono">
                                 scope: {op.scope_key}
-                              </span>
+                              </Badge>
                             )}
                             <span className="text-[11px] text-nx-text-ghost truncate min-w-0 flex-1">
                               {op.description}
                             </span>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Capabilities */}
-                  {ext.capabilities.length > 0 && (
+                    {/* Capabilities */}
+                    {ext.capabilities.length > 0 && (
+                      <div className="px-4 pb-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Shield
+                            size={12}
+                            strokeWidth={1.5}
+                            className="text-nx-text-ghost"
+                          />
+                          <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
+                            Capabilities
+                          </span>
+                        </div>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {ext.capabilities.map((cap, i) => (
+                            <Badge key={i} variant="secondary">
+                              {cap.type === "custom" ? cap.name : cap.type.replace(/_/g, " ")}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Plugin consumers */}
                     <div className="px-4 pb-4">
                       <div className="flex items-center gap-2 mb-3">
-                        <Shield
+                        <Puzzle
                           size={12}
                           strokeWidth={1.5}
                           className="text-nx-text-ghost"
                         />
                         <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
-                          Capabilities
+                          Plugin Consumers
                         </span>
                       </div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {ext.capabilities.map((cap, i) => (
-                          <span
-                            key={i}
-                            className="text-[10px] px-2 py-1 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary"
-                          >
-                            {cap.type === "custom" ? cap.name : cap.type.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Plugin consumers */}
-                  <div className="px-4 pb-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Puzzle
-                        size={12}
-                        strokeWidth={1.5}
-                        className="text-nx-text-ghost"
-                      />
-                      <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
-                        Plugin Consumers
-                      </span>
-                    </div>
-                    {ext.consumers.length === 0 ? (
-                      <p className="text-[11px] text-nx-text-ghost px-3">
-                        No plugins using this extension.
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {ext.consumers.map((consumer) => (
-                          <div
-                            key={consumer.plugin_id}
-                            className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
-                          >
-                            <span className="text-[12px] text-nx-text font-medium truncate flex-1">
-                              {consumer.plugin_name}
-                            </span>
-                            <span className="relative group flex-shrink-0">
-                              {consumer.granted ? (
-                                <Shield
-                                  size={12}
-                                  strokeWidth={1.5}
-                                  className="text-nx-success cursor-help"
-                                />
-                              ) : (
-                                <ShieldAlert
-                                  size={12}
-                                  strokeWidth={1.5}
-                                  className="text-nx-warning cursor-help"
-                                />
-                              )}
-                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[10px] font-medium text-nx-text bg-nx-surface border border-nx-border rounded-[var(--radius-tag)] shadow-sm whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-10">
-                                {consumer.granted
-                                  ? "All extension permissions granted"
-                                  : "Some extension permissions missing"}
+                      {ext.consumers.length === 0 ? (
+                        <p className="text-[11px] text-nx-text-ghost px-3">
+                          No plugins using this extension.
+                        </p>
+                      ) : (
+                        <div className="space-y-1">
+                          {ext.consumers.map((consumer) => (
+                            <div
+                              key={consumer.plugin_id}
+                              className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+                            >
+                              <span className="text-[12px] text-nx-text font-medium truncate flex-1">
+                                {consumer.plugin_name}
                               </span>
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="flex-shrink-0">
+                                    {consumer.granted ? (
+                                      <Shield
+                                        size={12}
+                                        strokeWidth={1.5}
+                                        className="text-nx-success cursor-help"
+                                      />
+                                    ) : (
+                                      <ShieldAlert
+                                        size={12}
+                                        strokeWidth={1.5}
+                                        className="text-nx-warning cursor-help"
+                                      />
+                                    )}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {consumer.granted
+                                    ? "All extension permissions granted"
+                                    : "Some extension permissions missing"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </section>
+                </CollapsibleContent>
+              </section>
+            </Collapsible>
           );
         })
       )}

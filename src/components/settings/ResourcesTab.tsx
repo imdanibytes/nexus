@@ -7,6 +7,8 @@ import {
   type ResourceQuotas,
 } from "../../lib/tauri";
 import { Gauge, Save, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export function ResourcesTab() {
   const [usage, setUsage] = useState<ResourceUsage | null>(null);
@@ -144,16 +146,18 @@ export function ResourcesTab() {
           <h3 className="text-[14px] font-semibold text-nx-text">
             Resource Quotas
           </h3>
-          <button
+          <Button
             onClick={handleSave}
             disabled={!dirty || saving}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
+            variant={saved ? "secondary" : dirty ? "default" : "secondary"}
+            size="sm"
+            className={
               saved
-                ? "bg-nx-success-muted text-nx-success"
-                : dirty
-                  ? "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
-                  : "bg-nx-overlay text-nx-text-ghost cursor-default"
-            }`}
+                ? "bg-nx-success-muted text-nx-success hover:bg-nx-success-muted"
+                : !dirty
+                  ? "text-nx-text-ghost cursor-default"
+                  : undefined
+            }
           >
             {saved ? (
               <>
@@ -166,7 +170,7 @@ export function ResourcesTab() {
                 {saving ? "Saving..." : "Save"}
               </>
             )}
-          </button>
+          </Button>
         </div>
 
         <div className="space-y-5">
@@ -200,14 +204,14 @@ export function ResourcesTab() {
             <label className="block text-[12px] text-nx-text-muted mb-2">
               Memory Limit (MB)
             </label>
-            <input
+            <Input
               type="number"
               min={0}
               step={64}
               value={quotas.memory_mb ?? ""}
               onChange={(e) => updateMemory(e.target.value)}
               placeholder="No limit"
-              className="w-full px-3 py-2 text-[13px] bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text placeholder:text-nx-text-muted focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150 font-mono"
+              className="font-mono"
             />
             <p className="text-[11px] text-nx-text-ghost mt-1">
               Maximum memory in megabytes for all plugin containers. Leave empty

@@ -6,6 +6,7 @@ import { usePlugins } from "../../hooks/usePlugins";
 import { checkImageAvailable } from "../../lib/tauri";
 import { ArrowLeft, Download, Check, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale, Hammer } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   entry: RegistryEntry;
@@ -53,13 +54,15 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={onBack}
-        className="flex items-center gap-1.5 text-[12px] font-medium text-nx-text-muted hover:text-nx-text mb-6 transition-colors duration-150"
+        className="text-nx-text-muted hover:text-nx-text mb-6"
       >
         <ArrowLeft size={14} strokeWidth={1.5} />
         Back to Marketplace
-      </button>
+      </Button>
 
       <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-6">
         <div className="flex items-start justify-between mb-4">
@@ -80,10 +83,9 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
               Image Unavailable
             </span>
           ) : (
-            <button
+            <Button
               onClick={handleInstallClick}
               disabled={loading || imageAvailable === null}
-              className="flex items-center gap-1.5 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-60 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
             >
               {loading || imageAvailable === null ? (
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
@@ -93,7 +95,7 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
                 <Download size={14} strokeWidth={1.5} />
               )}
               {imageAvailable === null ? "Checking..." : loading ? "Building..." : canBuild ? "Build & Install" : "Install"}
-            </button>
+            </Button>
           )}
         </div>
 

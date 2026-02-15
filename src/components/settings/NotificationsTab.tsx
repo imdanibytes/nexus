@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Bell, BellOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
   notificationsEnabled,
   setNotificationsEnabled,
@@ -8,10 +9,9 @@ import {
 export function NotificationsTab() {
   const [enabled, setEnabled] = useState(notificationsEnabled);
 
-  function handleToggle() {
-    const next = !enabled;
-    setEnabled(next);
-    setNotificationsEnabled(next);
+  function handleToggle(checked: boolean) {
+    setEnabled(checked);
+    setNotificationsEnabled(checked);
   }
 
   return (
@@ -35,18 +35,7 @@ export function NotificationsTab() {
             </p>
           </div>
 
-          <button
-            onClick={handleToggle}
-            className={`relative w-10 h-[22px] rounded-full transition-colors duration-150 flex-shrink-0 ${
-              enabled ? "bg-nx-accent" : "bg-nx-overlay"
-            }`}
-          >
-            <span
-              className={`absolute left-0 top-[3px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-150 ${
-                enabled ? "translate-x-[21px]" : "translate-x-[3px]"
-              }`}
-            />
-          </button>
+          <Switch checked={enabled} onCheckedChange={handleToggle} />
         </div>
 
         {!enabled && (

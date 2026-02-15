@@ -24,6 +24,15 @@ import {
   ShieldX,
   Clock,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const CHECK_INTERVALS: { value: number; label: string }[] = [
   { value: 30, label: "Every 30 min" },
@@ -36,15 +45,15 @@ const CHECK_INTERVALS: { value: number; label: string }[] = [
 
 const SECURITY_BADGE_STYLES: Record<
   string,
-  { bg: string; text: string; icon: typeof ShieldCheck }
+  { variant: "success" | "warning" | "error"; icon: typeof ShieldCheck }
 > = {
-  verified: { bg: "bg-nx-success-muted", text: "text-nx-success", icon: ShieldCheck },
-  key_match: { bg: "bg-nx-success-muted", text: "text-nx-success", icon: ShieldCheck },
-  digest_available: { bg: "bg-nx-success-muted", text: "text-nx-success", icon: ShieldCheck },
-  no_digest: { bg: "bg-nx-warning-muted", text: "text-nx-warning", icon: ShieldAlert },
-  untrusted_source: { bg: "bg-nx-warning-muted", text: "text-nx-warning", icon: ShieldAlert },
-  key_changed: { bg: "bg-nx-error-muted", text: "text-nx-error", icon: ShieldX },
-  manifest_domain_changed: { bg: "bg-nx-error-muted", text: "text-nx-error", icon: ShieldAlert },
+  verified: { variant: "success", icon: ShieldCheck },
+  key_match: { variant: "success", icon: ShieldCheck },
+  digest_available: { variant: "success", icon: ShieldCheck },
+  no_digest: { variant: "warning", icon: ShieldAlert },
+  untrusted_source: { variant: "warning", icon: ShieldAlert },
+  key_changed: { variant: "error", icon: ShieldX },
+  manifest_domain_changed: { variant: "error", icon: ShieldAlert },
 };
 
 function humanize(flag: string): string {
@@ -58,13 +67,10 @@ function SecurityBadges({ security }: { security: UpdateSecurity[] }) {
         const style = SECURITY_BADGE_STYLES[flag] ?? SECURITY_BADGE_STYLES.no_digest;
         const Icon = style.icon;
         return (
-          <span
-            key={flag}
-            className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] ${style.bg} ${style.text}`}
-          >
+          <Badge key={flag} variant={style.variant} className="text-[9px]">
             <Icon size={10} strokeWidth={1.5} />
             {humanize(flag)}
-          </span>
+          </Badge>
         );
       })}
     </div>
@@ -75,15 +81,9 @@ function RegistryBadge({ source }: { source: string }) {
   const isOfficial =
     source.toLowerCase() === "official" || source.toLowerCase() === "nexus";
   return (
-    <span
-      className={`inline-flex text-[9px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] ${
-        isOfficial
-          ? "bg-nx-overlay text-nx-text-muted"
-          : "bg-nx-warning-muted text-nx-warning"
-      }`}
-    >
+    <Badge variant={isOfficial ? "secondary" : "warning"}>
       {isOfficial ? "Official" : "Community"}
-    </span>
+    </Badge>
   );
 }
 
@@ -222,10 +222,11 @@ export function UpdatesTab() {
               </span>
             </div>
           </div>
-          <button
+          <Button
             onClick={handleCheck}
             disabled={checking}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150 flex-shrink-0 ml-4 disabled:opacity-50"
+            size="sm"
+            className="flex-shrink-0 ml-4"
           >
             {checking ? (
               <RefreshCw size={12} strokeWidth={1.5} className="animate-spin" />
@@ -233,7 +234,7 @@ export function UpdatesTab() {
               <RefreshCw size={12} strokeWidth={1.5} />
             )}
             {checking ? "Checking..." : "Check Now"}
-          </button>
+          </Button>
         </div>
       </section>
 
@@ -251,17 +252,18 @@ export function UpdatesTab() {
               </p>
             </div>
           </div>
-          <select
-            value={updateCheckInterval}
-            onChange={(e) => handleIntervalChange(Number(e.target.value))}
-            className="px-3 py-1.5 text-[11px] font-medium bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150"
-          >
-            {CHECK_INTERVALS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <Select value={String(updateCheckInterval)} onValueChange={(v) => handleIntervalChange(Number(v))}>
+            <SelectTrigger className="w-auto text-[11px] font-medium">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CHECK_INTERVALS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </section>
 
@@ -309,28 +311,31 @@ export function UpdatesTab() {
               </div>
 
               <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-                <button
+                <Button
                   onClick={() => handleDismiss(update)}
                   disabled={isBusy}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
+                  variant="secondary"
+                  size="sm"
                 >
                   <X size={12} strokeWidth={1.5} />
                   Dismiss
-                </button>
+                </Button>
                 {hasKeyChange ? (
-                  <button
+                  <Button
                     onClick={() => setKeyChangeUpdate(update)}
                     disabled={isBusy}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] border border-nx-error text-nx-error hover:bg-nx-error-muted transition-all duration-150 disabled:opacity-50"
+                    variant="outline"
+                    size="sm"
+                    className="border-nx-error text-nx-error hover:bg-nx-error-muted"
                   >
                     <ShieldX size={12} strokeWidth={1.5} />
                     Review Key Change
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
                     onClick={() => handleUpdate(update)}
                     disabled={isBusy}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150 disabled:opacity-50"
+                    size="sm"
                   >
                     {isBusy ? (
                       <Loader2
@@ -342,7 +347,7 @@ export function UpdatesTab() {
                       <ArrowUpCircle size={12} strokeWidth={1.5} />
                     )}
                     {isBusy ? "Updating..." : "Update"}
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

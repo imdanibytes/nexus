@@ -167,6 +167,16 @@ pub async fn list_tools(State(state): State<AppState>) -> Json<Vec<McpToolEntry>
         }
     }
 
+    // Append built-in Nexus management tools (respecting plugin/tool disable state)
+    let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
+    let nexus_enabled = nexus_mcp.map_or(true, |s| s.enabled);
+    for mut tool in super::nexus_mcp::builtin_tools() {
+        let local_name = tool.name.strip_prefix("nexus.").unwrap_or(&tool.name);
+        let tool_disabled = nexus_mcp.is_some_and(|s| s.disabled_tools.contains(&local_name.to_string()));
+        tool.enabled = nexus_enabled && !tool_disabled;
+        entries.push(tool);
+    }
+
     Json(entries)
 }
 
@@ -180,6 +190,22 @@ pub async fn call_tool(
 
     if !mgr.mcp_settings.enabled {
         return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    // Built-in Nexus tools: intercept before plugin dispatch
+    if let Some(local_name) = req.tool_name.strip_prefix("nexus.") {
+        // Check plugin-level and tool-level disable
+        let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
+        if nexus_mcp.is_some_and(|s| !s.enabled) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        if nexus_mcp.is_some_and(|s| s.disabled_tools.contains(&local_name.to_string())) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        drop(mgr);
+        return super::nexus_mcp::handle_call(local_name, &req.arguments, &state, &bridge)
+            .await
+            .map(Json);
     }
 
     // Resolve namespaced tool name to plugin + local tool name.

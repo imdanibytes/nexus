@@ -1,8 +1,17 @@
 import { useState } from "react";
 import type { InstalledPlugin } from "../../types/plugin";
+import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
 import { PluginControls } from "./PluginControls";
-import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer } from "lucide-react";
+import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 
 const overlayConfig: Record<
   PluginAction,
@@ -114,13 +123,10 @@ export function PluginViewport({
                 ? "Plugin encountered an error"
                 : "Plugin is stopped"}
             </p>
-            <button
-              onClick={onStart}
-              className="flex items-center gap-2 px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
-            >
+            <Button onClick={onStart}>
               <Play size={14} strokeWidth={1.5} />
               Start Plugin
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
@@ -133,60 +139,194 @@ export function PluginViewport({
   );
 }
 
-function McpToolRow({ name, description }: { name: string; description?: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const isLong = !!description && description.length > 100;
+function McpToolCard({ tool, onDetail }: {
+  tool: McpToolDef;
+  onDetail: (tool: McpToolDef) => void;
+}) {
+  const properties = (tool.input_schema?.properties ?? {}) as Record<string, { type?: string }>;
+  const params = Object.keys(properties);
 
   return (
-    <div className="px-3 py-2 rounded-[var(--radius-button)] bg-nx-surface/50">
-      <div className="flex items-start gap-2">
-        <span className="text-[11px] font-mono text-nx-accent shrink-0">{name}</span>
-        {description && (
-          <span className={`text-[10px] text-nx-text-ghost leading-tight ${expanded ? "" : "line-clamp-2"}`}>
-            {description}
-          </span>
-        )}
+    <button
+      onClick={() => onDetail(tool)}
+      className="rounded-[var(--radius-card)] bg-nx-surface/60 border border-nx-border-subtle hover:border-nx-border-strong p-3.5 flex flex-col gap-2 text-left transition-colors cursor-pointer"
+    >
+      <div className="flex items-center gap-2">
+        <Terminal size={13} strokeWidth={1.5} className="text-nx-accent shrink-0" />
+        <span className="text-[12px] font-mono font-medium text-nx-accent truncate">{tool.name}</span>
+        <Expand size={12} strokeWidth={1.5} className="ml-auto shrink-0 text-nx-text-ghost" />
       </div>
-      {isLong && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-[10px] text-nx-accent hover:text-nx-accent-hover mt-1"
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
+      {tool.description && (
+        <p className="text-[11px] text-nx-text-secondary leading-relaxed line-clamp-3">
+          {tool.description}
+        </p>
       )}
+      {params.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-auto pt-1">
+          {params.map((p) => (
+            <span
+              key={p}
+              className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-nx-overlay/60 text-nx-text-muted"
+            >
+              {p}
+            </span>
+          ))}
+        </div>
+      )}
+    </button>
+  );
+}
+
+function SchemaBlock({ label, schema }: { label: string; schema: Record<string, unknown> }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-1.5">
+        {label}
+      </p>
+      <pre className="text-[11px] font-mono text-nx-text-secondary bg-nx-deep border border-nx-border rounded-[var(--radius-tag)] p-3 overflow-x-auto whitespace-pre-wrap break-words">
+        {JSON.stringify(schema, null, 2)}
+      </pre>
     </div>
+  );
+}
+
+function McpToolDetailSheet({
+  tool,
+  open,
+  onOpenChange,
+}: {
+  tool: McpToolDef | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!tool) return null;
+
+  const properties = (tool.input_schema?.properties ?? {}) as Record<string, { type?: string; description?: string }>;
+  const required = (tool.input_schema?.required ?? []) as string[];
+  const params = Object.entries(properties);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="bg-nx-base border-nx-border sm:max-w-md overflow-y-auto"
+      >
+        <SheetHeader>
+          <div className="flex items-center gap-2">
+            <Terminal size={15} strokeWidth={1.5} className="text-nx-accent" />
+            <SheetTitle className="font-mono text-nx-accent text-[14px]">
+              {tool.name}
+            </SheetTitle>
+          </div>
+          {tool.description && (
+            <SheetDescription className="text-nx-text-secondary text-[12px] leading-relaxed">
+              {tool.description}
+            </SheetDescription>
+          )}
+        </SheetHeader>
+
+        <div className="flex flex-col gap-5 px-4 pb-6">
+          {params.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
+                Parameters
+              </p>
+              <div className="space-y-2">
+                {params.map(([name, meta]) => (
+                  <div
+                    key={name}
+                    className="rounded-[var(--radius-button)] bg-nx-surface/60 border border-nx-border-subtle px-3 py-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono font-medium text-nx-text">
+                        {name}
+                      </span>
+                      {meta.type && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-nx-overlay/60 text-nx-text-muted">
+                          {meta.type}
+                        </span>
+                      )}
+                      {required.includes(name) && (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-nx-accent-muted text-nx-accent">
+                          required
+                        </span>
+                      )}
+                    </div>
+                    {meta.description && (
+                      <p className="text-[10px] text-nx-text-ghost mt-1 leading-relaxed">
+                        {meta.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tool.input_schema && Object.keys(tool.input_schema).length > 0 && (
+            <SchemaBlock label="Input Schema" schema={tool.input_schema} />
+          )}
+
+          {tool.permissions.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-1.5">
+                Required Permissions
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {tool.permissions.map((p) => (
+                  <span
+                    key={p}
+                    className="text-[10px] font-mono px-2 py-1 rounded-[var(--radius-tag)] bg-nx-warning-muted text-nx-warning border border-nx-warning/20"
+                  >
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 function HeadlessPluginStatus({ plugin }: { plugin: InstalledPlugin }) {
   const mcpTools = plugin.manifest.mcp?.tools ?? [];
+  const [detailTool, setDetailTool] = useState<McpToolDef | null>(null);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-8">
-      <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4">
-        <Terminal size={28} strokeWidth={1.5} className="text-nx-accent" />
+    <div className="h-full overflow-y-auto p-6">
+      <div className="flex flex-col items-center text-center mb-6">
+        <div className="w-14 h-14 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-3">
+          <Terminal size={24} strokeWidth={1.5} className="text-nx-accent" />
+        </div>
+        <p className="text-[14px] font-semibold text-nx-text mb-1">
+          Headless Service Running
+        </p>
+        <p className="text-[12px] text-nx-text-muted max-w-md">
+          This plugin runs without a UI. It provides {mcpTools.length}{" "}
+          {mcpTools.length === 1 ? "tool" : "tools"} to AI assistants via the
+          Model Context Protocol.
+        </p>
       </div>
-      <p className="text-[14px] font-semibold text-nx-text mb-2">
-        Headless Service Running
-      </p>
-      <p className="text-[12px] text-nx-text-muted max-w-md mb-6">
-        This plugin runs without a UI. It provides {mcpTools.length}{" "}
-        {mcpTools.length === 1 ? "tool" : "tools"} to AI assistants via the
-        Model Context Protocol.
-      </p>
       {mcpTools.length > 0 && (
-        <div className="text-left w-full max-w-sm">
-          <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
+        <div>
+          <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-3">
             MCP Tools
           </p>
-          <div className="space-y-1.5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
             {mcpTools.map((tool) => (
-              <McpToolRow key={tool.name} name={tool.name} description={tool.description} />
+              <McpToolCard key={tool.name} tool={tool} onDetail={setDetailTool} />
             ))}
           </div>
         </div>
       )}
+
+      <McpToolDetailSheet
+        tool={detailTool}
+        open={detailTool !== null}
+        onOpenChange={(open) => { if (!open) setDetailTool(null); }}
+      />
     </div>
   );
 }

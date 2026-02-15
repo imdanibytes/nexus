@@ -20,6 +20,10 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const riskColors = {
   low: "text-nx-success bg-nx-success-muted",
@@ -149,26 +153,18 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
   // ── Render ────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div
-        className="relative bg-nx-surface border border-nx-border rounded-[var(--radius-modal)] shadow-[var(--shadow-modal)] max-w-lg w-full mx-4 overflow-hidden"
-        style={{ animation: "toast-enter 200ms ease-out" }}
-      >
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent showCloseButton={false} className="max-w-lg p-0 gap-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
-          <h3 className="text-[16px] font-bold text-nx-text">
+          <DialogTitle className="text-[16px] font-bold">
             Wrap MCP Server
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-[var(--radius-tag)] hover:bg-nx-wash text-nx-text-muted transition-colors"
-          >
-            <X size={16} strokeWidth={1.5} />
-          </button>
+          </DialogTitle>
+          <DialogClose asChild>
+            <Button variant="ghost" size="icon-xs" className="text-nx-text-muted">
+              <X size={16} strokeWidth={1.5} />
+            </Button>
+          </DialogClose>
         </div>
 
         {/* Step indicator */}
@@ -241,8 +237,8 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
             />
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -278,17 +274,16 @@ function CommandStep({
           <Terminal
             size={14}
             strokeWidth={1.5}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-nx-text-ghost"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-nx-text-ghost z-10"
           />
-          <input
-            type="text"
+          <Input
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && command.trim()) onDiscover();
             }}
             placeholder="npx -y @org/server-name"
-            className="w-full pl-9 pr-3 py-2.5 text-[13px] font-mono bg-nx-deep border border-nx-border-subtle rounded-[var(--radius-button)] text-nx-text placeholder:text-nx-text-ghost focus:outline-none focus:border-nx-accent transition-colors"
+            className="pl-9 font-mono"
             autoFocus
           />
         </div>
@@ -306,16 +301,12 @@ function CommandStep({
       )}
 
       <div className="flex gap-3 justify-end">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
-        >
+        <Button variant="secondary" onClick={onClose}>
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onDiscover}
           disabled={!command.trim() || discovering}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep transition-all duration-150"
         >
           {discovering ? (
             <>
@@ -328,7 +319,7 @@ function CommandStep({
               <ArrowRight size={14} strokeWidth={1.5} />
             </>
           )}
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -392,7 +383,9 @@ function ToolsStep({
                     />
                   )}
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleTool(tool.name);
@@ -404,7 +397,7 @@ function ToolsStep({
                   ) : (
                     <EyeOff size={14} strokeWidth={1.5} className="text-nx-text-ghost" />
                   )}
-                </button>
+                </Button>
               </div>
               <p className="text-[11px] text-nx-text-muted ml-[19px] line-clamp-2">
                 {tool.description}
@@ -430,21 +423,17 @@ function ToolsStep({
       </div>
 
       <div className="flex justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] text-nx-text-muted hover:text-nx-text-secondary transition-colors duration-150"
-        >
+        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
           Back
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onNext}
           disabled={includedTools.size === 0}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep transition-all duration-150"
         >
           Continue
           <ArrowRight size={14} strokeWidth={1.5} />
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -500,21 +489,17 @@ function DetailsStep({
       </div>
 
       <div className="flex justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] text-nx-text-muted hover:text-nx-text-secondary transition-colors duration-150"
-        >
+        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
           Back
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onNext}
           disabled={!metadata.id || !metadata.name || !idValid}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep transition-all duration-150"
         >
           Continue
           <ArrowRight size={14} strokeWidth={1.5} />
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -584,23 +569,11 @@ function PermissionsStep({
                     {info.description}
                   </p>
                 </div>
-                <button
-                  onClick={() => toggle(perm)}
-                  className={`relative ml-3 w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${
-                    enabled ? "bg-nx-accent" : "bg-nx-overlay"
-                  }`}
-                  title={
-                    enabled
-                      ? "Approved — click to defer"
-                      : "Deferred — click to approve"
-                  }
-                >
-                  <span
-                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                      enabled ? "left-[18px]" : "left-0.5"
-                    }`}
-                  />
-                </button>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={() => toggle(perm)}
+                  className="ml-3"
+                />
               </div>
             );
           })}
@@ -608,20 +581,14 @@ function PermissionsStep({
       )}
 
       <div className="flex justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] text-nx-text-muted hover:text-nx-text-secondary transition-colors duration-150"
-        >
+        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
           Back
-        </button>
-        <button
-          onClick={onNext}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
-        >
+        </Button>
+        <Button onClick={onNext}>
           <ShieldCheck size={14} strokeWidth={1.5} />
           Build & Install
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -669,12 +636,9 @@ function BuildStep({
           <p className="text-[12px] text-nx-error mb-5 max-w-sm mx-auto break-words">
             {error}
           </p>
-          <button
-            onClick={onRetry}
-            className="px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
-          >
+          <Button onClick={onRetry}>
             Try Again
-          </button>
+          </Button>
         </>
       )}
 
@@ -690,13 +654,10 @@ function BuildStep({
             Your MCP server has been wrapped and installed as a headless Nexus
             plugin. Start it from the plugins page.
           </p>
-          <button
-            onClick={onDone}
-            className="flex items-center gap-1.5 mx-auto px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
-          >
+          <Button onClick={onDone} className="mx-auto">
             <Check size={14} strokeWidth={1.5} />
             Go to Plugins
-          </button>
+          </Button>
         </>
       )}
     </div>
@@ -725,14 +686,11 @@ function FieldInput({
       <label className="block text-[11px] font-medium text-nx-text-muted mb-1 uppercase tracking-wider">
         {label}
       </label>
-      <input
-        type="text"
+      <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full px-3 py-2 text-[13px] bg-nx-deep border border-nx-border-subtle rounded-[var(--radius-button)] text-nx-text placeholder:text-nx-text-ghost focus:outline-none focus:border-nx-accent transition-colors ${
-          mono ? "font-mono" : ""
-        } ${error ? "border-nx-error" : ""}`}
+        className={`${mono ? "font-mono" : ""} ${error ? "border-nx-error" : ""}`}
       />
       {error && (
         <p className="text-[10px] text-nx-error mt-0.5">{error}</p>

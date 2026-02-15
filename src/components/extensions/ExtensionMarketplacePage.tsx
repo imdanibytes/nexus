@@ -6,6 +6,7 @@ import { extensionInstallLocal } from "../../lib/extensions";
 import { ExtensionRegistryCard } from "./ExtensionCard";
 import { SearchBar } from "../marketplace/SearchBar";
 import { FolderOpen, RefreshCw, Blocks } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function ExtensionMarketplacePage() {
   const { extensions, isLoading, refresh, search } = useExtensionMarketplace();
@@ -48,22 +49,23 @@ export function ExtensionMarketplacePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            size="sm"
             onClick={handleLocalInstall}
             disabled={installing}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep transition-all duration-150"
           >
             <FolderOpen size={12} strokeWidth={1.5} />
             {installing ? "Installing..." : "Install Local"}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={refresh}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
           >
             <RefreshCw size={12} strokeWidth={1.5} className={isLoading ? "animate-spin" : ""} />
             {isLoading ? "Refreshing..." : "Refresh"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -88,14 +90,14 @@ export function ExtensionMarketplacePage() {
             </code>{" "}
             + binary.
           </p>
-          <button
+          <Button
             onClick={handleLocalInstall}
             disabled={installing}
-            className="flex items-center gap-2 mx-auto px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
+            className="mx-auto"
           >
             <FolderOpen size={14} strokeWidth={1.5} />
             {installing ? "Installing..." : "Install Local Extension"}
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

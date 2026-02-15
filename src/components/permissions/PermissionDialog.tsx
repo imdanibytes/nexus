@@ -3,6 +3,9 @@ import type { Permission } from "../../types/permissions";
 import type { PluginManifest } from "../../types/plugin";
 import { getPermissionInfo, allPermissions } from "../../types/permissions";
 import { extensionList } from "../../lib/tauri";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
   ShieldX,
@@ -73,15 +76,8 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onDeny}
-      />
-      <div
-        className="relative bg-nx-surface border border-nx-border rounded-[var(--radius-modal)] shadow-[var(--shadow-modal)] max-w-md w-full mx-4 overflow-hidden"
-        style={{ animation: "toast-enter 200ms ease-out" }}
-      >
+    <Dialog open onOpenChange={(open) => { if (!open) onDeny(); }}>
+      <DialogContent showCloseButton={false} className="max-w-md p-0 gap-0 overflow-hidden">
         {/* Step indicator */}
         <div className="flex border-b border-nx-border-subtle">
           {steps.map((s) => (
@@ -127,8 +123,8 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
             />
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -191,16 +187,10 @@ function InfoStep({
       </div>
 
       <div className="flex gap-3 justify-end">
-        <button
-          onClick={onDeny}
-          className="px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
-        >
+        <Button variant="secondary" onClick={onDeny}>
           Cancel
-        </button>
-        <button
-          onClick={onNext}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
-        >
+        </Button>
+        <Button onClick={onNext}>
           {hasMoreSteps ? (
             <>
               Continue
@@ -212,7 +202,7 @@ function InfoStep({
               Install
             </>
           )}
-        </button>
+        </Button>
       </div>
     </>
   );
@@ -395,53 +385,37 @@ function PermissionsStep({
       )}
 
       <div className="flex justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] text-nx-text-muted hover:text-nx-text-secondary transition-colors duration-150"
-        >
+        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
           Plugin Info
-        </button>
+        </Button>
         <div className="flex gap-3">
-          <button
-            onClick={onDeny}
-            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
-          >
+          <Button variant="secondary" onClick={onDeny}>
             <ShieldX size={14} strokeWidth={1.5} />
             Deny
-          </button>
+          </Button>
           {hasMcpTools ? (
-            <button
+            <Button
               disabled={!hasSeenAll}
               onClick={() => {
                 const [approved, deferred] = computeApprovedDeferred();
                 onNext(approved, deferred);
               }}
-              className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                hasSeenAll
-                  ? "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
-                  : "bg-nx-overlay text-nx-text-ghost cursor-not-allowed"
-              }`}
             >
               Review MCP Tools
               <ArrowRight size={14} strokeWidth={1.5} />
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               disabled={!hasSeenAll}
               onClick={() => {
                 const [approved, deferred] = computeApprovedDeferred();
                 onApprove(approved, deferred);
               }}
-              className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                hasSeenAll
-                  ? "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
-                  : "bg-nx-overlay text-nx-text-ghost cursor-not-allowed"
-              }`}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               Approve & Install
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -484,19 +458,12 @@ function PermissionToggleRow({
           {info.description}
         </p>
       </div>
-      <button
-        onClick={onToggle}
-        className={`relative ml-3 w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${
-          enabled ? "bg-nx-accent" : "bg-nx-overlay"
-        }`}
-        title={enabled ? "Approved — click to defer" : "Deferred — click to approve"}
-      >
-        <span
-          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-            enabled ? "left-[18px]" : "left-0.5"
-          }`}
-        />
-      </button>
+      <Switch
+        checked={enabled}
+        onCheckedChange={() => onToggle()}
+        className="ml-3"
+        aria-label={enabled ? "Approved — click to defer" : "Deferred — click to approve"}
+      />
     </div>
   );
 }
@@ -566,28 +533,19 @@ function McpToolsStep({
       </p>
 
       <div className="flex justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] text-nx-text-muted hover:text-nx-text-secondary transition-colors duration-150"
-        >
+        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
           Back
-        </button>
+        </Button>
         <div className="flex gap-3">
-          <button
-            onClick={onDeny}
-            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
-          >
+          <Button variant="secondary" onClick={onDeny}>
             <ShieldX size={14} strokeWidth={1.5} />
             Deny
-          </button>
-          <button
-            onClick={onApprove}
-            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
-          >
+          </Button>
+          <Button onClick={onApprove}>
             <ShieldCheck size={14} strokeWidth={1.5} />
             Approve & Install
-          </button>
+          </Button>
         </div>
       </div>
     </>

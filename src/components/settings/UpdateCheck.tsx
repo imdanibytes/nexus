@@ -3,6 +3,7 @@ import { RefreshCw, Download, RotateCcw, Check, ChevronDown, ChevronUp } from "l
 import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { marked } from "marked";
+import { Button } from "@/components/ui/button";
 
 type UpdateState =
   | { phase: "idle" }
@@ -90,43 +91,46 @@ export function UpdateCheck() {
         {(state.phase === "idle" ||
           state.phase === "up-to-date" ||
           state.phase === "error") && (
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleCheck}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
           >
             <RefreshCw size={12} strokeWidth={1.5} />
             Check for Updates
-          </button>
+          </Button>
         )}
 
         {state.phase === "checking" && (
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             disabled
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay text-nx-text-muted opacity-60"
           >
             <RefreshCw size={12} strokeWidth={1.5} className="animate-spin" />
             Checking...
-          </button>
+          </Button>
         )}
 
         {state.phase === "available" && (
-          <button
+          <Button
+            size="sm"
             onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
           >
             <Download size={12} strokeWidth={1.5} />
             Install v{state.update.version}
-          </button>
+          </Button>
         )}
 
         {state.phase === "ready" && (
-          <button
+          <Button
+            size="sm"
             onClick={handleRelaunch}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-success hover:brightness-110 text-nx-deep transition-all duration-150"
+            className="bg-nx-success hover:brightness-110 text-nx-deep"
           >
             <RotateCcw size={12} strokeWidth={1.5} />
             Restart to Update
-          </button>
+          </Button>
         )}
 
         {/* Status text */}

@@ -3,6 +3,10 @@ import { usePlugins } from "../../hooks/usePlugins";
 import { pluginGetSettings, pluginSaveSettings, pluginStorageInfo, pluginClearStorage } from "../../lib/tauri";
 import type { InstalledPlugin, SettingDef } from "../../types/plugin";
 import { Puzzle, Save, Check, Square, Trash2, Database } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ErrorBoundary } from "../ErrorBoundary";
 
 function SettingField({
@@ -14,28 +18,14 @@ function SettingField({
   value: unknown;
   onChange: (key: string, value: unknown) => void;
 }) {
-  const baseInput =
-    "w-full px-3 py-2 text-[13px] bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150";
-
   switch (def.type) {
     case "boolean":
       return (
         <label className="flex items-center gap-3 cursor-pointer">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={!!value}
-            onClick={() => onChange(def.key, !value)}
-            className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${
-              value ? "bg-nx-accent" : "bg-nx-border-strong"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
-                value ? "translate-x-4" : "translate-x-0"
-              }`}
-            />
-          </button>
+          <Switch
+            checked={!!value}
+            onCheckedChange={(checked) => onChange(def.key, checked)}
+          />
           <span className="text-[13px] text-nx-text">{def.label}</span>
         </label>
       );
@@ -46,7 +36,7 @@ function SettingField({
           <label className="block text-[12px] text-nx-text-muted mb-1.5">
             {def.label}
           </label>
-          <input
+          <Input
             type="number"
             value={value as number ?? ""}
             onChange={(e) =>
@@ -55,7 +45,6 @@ function SettingField({
                 e.target.value === "" ? null : Number(e.target.value)
               )
             }
-            className={baseInput}
           />
         </div>
       );
@@ -66,17 +55,21 @@ function SettingField({
           <label className="block text-[12px] text-nx-text-muted mb-1.5">
             {def.label}
           </label>
-          <select
+          <Select
             value={(value as string) ?? ""}
-            onChange={(e) => onChange(def.key, e.target.value)}
-            className={baseInput + " appearance-none"}
+            onValueChange={(v) => onChange(def.key, v)}
           >
-            {def.options?.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {def.options?.map((opt) => (
+                <SelectItem key={opt} value={opt}>
+                  {opt}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       );
 
@@ -87,11 +80,10 @@ function SettingField({
           <label className="block text-[12px] text-nx-text-muted mb-1.5">
             {def.label}
           </label>
-          <input
+          <Input
             type="text"
             value={(value as string) ?? ""}
             onChange={(e) => onChange(def.key, e.target.value)}
-            className={baseInput}
           />
         </div>
       );
@@ -128,7 +120,9 @@ function StorageInfo({ pluginId }: { pluginId: string }) {
         </span>
       </div>
       {bytes > 0 && (
-        <button
+        <Button
+          variant="link"
+          size="sm"
           onClick={async () => {
             setClearing(true);
             try {
@@ -138,10 +132,10 @@ function StorageInfo({ pluginId }: { pluginId: string }) {
             finally { setClearing(false); }
           }}
           disabled={clearing}
-          className="text-[10px] font-medium text-nx-error hover:text-nx-error/80 transition-colors duration-150 disabled:opacity-50"
+          className="h-auto p-0 text-[10px] text-nx-error hover:text-nx-error/80"
         >
           {clearing ? "Clearing..." : "Clear data"}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -193,44 +187,50 @@ function PluginSettingsCard({
   const actionButtons = (
     <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
       {plugin.status === "running" && (
-        <button
+        <Button
+          variant="secondary"
+          size="xs"
           onClick={onStop}
           disabled={busy !== null}
-          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-warning-muted text-nx-warning hover:bg-nx-warning/20 transition-colors duration-150 disabled:opacity-50"
+          className="bg-nx-warning-muted text-nx-warning hover:bg-nx-warning/20"
         >
           <Square size={10} strokeWidth={2} />
           {busy === "stopping" ? "Stopping..." : "Stop"}
-        </button>
+        </Button>
       )}
       {showConfirm ? (
         <div className="flex items-center gap-1">
-          <button
+          <Button
+            variant="destructive"
+            size="xs"
             onClick={() => {
               onRemove();
               setShowConfirm(false);
             }}
             disabled={busy !== null}
-            className="px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-error hover:bg-nx-error/80 text-white transition-colors duration-150 disabled:opacity-50"
+            className="bg-nx-error hover:bg-nx-error/80 text-white"
           >
             {busy === "removing" ? "Removing..." : "Confirm"}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="xs"
             onClick={() => setShowConfirm(false)}
             disabled={busy !== null}
-            className="px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-colors duration-150 disabled:opacity-50"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       ) : (
-        <button
+        <Button
+          variant="destructive"
+          size="xs"
           onClick={() => setShowConfirm(true)}
           disabled={busy !== null}
-          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-[var(--radius-tag)] bg-nx-error-muted text-nx-error hover:bg-nx-error/20 transition-colors duration-150 disabled:opacity-50"
         >
           <Trash2 size={10} strokeWidth={2} />
           Remove
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -301,10 +301,10 @@ function PluginSettingsCard({
       )}
 
       <div className="mt-4 flex items-center gap-2">
-        <button
+        <Button
+          size="sm"
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium bg-nx-accent text-white rounded-[var(--radius-button)] hover:opacity-90 transition-opacity duration-150 disabled:opacity-50"
         >
           {saved ? (
             <Check size={13} strokeWidth={2} />
@@ -312,7 +312,7 @@ function PluginSettingsCard({
             <Save size={13} strokeWidth={1.5} />
           )}
           {saving ? "Saving..." : saved ? "Saved" : "Save"}
-        </button>
+        </Button>
       </div>
 
       <StorageInfo pluginId={plugin.manifest.id} />

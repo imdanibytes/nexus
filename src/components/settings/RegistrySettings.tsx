@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { RegistryKind, RegistrySource } from "../../types/plugin";
 import * as api from "../../lib/tauri";
 import { Database, FolderOpen, Globe, Plus, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const PROTECTED_REGISTRIES = new Set(["nexus-community", "nexus-mcp-local"]);
 
@@ -72,17 +75,14 @@ export function RegistrySettings() {
             </p>
           </div>
         </div>
-        <button
+        <Button
+          size="sm"
+          variant={showAdd ? "secondary" : "default"}
           onClick={() => setShowAdd(!showAdd)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-            showAdd
-              ? "bg-nx-overlay text-nx-text-secondary hover:bg-nx-wash"
-              : "bg-nx-accent hover:bg-nx-accent-hover text-nx-deep"
-          }`}
         >
           <Plus size={12} strokeWidth={1.5} />
           {showAdd ? "Cancel" : "Add Registry"}
-        </button>
+        </Button>
       </div>
 
       {/* Add form */}
@@ -92,12 +92,10 @@ export function RegistrySettings() {
             <label className="block text-[11px] font-medium text-nx-text-muted mb-1.5">
               Name
             </label>
-            <input
-              type="text"
+            <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="My Private Registry"
-              className="w-full px-3 py-2 text-[13px] bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text placeholder:text-nx-text-muted focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150"
             />
           </div>
           <div>
@@ -105,36 +103,31 @@ export function RegistrySettings() {
               Type
             </label>
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setNewKind("local")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                  newKind === "local"
-                    ? "bg-nx-accent text-nx-deep"
-                    : "bg-nx-overlay text-nx-text-muted hover:text-nx-text-secondary"
-                }`}
+                className={newKind === "local" ? "bg-nx-accent text-nx-deep hover:bg-nx-accent-hover" : "text-nx-text-muted hover:text-nx-text-secondary"}
               >
                 <FolderOpen size={12} strokeWidth={1.5} />
                 Local Path
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setNewKind("remote")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                  newKind === "remote"
-                    ? "bg-nx-accent text-nx-deep"
-                    : "bg-nx-overlay text-nx-text-muted hover:text-nx-text-secondary"
-                }`}
+                className={newKind === "remote" ? "bg-nx-accent text-nx-deep hover:bg-nx-accent-hover" : "text-nx-text-muted hover:text-nx-text-secondary"}
               >
                 <Globe size={12} strokeWidth={1.5} />
                 Remote URL
-              </button>
+              </Button>
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-nx-text-muted mb-1.5">
               {newKind === "local" ? "Directory Path" : "Registry URL"}
             </label>
-            <input
-              type="text"
+            <Input
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
               placeholder={
@@ -142,7 +135,7 @@ export function RegistrySettings() {
                   ? "/path/to/my-registry"
                   : "https://example.com/registry/index.json"
               }
-              className="w-full px-3 py-2 text-[13px] bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-nx-text placeholder:text-nx-text-muted focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150 font-mono"
+              className="font-mono"
             />
             <p className="text-[11px] text-nx-text-ghost mt-1.5">
               {newKind === "local"
@@ -150,13 +143,13 @@ export function RegistrySettings() {
                 : "URL to the raw index.json file of the registry"}
             </p>
           </div>
-          <button
+          <Button
+            size="sm"
             onClick={handleAdd}
             disabled={adding || !newName.trim() || !newUrl.trim()}
-            className="px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover disabled:opacity-40 text-nx-deep transition-all duration-150"
           >
             {adding ? "Adding..." : "Add Registry"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -171,18 +164,7 @@ export function RegistrySettings() {
               className="flex items-center justify-between p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle hover:border-nx-border transition-colors duration-150"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <button
-                  onClick={() => handleToggle(reg.id, !reg.enabled)}
-                  className={`w-8 h-[18px] rounded-full relative transition-colors duration-150 flex-shrink-0 ${
-                    reg.enabled ? "bg-nx-accent" : "bg-nx-wash"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-[3px] w-3 h-3 rounded-full bg-white transition-all duration-150 ${
-                      reg.enabled ? "left-[14px]" : "left-[3px]"
-                    }`}
-                  />
-                </button>
+                <Switch size="sm" checked={reg.enabled} onCheckedChange={(checked) => handleToggle(reg.id, checked)} />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] text-nx-text font-medium truncate">
@@ -204,13 +186,15 @@ export function RegistrySettings() {
                 </div>
               </div>
               {!PROTECTED_REGISTRIES.has(reg.id) && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => handleRemove(reg.id)}
-                  className="text-nx-text-ghost hover:text-nx-error transition-colors duration-150 flex-shrink-0 ml-2"
+                  className="text-nx-text-ghost hover:text-nx-error flex-shrink-0 ml-2"
                   title="Remove registry"
                 >
                   <Trash2 size={14} strokeWidth={1.5} />
-                </button>
+                </Button>
               )}
             </div>
           ))

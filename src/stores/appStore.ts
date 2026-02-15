@@ -1,16 +1,11 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import type { InstalledPlugin, RegistryEntry } from "../types/plugin";
 import type { ExtensionRegistryEntry } from "../types/extension";
 import type { AvailableUpdate } from "../types/updates";
 
 type View = "plugins" | "marketplace" | "settings" | "plugin-detail" | "extension-marketplace" | "extension-detail";
 export type PluginAction = "starting" | "stopping" | "removing" | "rebuilding";
-
-interface Notification {
-  id: string;
-  message: string;
-  type: "info" | "success" | "error";
-}
 
 interface InstallStatus {
   active: boolean;
@@ -26,7 +21,6 @@ interface AppState {
   selectedRegistryEntry: RegistryEntry | null;
   searchQuery: string;
   isLoading: boolean;
-  notifications: Notification[];
   extensionMarketplaceEntries: ExtensionRegistryEntry[];
   selectedExtensionEntry: ExtensionRegistryEntry | null;
   availableUpdates: AvailableUpdate[];
@@ -43,16 +37,13 @@ interface AppState {
   selectRegistryEntry: (entry: RegistryEntry | null) => void;
   setSearchQuery: (query: string) => void;
   setLoading: (loading: boolean) => void;
-  addNotification: (message: string, type: Notification["type"]) => void;
-  removeNotification: (id: string) => void;
+  addNotification: (message: string, type: "info" | "success" | "error") => void;
   setExtensionMarketplace: (entries: ExtensionRegistryEntry[]) => void;
   selectExtensionEntry: (entry: ExtensionRegistryEntry | null) => void;
   setAvailableUpdates: (updates: AvailableUpdate[]) => void;
   setUpdateCheckInterval: (minutes: number) => void;
   setInstallStatus: (message: string | null) => void;
 }
-
-let notifCounter = 0;
 
 export const useAppStore = create<AppState>((set) => ({
   currentView: "plugins",
@@ -63,7 +54,6 @@ export const useAppStore = create<AppState>((set) => ({
   selectedRegistryEntry: null,
   searchQuery: "",
   isLoading: false,
-  notifications: [],
   extensionMarketplaceEntries: [],
   selectedExtensionEntry: null,
   availableUpdates: [],
@@ -106,20 +96,10 @@ export const useAppStore = create<AppState>((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   setLoading: (loading) => set({ isLoading: loading }),
   addNotification: (message, type) => {
-    const id = `notif-${++notifCounter}`;
-    set((state) => ({
-      notifications: [...state.notifications, { id, message, type }],
-    }));
-    setTimeout(() => {
-      set((state) => ({
-        notifications: state.notifications.filter((n) => n.id !== id),
-      }));
-    }, 5000);
+    if (type === "success") toast.success(message);
+    else if (type === "error") toast.error(message);
+    else toast.info(message);
   },
-  removeNotification: (id) =>
-    set((state) => ({
-      notifications: state.notifications.filter((n) => n.id !== id),
-    })),
   setInstallStatus: (message) =>
     set({
       installStatus: message

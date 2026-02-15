@@ -5,6 +5,7 @@ pub mod extensions;
 pub mod filesystem;
 pub mod mcp;
 mod middleware;
+pub mod nexus_mcp;
 pub mod network;
 pub mod process;
 mod rate_limit;

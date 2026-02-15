@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@nexus-dashboard/tokens/theme.css";
+@import "./bridge.css";

@@ -38,6 +38,15 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Build plugin-ui
+        run: cd packages/plugin-ui && pnpm build
+
+      - name: Typecheck plugin-ui
+        run: cd packages/plugin-ui && pnpm typecheck
+
+      - name: Check component drift
+        run: bash scripts/check-ui-drift.sh
+
   rust:
     name: Rust (check + clippy + test + coverage)
     runs-on: macos-latest

@@ -58,6 +58,16 @@ build-extension name:
 build-sdk:
     pnpm sdk
 
+# ── Plugin UI ─────────────────────────────────────────────────────────────
+
+# Build the plugin UI component library
+build-ui:
+    cd packages/plugin-ui && pnpm build
+
+# Check for component drift between host app and plugin-ui
+check-ui-drift:
+    bash scripts/check-ui-drift.sh
+
 # ── Release ───────────────────────────────────────────────────────────────
 
 # Sync all version fields (e.g. just sync-version 0.4.0)

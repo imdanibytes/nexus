@@ -15,8 +15,11 @@ jobs:
   build-sdk:
     uses: ./.github/workflows/_build-sdk.yml
 
+  build-ui:
+    uses: ./.github/workflows/_build-ui.yml
+
   verify:
-    needs: [build-app, build-sdk]
+    needs: [build-app, build-sdk, build-ui]
     runs-on: ubuntu-latest
 
     steps:
@@ -47,6 +50,13 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
 
+          if [ -d "artifacts/plugin-ui" ]; then
+            echo "### Plugin UI" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            find "artifacts/plugin-ui" -type f | head -20 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
           # Verify all expected platforms built
           EXPECTED="nexus-aarch64-apple-darwin nexus-x86_64-apple-darwin nexus-x86_64-unknown-linux-gnu nexus-x86_64-pc-windows-msvc"
           MISSING=""
@@ -65,4 +75,4 @@ jobs:
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All 4 platforms + SDK built successfully." >> $GITHUB_STEP_SUMMARY
+          echo "All 4 platforms + SDK + UI built successfully." >> $GITHUB_STEP_SUMMARY

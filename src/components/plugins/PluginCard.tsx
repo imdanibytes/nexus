@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { InstalledPlugin, RegistryEntry } from "../../types/plugin";
 import type { PluginStatus } from "../../types/plugin";
 import { timeAgo } from "../../lib/timeAgo";
@@ -22,6 +23,7 @@ export function InstalledPluginCard({
   onSelect,
   isSelected,
 }: InstalledPluginCardProps) {
+  const { t } = useTranslation("plugins");
   const variant = statusVariant[plugin.status];
 
   return (
@@ -42,13 +44,13 @@ export function InstalledPluginCard({
         </div>
         <div className="flex items-center gap-1.5">
           {plugin.dev_mode && (
-            <Badge variant="accent">DEV</Badge>
+            <Badge variant="accent">{t("common:status.dev")}</Badge>
           )}
           <Badge variant="secondary" className="gap-0.5">
             {plugin.local_manifest_path ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
-            {plugin.local_manifest_path ? "Local" : "Registry"}
+            {plugin.local_manifest_path ? t("common:status.local") : t("common:status.registry")}
           </Badge>
-          <Badge variant={variant}>{plugin.status}</Badge>
+          <Badge variant={variant}>{t(`common:status.${plugin.status}`)}</Badge>
         </div>
       </div>
       <p className="text-[11px] text-nx-text-secondary line-clamp-2">
@@ -69,6 +71,8 @@ export function RegistryPluginCard({
   onSelect,
   isInstalled,
 }: RegistryPluginCardProps) {
+  const { t } = useTranslation("plugins");
+
   return (
     <div
       onClick={onSelect}
@@ -104,17 +108,17 @@ export function RegistryPluginCard({
                   {entry.author}
                 </a>
               ) : (
-                <span className="font-sans ml-1.5">by {entry.author}</span>
+                <span className="font-sans ml-1.5">{t("common:by")} {entry.author}</span>
               )}
             </p>
           </div>
         </div>
         <div className="flex gap-1.5 flex-shrink-0">
           {entry.status === "deprecated" && (
-            <Badge variant="warning">Deprecated</Badge>
+            <Badge variant="warning">{t("common:status.deprecated")}</Badge>
           )}
           {isInstalled && (
-            <Badge variant="accent">Installed</Badge>
+            <Badge variant="accent">{t("common:status.installed")}</Badge>
           )}
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { usePlugins } from "../../hooks/usePlugins";
 import { useAppStore } from "../../stores/appStore";
 import { pluginGetSettings, pluginSaveSettings, pluginStorageInfo, pluginClearStorage } from "../../lib/tauri";
@@ -102,6 +103,7 @@ function formatBytes(bytes: number): string {
 }
 
 function StorageInfo({ pluginId }: { pluginId: string }) {
+  const { t } = useTranslation("settings");
   const [bytes, setBytes] = useState<number | null>(null);
   const [clearing, setClearing] = useState(false);
 
@@ -138,7 +140,7 @@ function StorageInfo({ pluginId }: { pluginId: string }) {
           disabled={clearing}
           className="h-auto p-0 text-[10px] text-nx-error hover:text-nx-error/80"
         >
-          {clearing ? "Clearing..." : "Clear data"}
+          {clearing ? t("pluginsTab.clearing") : t("pluginsTab.clearData")}
         </Button>
       )}
     </div>
@@ -156,6 +158,7 @@ function PluginSettingsCard({
   onStop: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation("settings");
   const isLocalSource = plugin.local_manifest_path != null;
   const defs = plugin.manifest.settings ?? [];
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -200,7 +203,7 @@ function PluginSettingsCard({
           className="bg-nx-warning-muted text-nx-warning hover:bg-nx-warning/20"
         >
           <Square size={10} strokeWidth={2} />
-          {busy === "stopping" ? "Stopping..." : "Stop"}
+          {busy === "stopping" ? t("pluginsTab.stopping") : t("common:action.stop")}
         </Button>
       )}
       {showConfirm ? (
@@ -215,7 +218,7 @@ function PluginSettingsCard({
             disabled={busy !== null}
             className="bg-nx-error hover:bg-nx-error/80 text-white"
           >
-            {busy === "removing" ? "Removing..." : "Confirm"}
+            {busy === "removing" ? t("pluginsTab.removing") : t("common:action.confirm")}
           </Button>
           <Button
             variant="secondary"
@@ -223,7 +226,7 @@ function PluginSettingsCard({
             onClick={() => setShowConfirm(false)}
             disabled={busy !== null}
           >
-            Cancel
+            {t("common:action.cancel")}
           </Button>
         </div>
       ) : (
@@ -234,7 +237,7 @@ function PluginSettingsCard({
           disabled={busy !== null}
         >
           <Trash2 size={10} strokeWidth={2} />
-          Remove
+          {t("common:action.remove")}
         </Button>
       )}
     </div>
@@ -261,12 +264,12 @@ function PluginSettingsCard({
           </span>
           <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-ghost flex-shrink-0">
             {isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
-            {isLocalSource ? "Local" : "Registry"}
+            {isLocalSource ? t("common:status.local") : t("common:status.registry")}
           </span>
           {actionButtons}
         </div>
         <p className="text-[11px] text-nx-text-ghost">
-          No configurable settings
+          {t("pluginsTab.noConfigurable")}
         </p>
         <StorageInfo pluginId={plugin.manifest.id} />
       </div>
@@ -293,7 +296,7 @@ function PluginSettingsCard({
         </span>
         <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-ghost flex-shrink-0">
           {isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
-          {isLocalSource ? "Local" : "Registry"}
+          {isLocalSource ? t("common:status.local") : t("common:status.registry")}
         </span>
         {actionButtons}
       </div>
@@ -324,7 +327,7 @@ function PluginSettingsCard({
           ) : (
             <Save size={13} strokeWidth={1.5} />
           )}
-          {saving ? "Saving..." : saved ? "Saved" : "Save"}
+          {saving ? t("common:action.saving") : saved ? t("common:action.saved") : t("common:action.save")}
         </Button>
       </div>
 
@@ -334,6 +337,7 @@ function PluginSettingsCard({
 }
 
 export function PluginsTab() {
+  const { t } = useTranslation("settings");
   const { plugins, busyPlugins, stop, remove } = usePlugins();
   const { installedPlugins } = useAppStore();
   const [permSearch, setPermSearch] = useState("");
@@ -360,13 +364,13 @@ export function PluginsTab() {
         <div className="flex items-center gap-2 mb-4">
           <Puzzle size={15} strokeWidth={1.5} className="text-nx-text-muted" />
           <h3 className="text-[14px] font-semibold text-nx-text">
-            Plugin Settings
+            {t("pluginsTab.pluginSettings")}
           </h3>
         </div>
 
         {plugins.length === 0 ? (
           <p className="text-[11px] text-nx-text-ghost">
-            No plugins installed
+            {t("pluginsTab.noPlugins")}
           </p>
         ) : (
           <div className="space-y-3">
@@ -389,13 +393,13 @@ export function PluginsTab() {
         <div className="flex items-center gap-2 mb-4">
           <Shield size={15} strokeWidth={1.5} className="text-nx-text-muted" />
           <h3 className="text-[14px] font-semibold text-nx-text">
-            Permissions
+            {t("pluginsTab.permissions")}
           </h3>
         </div>
 
         {installedPlugins.length === 0 ? (
           <p className="text-[11px] text-nx-text-ghost">
-            No plugins installed
+            {t("pluginsTab.noPlugins")}
           </p>
         ) : (
           <>
@@ -409,7 +413,7 @@ export function PluginsTab() {
                 type="text"
                 value={permSearch}
                 onChange={(e) => setPermSearch(e.target.value)}
-                placeholder="Filter plugins..."
+                placeholder={t("pluginsTab.filterPlugins")}
                 className="pl-9"
               />
             </div>
@@ -417,7 +421,7 @@ export function PluginsTab() {
             <div className="space-y-2">
               {filtered.length === 0 ? (
                 <p className="text-[11px] text-nx-text-ghost">
-                  No plugins match "{permSearch}"
+                  {t("pluginsTab.noMatch", { query: permSearch })}
                 </p>
               ) : (
                 filtered.map((plugin) => {
@@ -443,7 +447,7 @@ export function PluginsTab() {
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                               <span className="text-[11px] text-nx-text-ghost">
-                                {permCount} perm{permCount !== 1 ? "s" : ""}
+                                {t("pluginsTab.permCount", { count: permCount })}
                               </span>
                               <ChevronDown
                                 size={14}

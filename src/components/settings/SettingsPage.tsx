@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
 import { GeneralTab } from "./GeneralTab";
 import { SystemTab } from "./SystemTab";
@@ -11,14 +12,14 @@ import { ErrorBoundary } from "../ErrorBoundary";
 
 type SettingsTab = "general" | "system" | "plugins" | "mcp" | "extensions" | "updates" | "help";
 
-const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
-  { id: "general", label: "General", icon: Settings },
-  { id: "system", label: "System", icon: Monitor },
-  { id: "plugins", label: "Plugins", icon: Puzzle },
-  { id: "mcp", label: "MCP", icon: Cpu },
-  { id: "extensions", label: "Extensions", icon: Blocks },
-  { id: "updates", label: "Updates", icon: ArrowUpCircle },
-  { id: "help", label: "Help", icon: HelpCircle },
+const TABS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] = [
+  { id: "general", labelKey: "tabs.general", icon: Settings },
+  { id: "system", labelKey: "tabs.system", icon: Monitor },
+  { id: "plugins", labelKey: "tabs.plugins", icon: Puzzle },
+  { id: "mcp", labelKey: "tabs.mcp", icon: Cpu },
+  { id: "extensions", labelKey: "tabs.extensions", icon: Blocks },
+  { id: "updates", labelKey: "tabs.updates", icon: ArrowUpCircle },
+  { id: "help", labelKey: "tabs.help", icon: HelpCircle },
 ];
 
 const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
@@ -32,6 +33,7 @@ const TAB_REDIRECTS: Record<string, SettingsTab> = {
 };
 
 export function SettingsPage() {
+  const { t } = useTranslation("settings");
   const { settingsTab, setSettingsTab } = useAppStore();
   const resolved = TAB_REDIRECTS[settingsTab] ?? settingsTab;
   const active = (TAB_IDS.has(resolved) ? resolved : "general") as SettingsTab;
@@ -41,9 +43,9 @@ export function SettingsPage() {
       {/* Header + tab strip */}
       <div className="flex-shrink-0 border-b border-nx-border bg-nx-deep/60">
         <div className="px-6 pt-5 pb-0">
-          <h2 className="text-[15px] font-bold text-nx-text">Settings</h2>
+          <h2 className="text-[15px] font-bold text-nx-text">{t("title")}</h2>
           <p className="text-[11px] text-nx-text-ghost mt-0.5 mb-3">
-            Manage your Nexus installation
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex gap-0.5 px-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -61,7 +63,7 @@ export function SettingsPage() {
                 }`}
               >
                 <Icon size={14} strokeWidth={1.5} />
-                {tab.label}
+                {t(tab.labelKey)}
               </button>
             );
           })}
@@ -70,7 +72,7 @@ export function SettingsPage() {
 
       {/* Content pane */}
       <div className="flex-1 overflow-y-auto p-6">
-        <ErrorBoundary label={TABS.find((t) => t.id === active)?.label}>
+        <ErrorBoundary label={TABS.find((tab) => tab.id === active)?.labelKey ? t(TABS.find((tab) => tab.id === active)!.labelKey) : undefined}>
           {active === "general" && <GeneralTab />}
           {active === "system" && <SystemTab />}
           {active === "plugins" && <PluginsTab />}

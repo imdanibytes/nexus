@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Copy, Check, Loader2, X } from "lucide-react";
 import {
   Sheet,
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
+  const { t } = useTranslation("plugins");
   const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -60,7 +62,7 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
       <SheetContent side="bottom" showCloseButton={false} className="h-96 max-w-4xl mx-auto rounded-t-[var(--radius-modal)] p-0 flex flex-col">
         <SheetHeader className="px-4 py-2.5 border-b border-nx-border-subtle flex-row items-center gap-2 shrink-0">
           <SheetTitle className="text-[12px] font-semibold text-nx-text-secondary flex items-center gap-2 flex-1">
-            Logs
+            {t("logs.title")}
             <Badge variant="secondary" className="text-[10px] font-mono">
               {pluginId}
             </Badge>
@@ -77,7 +79,7 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
             ) : (
               <Copy size={12} strokeWidth={1.5} />
             )}
-            {copied ? "Copied" : "Copy"}
+            {copied ? t("common:action.copied") : t("common:action.copy")}
           </Button>
           <SheetClose asChild>
             <Button variant="ghost" size="xs" className="text-nx-text-muted">
@@ -91,10 +93,10 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
             {loading && logs.length === 0 ? (
               <div className="flex items-center gap-2 text-nx-text-ghost">
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
-                Loading logs...
+                {t("logs.loadingLogs")}
               </div>
             ) : logs.length === 0 ? (
-              <p className="text-nx-text-ghost">No logs available</p>
+              <p className="text-nx-text-ghost">{t("logs.noLogs")}</p>
             ) : (
               logs.map((line, i) => (
                 <div key={i} className="text-nx-text-secondary whitespace-pre-wrap hover:bg-nx-surface/40 px-1 -mx-1 rounded-sm">

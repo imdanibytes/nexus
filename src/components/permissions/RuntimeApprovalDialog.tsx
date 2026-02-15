@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import {
   ShieldCheck,
@@ -17,6 +18,7 @@ import type {
 } from "../../types/permissions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import i18n from "../../i18n";
 
 /** Derive a human-readable header from the approval category. */
 function resolveHeader(req: RuntimeApprovalRequest): {
@@ -26,6 +28,7 @@ function resolveHeader(req: RuntimeApprovalRequest): {
   iconBg: string;
   iconColor: string;
 } {
+  const t = i18n.t.bind(i18n);
   const ctx = req.context;
 
   // Deferred permission — JIT approval on first use
@@ -33,8 +36,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
     const desc = ctx.description ?? ctx.operation_description ?? req.permission;
     return {
       icon: ShieldAlert,
-      title: "Permission Required",
-      subtitle: `${req.plugin_name} wants to use: ${desc}. This permission was deferred during installation.`,
+      title: t("permissions:runtime.permissionRequired"),
+      subtitle: t("permissions:runtime.deferredSubtitle", { pluginName: req.plugin_name, description: desc }),
       iconBg: "bg-nx-warning-muted",
       iconColor: "text-nx-warning",
     };
@@ -46,8 +49,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
     const opDesc = ctx.operation_description ?? ctx.operation ?? "an operation";
     return {
       icon: AlertTriangle,
-      title: "High-Risk Operation",
-      subtitle: `${req.plugin_name} wants to run "${opDesc}" via ${extName}`,
+      title: t("permissions:runtime.highRiskOperation"),
+      subtitle: t("permissions:runtime.extensionSubtitle", { pluginName: req.plugin_name, operation: opDesc, extensionName: extName }),
       iconBg: "bg-red-500/10",
       iconColor: "text-red-400",
     };
@@ -61,10 +64,10 @@ function resolveHeader(req: RuntimeApprovalRequest): {
     const scopeVal = ctx.scope_value ?? "";
     return {
       icon: Puzzle,
-      title: `${extName} Access`,
+      title: t("permissions:runtime.accessTitle", { extName }),
       subtitle: scopeVal
-        ? `${req.plugin_name} wants ${opName} access to ${scopeDesc}: ${scopeVal}`
-        : `${req.plugin_name} wants ${opName} access`,
+        ? t("permissions:runtime.extensionAccessSubtitle", { pluginName: req.plugin_name, operation: opName, scope: scopeDesc, value: scopeVal })
+        : t("permissions:runtime.extensionAccessSubtitleShort", { pluginName: req.plugin_name, operation: opName }),
       iconBg: "bg-nx-warning-muted",
       iconColor: "text-nx-warning",
     };
@@ -74,8 +77,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
   if (req.category === "filesystem") {
     return {
       icon: FolderOpen,
-      title: "File Access",
-      subtitle: `${req.plugin_name} wants ${req.permission.replace(":", " ")}`,
+      title: t("permissions:runtime.fileAccess"),
+      subtitle: t("permissions:runtime.filesystemSubtitle", { pluginName: req.plugin_name, permission: req.permission.replace(":", " ") }),
       iconBg: "bg-nx-warning-muted",
       iconColor: "text-nx-warning",
     };
@@ -85,8 +88,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
   if (req.category === "network") {
     return {
       icon: ShieldAlert,
-      title: "Network Access",
-      subtitle: `${req.plugin_name} wants ${req.permission.replace(":", " ")}`,
+      title: t("permissions:runtime.networkAccess"),
+      subtitle: t("permissions:runtime.networkSubtitle", { pluginName: req.plugin_name, permission: req.permission.replace(":", " ") }),
       iconBg: "bg-nx-warning-muted",
       iconColor: "text-nx-warning",
     };
@@ -97,8 +100,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
     const toolName = ctx.tool_name ?? "a tool";
     return {
       icon: ShieldAlert,
-      title: "MCP Tool Call",
-      subtitle: `${req.plugin_name} wants to run ${toolName}`,
+      title: t("permissions:runtime.mcpToolCall"),
+      subtitle: t("permissions:runtime.mcpToolSubtitle", { pluginName: req.plugin_name, toolName }),
       iconBg: "bg-nx-warning-muted",
       iconColor: "text-nx-warning",
     };
@@ -107,8 +110,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
   // Fallback
   return {
     icon: ShieldAlert,
-    title: `${req.category} Request`,
-    subtitle: `${req.plugin_name} wants ${req.permission.replace(":", " ")}`,
+    title: t("permissions:runtime.categoryRequest", { category: req.category }),
+    subtitle: t("permissions:runtime.fallbackSubtitle", { pluginName: req.plugin_name, permission: req.permission.replace(":", " ") }),
     iconBg: "bg-nx-warning-muted",
     iconColor: "text-nx-warning",
   };
@@ -144,7 +147,7 @@ export function RuntimeApprovalDialog() {
 
         setQueue((prev) => [...prev, event.payload]);
         const header = resolveHeader(event.payload);
-        notify("Nexus — Approval Required", header.subtitle, 1);
+        notify(i18n.t("permissions:runtime.notificationTitle"), header.subtitle, 1);
       }
     );
     return () => {
@@ -224,6 +227,7 @@ function RuntimeApprovalContent({
   cooldown: number;
   respond: (decision: ApprovalDecision) => void;
 }) {
+  const { t } = useTranslation("permissions");
   const header = resolveHeader(current);
   const HeaderIcon = header.icon;
   const isHighRisk = current.context.risk_level === "high";
@@ -278,8 +282,7 @@ function RuntimeApprovalContent({
       {queue.length > 1 && (
         <div className="px-6 pb-3">
           <p className="text-[11px] text-nx-text-ghost">
-            +{queue.length - 1} more{" "}
-            {queue.length - 1 === 1 ? "request" : "requests"} pending
+            {t("runtime.requestsPending", { count: queue.length - 1 })}
           </p>
         </div>
       )}
@@ -288,7 +291,7 @@ function RuntimeApprovalContent({
       <div className="flex gap-3 justify-end px-6 pb-6">
         <Button variant="secondary" onClick={() => respond("deny")}>
           <ShieldX size={14} strokeWidth={1.5} />
-          Deny
+          {t("common:action.deny")}
         </Button>
         {isHighRisk ? (
           <Button
@@ -296,7 +299,7 @@ function RuntimeApprovalContent({
             onClick={() => respond("approve_once")}
           >
             <ShieldCheck size={14} strokeWidth={1.5} />
-            {approveDisabled ? `Allow Once (${cooldown}s)` : "Allow Once"}
+            {approveDisabled ? t("runtime.allowOnceCountdown", { seconds: cooldown }) : t("runtime.allowOnce")}
           </Button>
         ) : (
           <>
@@ -307,14 +310,14 @@ function RuntimeApprovalContent({
               className={!approveDisabled ? "text-nx-text" : undefined}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
-              {approveDisabled ? `Allow Once (${cooldown}s)` : "Allow Once"}
+              {approveDisabled ? t("runtime.allowOnceCountdown", { seconds: cooldown }) : t("runtime.allowOnce")}
             </Button>
             <Button
               disabled={approveDisabled}
               onClick={() => respond("approve")}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
-              {approveDisabled ? `Allow (${cooldown}s)` : "Allow"}
+              {approveDisabled ? t("runtime.allowCountdown", { seconds: cooldown }) : t("runtime.allow")}
             </Button>
           </>
         )}
@@ -330,6 +333,7 @@ function DeferredPermissionDetail({
   context: Record<string, string>;
   permission: string;
 }) {
+  const { t } = useTranslation("permissions");
   const info = getPermissionInfo(permission);
   const riskColors: Record<string, string> = {
     low: "text-nx-success bg-nx-success-muted",
@@ -340,7 +344,7 @@ function DeferredPermissionDetail({
   return (
     <div className="space-y-2">
       <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1.5">Permission</p>
+        <p className="text-[11px] text-nx-text-muted mb-1.5">{t("runtime.permission")}</p>
         <div className="flex items-center gap-2">
           <p className="text-[12px] text-nx-text font-medium font-mono">
             {permission}
@@ -380,10 +384,11 @@ function DeferredPermissionDetail({
 }
 
 function FilesystemDetail({ context }: { context: Record<string, string> }) {
+  const { t } = useTranslation("permissions");
   return (
     <div className="space-y-2">
       <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1">Requested path</p>
+        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.requestedPath")}</p>
         <p className="text-[12px] text-nx-text font-mono break-all leading-relaxed">
           {context.path ?? "unknown"}
         </p>
@@ -391,7 +396,7 @@ function FilesystemDetail({ context }: { context: Record<string, string> }) {
       {context.parent_dir && (
         <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
           <p className="text-[11px] text-nx-text-muted mb-1">
-            "Allow" grants access to this directory
+            {t("runtime.allowGrantsAccess")}
           </p>
           <p className="text-[12px] text-nx-accent font-mono break-all leading-relaxed">
             {context.parent_dir}
@@ -409,8 +414,9 @@ function ExtensionDetail({
   context: Record<string, string>;
   isHighRisk: boolean;
 }) {
+  const { t } = useTranslation("permissions");
   const extName =
-    context.extension_display_name ?? context.extension ?? "Unknown extension";
+    context.extension_display_name ?? context.extension ?? t("runtime.unknownExtension");
   const operation = context.operation ?? "unknown";
   const opDesc = context.operation_description;
 
@@ -439,7 +445,7 @@ function ExtensionDetail({
       {context.scope_value && (
         <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
           <p className="text-[11px] text-nx-text-muted mb-1">
-            {context.scope_description ?? context.scope_key ?? "Scope"}
+            {context.scope_description ?? context.scope_key ?? t("runtime.scope")}
           </p>
           <p className="text-[12px] text-nx-accent font-mono break-all leading-relaxed">
             {context.scope_value}
@@ -450,7 +456,7 @@ function ExtensionDetail({
       {/* Input parameters (for high-risk, shows what's being passed) */}
       {isHighRisk && inputEntries.length > 0 && (
         <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5">
-          <p className="text-[11px] text-nx-text-muted">Parameters</p>
+          <p className="text-[11px] text-nx-text-muted">{t("runtime.parameters")}</p>
           {inputEntries.map(([key, value]) => (
             <div key={key} className="flex gap-2">
               <span className="text-[11px] text-nx-text-ghost font-mono whitespace-nowrap">
@@ -469,7 +475,7 @@ function ExtensionDetail({
         <div className="flex items-center gap-1.5 pt-1">
           <AlertTriangle size={12} strokeWidth={1.5} className="text-red-400" />
           <p className="text-[11px] text-red-400 font-medium">
-            This operation requires approval every time it runs
+            {t("runtime.approvalRequired")}
           </p>
         </div>
       )}
@@ -478,6 +484,7 @@ function ExtensionDetail({
 }
 
 function McpToolDetail({ context }: { context: Record<string, string> }) {
+  const { t } = useTranslation("permissions");
   const [showFullDesc, setShowFullDesc] = useState(false);
   const toolName = context.tool_name ?? "unknown";
   const pluginName = context.plugin_name;
@@ -492,13 +499,13 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
     <div className="space-y-2 max-h-[40vh] overflow-y-auto">
       {/* Tool name + plugin */}
       <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1">Tool</p>
+        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.tool")}</p>
         <p className="text-[13px] text-nx-text font-mono font-medium">
           {toolName}
         </p>
         {pluginName && (
           <p className="text-[11px] text-nx-text-ghost mt-0.5">
-            via {pluginName}
+            {t("runtime.via", { name: pluginName })}
           </p>
         )}
       </div>
@@ -506,7 +513,7 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
       {/* Arguments */}
       {argEntries.length > 0 && (
         <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5">
-          <p className="text-[11px] text-nx-text-muted">Arguments</p>
+          <p className="text-[11px] text-nx-text-muted">{t("runtime.arguments")}</p>
           {argEntries.map(([key, value]) => (
             <div key={key}>
               <span className="text-[11px] text-nx-text-ghost font-mono">
@@ -523,7 +530,7 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
       {/* Description — truncated to 3 lines */}
       {description && (
         <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-          <p className="text-[11px] text-nx-text-muted mb-1">Description</p>
+          <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.description")}</p>
           <p
             className={`text-[11px] text-nx-text-secondary leading-relaxed break-words ${
               showFullDesc ? "" : "line-clamp-3"
@@ -538,7 +545,7 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
               onClick={() => setShowFullDesc(true)}
               className="h-auto p-0 text-[11px] mt-1"
             >
-              Show more
+              {t("common:action.showMore")}
             </Button>
           )}
         </div>

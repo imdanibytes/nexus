@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import type { ExtensionRegistryEntry, ExtensionManifest, Capability } from "../../types/extension";
 import { extensionPreview, extensionInstall } from "../../lib/tauri";
 import { checkUrlReachable } from "../../lib/tauri";
@@ -41,16 +42,9 @@ function capabilityIcon(cap: Capability) {
   }
 }
 
-function capabilityLabel(cap: Capability): string {
-  switch (cap.type) {
-    case "process_exec": return "Process Execution";
-    case "file_read": return "File Read";
-    case "file_write": return "File Write";
-    case "network_http": return "Network HTTP";
-    case "system_info": return "System Info";
-    case "native_library": return "Native Library";
-    case "custom": return cap.name;
-  }
+function capabilityLabel(cap: Capability, t: (key: string) => string): string {
+  if (cap.type === "custom") return cap.name;
+  return t(`plugins:capability.${cap.type}`);
 }
 
 function capabilityDetail(cap: Capability): string | null {
@@ -71,6 +65,7 @@ interface Props {
 }
 
 export function ExtensionDetail({ entry, onBack }: Props) {
+  const { t } = useTranslation("plugins");
   const { addNotification, setInstallStatus } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -91,7 +86,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
       const m = await extensionPreview(entry.manifest_url);
       setManifest(m);
     } catch (e) {
-      addNotification(`Failed to fetch extension manifest: ${e}`, "error");
+      addNotification(t("common:error.fetchExtensionManifest", { error: e }), "error");
     } finally {
       setLoading(false);
     }
@@ -99,13 +94,13 @@ export function ExtensionDetail({ entry, onBack }: Props) {
 
   async function handleInstall() {
     setInstalling(true);
-    setInstallStatus("Installing extension...");
+    setInstallStatus(t("extensions.installingExtension"));
     try {
       await extensionInstall(entry.manifest_url);
-      addNotification(`Extension "${entry.name}" installed`, "success");
+      addNotification(t("common:notification.extensionInstalled", { name: entry.name }), "success");
       onBack();
     } catch (e) {
-      addNotification(`Install failed: ${e}`, "error");
+      addNotification(t("common:error.installFailed", { error: e }), "error");
     } finally {
       setInstalling(false);
       setInstallStatus(null);
@@ -121,7 +116,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
         className="text-nx-text-muted hover:text-nx-text mb-6"
       >
         <ArrowLeft size={14} strokeWidth={1.5} />
-        Back to Extensions
+        {t("extensions.backToExtensions")}
       </Button>
 
       <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-6">
@@ -136,7 +131,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
             manifestReachable === false ? (
               <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
                 <AlertTriangle size={12} strokeWidth={1.5} />
-                Unavailable
+                {t("extensions.unavailable")}
               </span>
             ) : (
               <Button
@@ -148,7 +143,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                 ) : (
                   <Shield size={14} strokeWidth={1.5} />
                 )}
-                {manifestReachable === null ? "Checking..." : loading ? "Loading..." : "Review & Install"}
+                {manifestReachable === null ? t("common:action.checking") : loading ? t("common:action.loading") : t("extensions.reviewAndInstall")}
               </Button>
             )
           ) : (
@@ -161,7 +156,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
               ) : (
                 <Download size={14} strokeWidth={1.5} />
               )}
-              {installing ? "Installing..." : "Install Extension"}
+              {installing ? t("common:action.installing") : t("extensions.installExtension")}
             </Button>
           )}
         </div>
@@ -188,7 +183,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
           {entry.created_at && (
             <span className="flex items-center gap-1" title={entry.created_at}>
               <Clock size={11} strokeWidth={1.5} />
-              Published {timeAgo(entry.created_at)}
+              {t("extensions.published", { time: timeAgo(entry.created_at) })}
             </span>
           )}
         </div>
@@ -200,7 +195,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
         {entry.categories.length > 0 && (
           <div className="mb-6">
             <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
-              Categories
+              {t("marketplace.categories")}
             </h4>
             <div className="flex gap-2">
               {entry.categories.map((cat) => (
@@ -216,7 +211,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
         )}
       </div>
 
-      {/* Manifest preview — shown after clicking "Review & Install" */}
+      {/* Manifest preview -- shown after clicking "Review & Install" */}
       {manifest && (
         <div className="mt-4 space-y-4">
           {/* Author + signature */}
@@ -224,30 +219,30 @@ export function ExtensionDetail({ entry, onBack }: Props) {
             <div className="flex items-center gap-2 mb-3">
               <Shield size={13} strokeWidth={1.5} className="text-nx-text-muted" />
               <h4 className="text-[12px] font-semibold text-nx-text">
-                Author & Signature
+                {t("extensions.authorAndSignature")}
               </h4>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20">Author</span>
+                <span className="text-[11px] text-nx-text-muted w-20">{t("about.author")}</span>
                 <span className="text-[11px] text-nx-text font-medium">
                   {manifest.author}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20">License</span>
+                <span className="text-[11px] text-nx-text-muted w-20">{t("about.license")}</span>
                 <span className="text-[11px] text-nx-text font-medium">
-                  {manifest.license ?? "Not specified"}
+                  {manifest.license ?? t("common:status.notSpecified")}
                 </span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20 flex-shrink-0">Public key</span>
+                <span className="text-[11px] text-nx-text-muted w-20 flex-shrink-0">{t("extensions.publicKey")}</span>
                 <code className="text-[10px] text-nx-text-secondary bg-nx-deep px-2 py-1 rounded-[var(--radius-tag)] font-mono break-all">
                   {manifest.author_public_key.slice(0, 32)}...
                 </code>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20">Platforms</span>
+                <span className="text-[11px] text-nx-text-muted w-20">{t("extensions.platforms")}</span>
                 <div className="flex gap-1.5">
                   {Object.keys(manifest.binaries).map((platform) => (
                     <span
@@ -268,12 +263,11 @@ export function ExtensionDetail({ entry, onBack }: Props) {
               <div className="flex items-center gap-2 mb-3">
                 <Shield size={13} strokeWidth={1.5} className="text-nx-warning" />
                 <h4 className="text-[12px] font-semibold text-nx-text">
-                  Declared Capabilities
+                  {t("extensions.declaredCapabilities")}
                 </h4>
               </div>
               <p className="text-[10px] text-nx-text-ghost mb-3">
-                This extension runs as a native process with these declared capabilities.
-                Review carefully before installing.
+                {t("extensions.capabilitiesWarning")}
               </p>
               <div className="space-y-1">
                 {manifest.capabilities.map((cap, i) => {
@@ -286,7 +280,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                     >
                       <Icon size={13} strokeWidth={1.5} className="text-nx-text-muted flex-shrink-0" />
                       <span className="text-[11px] text-nx-text font-medium flex-shrink-0">
-                        {capabilityLabel(cap)}
+                        {capabilityLabel(cap, t)}
                       </span>
                       {detail && (
                         <span className="text-[10px] text-nx-text-ghost truncate font-mono">
@@ -305,7 +299,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
             <div className="flex items-center gap-2 mb-3">
               <Blocks size={13} strokeWidth={1.5} className="text-nx-text-muted" />
               <h4 className="text-[12px] font-semibold text-nx-text">
-                Operations ({manifest.operations.length})
+                {t("extensions.operations", { count: manifest.operations.length })}
               </h4>
             </div>
             <div className="space-y-1">
@@ -326,7 +320,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                     </span>
                     {op.scope_key && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-muted font-mono flex-shrink-0">
-                        scope: {op.scope_key}
+                        {t("extensions.scope", { key: op.scope_key })}
                       </span>
                     )}
                     <span className="text-[11px] text-nx-text-ghost truncate flex-1">

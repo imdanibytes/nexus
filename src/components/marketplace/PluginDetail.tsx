@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import type { RegistryEntry, PluginManifest, InstalledPlugin } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
 import { PermissionDialog } from "../permissions/PermissionDialog";
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
+  const { t } = useTranslation("plugins");
   const { previewRemote, install } = usePlugins();
   const [loading, setLoading] = useState(false);
   const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
@@ -61,7 +63,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
         className="text-nx-text-muted hover:text-nx-text mb-6"
       >
         <ArrowLeft size={14} strokeWidth={1.5} />
-        Back to Marketplace
+        {t("marketplace.backToMarketplace")}
       </Button>
 
       <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-6">
@@ -76,12 +78,12 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
             <div className="flex items-center gap-2">
               <Badge variant={isLocalSource ? "warning" : "accent"} className="gap-1">
                 {isLocalSource ? <HardDrive size={10} strokeWidth={1.5} /> : <Cloud size={10} strokeWidth={1.5} />}
-                {isLocalSource ? "Local Dev" : "Registry"}
+                {isLocalSource ? t("marketplace.localDev") : t("common:status.registry")}
               </Badge>
               {imageAvailable === false ? (
                 <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
                   <AlertTriangle size={12} strokeWidth={1.5} />
-                  Image Unavailable
+                  {t("marketplace.imageUnavailable")}
                 </span>
               ) : (
                 <Button
@@ -95,14 +97,14 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
                   ) : (
                     <RefreshCw size={14} strokeWidth={1.5} />
                   )}
-                  {imageAvailable === null ? "Checking..." : loading ? "Loading..." : "Reinstall"}
+                  {imageAvailable === null ? t("common:action.checking") : loading ? t("common:action.loading") : t("marketplace.reinstall")}
                 </Button>
               )}
             </div>
           ) : imageAvailable === false ? (
             <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
               <AlertTriangle size={12} strokeWidth={1.5} />
-              Image Unavailable
+              {t("marketplace.imageUnavailable")}
             </span>
           ) : (
             <Button
@@ -116,7 +118,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
               ) : (
                 <Download size={14} strokeWidth={1.5} />
               )}
-              {imageAvailable === null ? "Checking..." : loading ? "Building..." : canBuild ? "Build & Install" : "Install"}
+              {imageAvailable === null ? t("common:action.checking") : loading ? t("marketplace.building") : canBuild ? t("marketplace.buildAndInstall") : t("common:action.install")}
             </Button>
           )}
         </div>
@@ -143,7 +145,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
           {entry.created_at && (
             <span className="flex items-center gap-1" title={entry.created_at}>
               <Clock size={11} strokeWidth={1.5} />
-              Published {timeAgo(entry.created_at)}
+              {t("marketplace.published", { time: timeAgo(entry.created_at) })}
             </span>
           )}
           {entry.license && (
@@ -160,7 +162,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
               className="flex items-center gap-1 hover:text-nx-text transition-colors duration-150"
             >
               <ExternalLink size={11} strokeWidth={1.5} />
-              Repository
+              {t("marketplace.repository")}
             </a>
           )}
         </div>
@@ -170,14 +172,14 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
         <div className="space-y-4">
           <div>
             <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
-              Docker Image
+              {t("marketplace.dockerImage")}
             </h4>
             <code className="text-[12px] bg-nx-deep text-nx-text-secondary px-2.5 py-1 rounded-[var(--radius-tag)] font-mono">
               {entry.image}
             </code>
             {canBuild && (
               <span className="ml-2 text-[10px] text-nx-text-muted">
-                (built from source)
+                {t("marketplace.builtFromSource")}
               </span>
             )}
           </div>
@@ -185,7 +187,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
           {entry.image_digest && (
             <div>
               <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
-                Image Digest
+                {t("marketplace.imageDigest")}
               </h4>
               <code className="text-[12px] bg-nx-deep text-nx-text-secondary px-2.5 py-1 rounded-[var(--radius-tag)] font-mono break-all">
                 {entry.image_digest}
@@ -196,7 +198,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
           {entry.categories.length > 0 && (
             <div>
               <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
-                Categories
+                {t("marketplace.categories")}
               </h4>
               <div className="flex gap-2 flex-wrap">
                 {entry.categories.map((cat) => (

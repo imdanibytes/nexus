@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   checkEngine,
   containerResourceUsage,
@@ -21,6 +22,8 @@ const ENGINES: { id: RuntimeEngine; label: string; available: boolean }[] = [
 ];
 
 export function SystemTab() {
+  const { t } = useTranslation("settings");
+
   // --- Runtime state ---
   const [engine, setEngine] = useState<RuntimeEngine>("docker");
   const [status, setStatus] = useState<EngineStatus | null>(null);
@@ -38,12 +41,12 @@ export function SystemTab() {
         running: false,
         version: null,
         socket: "",
-        message: "Failed to check container engine status",
+        message: t("common:error.engineCheckFailed"),
       });
     } finally {
       setChecking(false);
     }
-  }, []);
+  }, [t]);
 
   // --- Resources state ---
   const [usage, setUsage] = useState<ResourceUsage | null>(null);
@@ -116,7 +119,7 @@ export function SystemTab() {
         <div className="flex items-center gap-2 mb-4">
           <Container size={15} strokeWidth={1.5} className="text-nx-text-muted" />
           <h3 className="text-[14px] font-semibold text-nx-text">
-            Container Engine
+            {t("system.containerEngine")}
           </h3>
         </div>
 
@@ -137,7 +140,7 @@ export function SystemTab() {
               {e.label}
               {!e.available && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-highlight-muted text-nx-highlight font-semibold tracking-wide">
-                  SOON
+                  {t("common:status.soon")}
                 </span>
               )}
             </button>
@@ -148,7 +151,7 @@ export function SystemTab() {
         {engine === "docker" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] text-nx-text-muted">Status</span>
+              <span className="text-[12px] text-nx-text-muted">{t("system.status")}</span>
               <button
                 onClick={refreshEngine}
                 disabled={checking}
@@ -159,13 +162,13 @@ export function SystemTab() {
                   strokeWidth={1.5}
                   className={checking ? "animate-spin" : ""}
                 />
-                {checking ? "Checking..." : "Refresh"}
+                {checking ? t("common:action.checking") : t("common:action.refresh")}
               </button>
             </div>
 
             {status === null ? (
               <div className="text-[13px] text-nx-text-muted">
-                Checking engine status...
+                {t("system.checkingEngine")}
               </div>
             ) : (
               <div className="space-y-3">
@@ -186,7 +189,7 @@ export function SystemTab() {
                       }
                     />
                     <span className="text-[13px] text-nx-text-secondary">
-                      Engine
+                      {t("system.engine")}
                     </span>
                   </div>
                   <span
@@ -199,15 +202,17 @@ export function SystemTab() {
                     }`}
                   >
                     {status.running
-                      ? `Running${status.version ? ` · v${status.version}` : ""}`
+                      ? status.version
+                        ? t("system.runningVersion", { version: status.version })
+                        : t("common:status.running")
                       : status.installed
-                        ? "Stopped"
-                        : "Not Found"}
+                        ? t("system.stopped")
+                        : t("system.notFound")}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-nx-text-muted">Socket</span>
+                  <span className="text-[12px] text-nx-text-muted">{t("system.socket")}</span>
                   <span className="text-[11px] text-nx-text-ghost font-mono truncate ml-4">
                     {status.socket}
                   </span>
@@ -224,11 +229,10 @@ export function SystemTab() {
         {engine !== "docker" && (
           <div className="text-center py-8">
             <p className="text-[13px] text-nx-text-muted">
-              {engine === "podman" ? "Podman" : "Finch"} support is coming soon.
+              {t("system.engineSoon", { engine: engine === "podman" ? "Podman" : "Finch" })}
             </p>
             <p className="text-[11px] text-nx-text-ghost mt-1">
-              Nexus will support alternative container runtimes in a future
-              release.
+              {t("system.engineFuture")}
             </p>
           </div>
         )}
@@ -239,21 +243,21 @@ export function SystemTab() {
         <div className="flex items-center gap-2 mb-4">
           <Gauge size={15} strokeWidth={1.5} className="text-nx-text-muted" />
           <h3 className="text-[14px] font-semibold text-nx-text">
-            Resource Usage
+            {t("system.resourceUsage")}
           </h3>
         </div>
 
         {usage === null ? (
           <p className="text-[12px] text-nx-text-ghost">
-            Waiting for container stats...
+            {t("system.waitingStats")}
           </p>
         ) : (
           <div className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <span className="text-[12px] text-nx-text-muted">CPU</span>
+                <span className="text-[12px] text-nx-text-muted">{t("system.cpu")}</span>
                 <span className="text-[13px] text-nx-text font-mono">
-                  {usage.cpu_percent}%
+                  {t("system.percent", { value: usage.cpu_percent })}
                 </span>
               </div>
               <div className="h-2 bg-nx-overlay rounded-full overflow-hidden">
@@ -266,9 +270,9 @@ export function SystemTab() {
 
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <span className="text-[12px] text-nx-text-muted">Memory</span>
+                <span className="text-[12px] text-nx-text-muted">{t("system.memory")}</span>
                 <span className="text-[13px] text-nx-text font-mono">
-                  {usage.memory_mb} MB
+                  {t("system.mb", { value: usage.memory_mb })}
                 </span>
               </div>
               <div className="h-2 bg-nx-overlay rounded-full overflow-hidden">
@@ -286,7 +290,7 @@ export function SystemTab() {
             </div>
 
             <p className="text-[11px] text-nx-text-ghost">
-              Total across all Nexus plugin containers. Refreshes every 5s.
+              {t("system.resourceTotal")}
             </p>
           </div>
         )}
@@ -296,7 +300,7 @@ export function SystemTab() {
       <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[14px] font-semibold text-nx-text">
-            Resource Quotas
+            {t("system.resourceQuotas")}
           </h3>
           <Button
             onClick={handleSave}
@@ -314,12 +318,12 @@ export function SystemTab() {
             {saved ? (
               <>
                 <Check size={12} strokeWidth={1.5} />
-                Saved
+                {t("common:action.saved")}
               </>
             ) : (
               <>
                 <Save size={12} strokeWidth={1.5} />
-                {saving ? "Saving..." : "Save"}
+                {saving ? t("common:action.saving") : t("common:action.save")}
               </>
             )}
           </Button>
@@ -328,7 +332,7 @@ export function SystemTab() {
         <div className="space-y-5">
           <div>
             <label className="block text-[12px] text-nx-text-muted mb-2">
-              CPU Limit (%)
+              {t("system.cpuLimit")}
             </label>
             <div className="flex items-center gap-3">
               <input
@@ -341,18 +345,17 @@ export function SystemTab() {
                 className="flex-1 accent-nx-accent h-1.5"
               />
               <span className="text-[13px] text-nx-text font-mono w-14 text-right">
-                {quotas.cpu_percent != null ? `${quotas.cpu_percent}%` : "None"}
+                {quotas.cpu_percent != null ? `${quotas.cpu_percent}%` : t("common:status.none")}
               </span>
             </div>
             <p className="text-[11px] text-nx-text-ghost mt-1">
-              Maximum CPU percentage for all plugin containers. Leave at 0 for
-              no limit.
+              {t("system.cpuHint")}
             </p>
           </div>
 
           <div>
             <label className="block text-[12px] text-nx-text-muted mb-2">
-              Memory Limit (MB)
+              {t("system.memoryLimit")}
             </label>
             <Input
               type="number"
@@ -360,18 +363,17 @@ export function SystemTab() {
               step={64}
               value={quotas.memory_mb ?? ""}
               onChange={(e) => updateMemory(e.target.value)}
-              placeholder="No limit"
+              placeholder={t("system.noLimit")}
               className="font-mono"
             />
             <p className="text-[11px] text-nx-text-ghost mt-1">
-              Maximum memory in megabytes for all plugin containers. Leave empty
-              for no limit.
+              {t("system.memoryHint")}
             </p>
           </div>
         </div>
 
         <p className="text-[11px] text-nx-text-ghost mt-4 pt-4 border-t border-nx-border-subtle">
-          Quotas are applied when containers are created or restarted.
+          {t("system.quotasApplied")}
         </p>
       </section>
     </div>

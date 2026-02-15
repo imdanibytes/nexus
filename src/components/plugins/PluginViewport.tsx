@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
@@ -31,40 +32,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const overlayConfig: Record<
-  PluginAction,
-  { icon: typeof Trash2; label: string; sub: string; color: string; bg: string }
-> = {
-  removing: {
-    icon: Trash2,
-    label: "Removing",
-    sub: "Stopping container and cleaning up...",
-    color: "text-nx-error",
-    bg: "bg-nx-error-muted",
-  },
-  stopping: {
-    icon: Square,
-    label: "Stopping",
-    sub: "Sending shutdown signal...",
-    color: "text-nx-warning",
-    bg: "bg-nx-warning-muted",
-  },
-  starting: {
-    icon: Play,
-    label: "Starting",
-    sub: "Launching container...",
-    color: "text-nx-success",
-    bg: "bg-nx-success-muted",
-  },
-  rebuilding: {
-    icon: Hammer,
-    label: "Rebuilding",
-    sub: "Building image and restarting...",
-    color: "text-nx-accent",
-    bg: "bg-nx-accent-muted",
-  },
-};
-
 interface Props {
   plugin: InstalledPlugin;
   busyAction: PluginAction | null;
@@ -76,6 +43,7 @@ export function PluginViewport({
   busyAction,
   onStart,
 }: Props) {
+  const { t } = useTranslation("plugins");
   const isRunning = plugin.status === "running";
   const isBusy = busyAction !== null;
   const hasUi = plugin.manifest.ui !== null;
@@ -110,12 +78,12 @@ export function PluginViewport({
             </div>
             <p className="text-[13px] text-nx-text-secondary mb-4">
               {plugin.status === "error"
-                ? "Plugin encountered an error"
-                : "Plugin is stopped"}
+                ? t("viewport.pluginError")
+                : t("viewport.pluginStopped")}
             </p>
             <Button onClick={onStart}>
               <Play size={14} strokeWidth={1.5} />
-              Start Plugin
+              {t("viewport.startPlugin")}
             </Button>
           </div>
         ) : null}
@@ -130,6 +98,7 @@ export function PluginViewport({
 }
 
 function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPlugin; disabled: boolean; onStart: () => void; onOpenChange?: (open: boolean) => void }) {
+  const { t } = useTranslation("plugins");
   const { setBusy, removePlugin, addNotification, setShowLogs } = useAppStore();
   const isRunning = plugin.status === "running";
   const isLocal = !!plugin.local_manifest_path;
@@ -141,11 +110,11 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
     setBusy(id, "starting");
     try {
       await api.pluginStart(id);
-      addNotification("Plugin started", "success");
+      addNotification(t("common:notification.pluginStarted"), "success");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Start failed: ${e}`, "error");
+      addNotification(t("common:error.startFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -155,11 +124,11 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
     setBusy(id, "stopping");
     try {
       await api.pluginStop(id);
-      addNotification("Plugin stopped", "info");
+      addNotification(t("common:notification.pluginStopped"), "info");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Stop failed: ${e}`, "error");
+      addNotification(t("common:error.stopFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -171,11 +140,11 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
       await api.pluginStop(id);
       setBusy(id, "starting");
       await api.pluginStart(id);
-      addNotification("Plugin restarted", "success");
+      addNotification(t("common:notification.pluginStarted"), "success");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Restart failed: ${e}`, "error");
+      addNotification(t("common:error.startFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -187,9 +156,9 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
     try {
       await api.pluginRemove(id);
       removePlugin(id);
-      addNotification("Plugin removed", "info");
+      addNotification(t("common:notification.pluginRemoved"), "info");
     } catch (e) {
-      addNotification(`Remove failed: ${e}`, "error");
+      addNotification(t("common:error.removeFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -199,11 +168,11 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
     setBusy(id, "rebuilding");
     try {
       await api.pluginRebuild(id);
-      addNotification("Plugin rebuilt", "success");
+      addNotification(t("common:notification.pluginRebuilt"), "success");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Rebuild failed: ${e}`, "error");
+      addNotification(t("common:error.rebuildFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -213,11 +182,11 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
     const next = !plugin.dev_mode;
     try {
       await api.pluginDevModeToggle(id, next);
-      addNotification(next ? "Dev mode enabled" : "Dev mode disabled", "info");
+      addNotification(next ? t("common:notification.devModeEnabled") : t("common:notification.devModeDisabled"), "info");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Dev mode toggle failed: ${e}`, "error");
+      addNotification(t("common:error.devModeToggleFailed", { error: e }), "error");
     }
   }
 
@@ -236,24 +205,24 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
           </MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={() => setAboutDialogOpen(true)}>
-              About {m.name}
+              {t("menu.about", { name: m.name })}
             </MenubarItem>
             <MenubarSeparator />
             {isRunning ? (
               <>
                 <MenubarItem onClick={handleRestart} disabled={disabled}>
                   <Play size={14} strokeWidth={1.5} className="text-nx-success" />
-                  Restart
+                  {t("common:action.restart")}
                 </MenubarItem>
                 <MenubarItem onClick={handleStop} disabled={disabled}>
                   <Square size={14} strokeWidth={1.5} className="text-nx-warning" />
-                  Stop
+                  {t("common:action.stop")}
                 </MenubarItem>
               </>
             ) : (
               <MenubarItem onClick={handleStart} disabled={disabled}>
                 <Play size={14} strokeWidth={1.5} className="text-nx-success" />
-                Start
+                {t("common:action.start")}
               </MenubarItem>
             )}
             <MenubarSeparator />
@@ -263,19 +232,19 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
               disabled={disabled}
             >
               <Trash2 size={14} strokeWidth={1.5} />
-              Remove {m.name}...
+              {t("menu.remove", { name: m.name })}
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
           <MenubarTrigger className="text-nx-text-secondary">
-            View
+            {t("menu.view")}
           </MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={() => setShowLogs(id)}>
               <ScrollText size={14} strokeWidth={1.5} />
-              Logs
+              {t("menu.logs")}
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
@@ -283,12 +252,12 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
         {isLocal && (
           <MenubarMenu>
             <MenubarTrigger className="text-nx-text-secondary">
-              Dev
+              {t("menu.dev")}
             </MenubarTrigger>
             <MenubarContent>
               <MenubarItem onClick={handleRebuild} disabled={disabled}>
                 <Hammer size={14} strokeWidth={1.5} className="text-nx-accent" />
-                Rebuild
+                {t("menu.rebuild")}
               </MenubarItem>
               <MenubarSeparator />
               <MenubarCheckboxItem
@@ -297,7 +266,7 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
                 disabled={disabled}
               >
                 <Wrench size={14} strokeWidth={1.5} />
-                Auto-rebuild on changes
+                {t("menu.autoRebuild")}
               </MenubarCheckboxItem>
             </MenubarContent>
           </MenubarMenu>
@@ -320,23 +289,23 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
               <div className="space-y-3">
                 <p>{m.description}</p>
                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-left text-[11px]">
-                  <span className="text-nx-text-ghost">Version</span>
+                  <span className="text-nx-text-ghost">{t("about.version")}</span>
                   <span className="font-mono text-nx-text-secondary">{m.version}</span>
-                  <span className="text-nx-text-ghost">Author</span>
+                  <span className="text-nx-text-ghost">{t("about.author")}</span>
                   <span className="text-nx-text-secondary">{m.author}</span>
-                  <span className="text-nx-text-ghost">ID</span>
+                  <span className="text-nx-text-ghost">{t("about.id")}</span>
                   <span className="font-mono text-nx-text-secondary">{m.id}</span>
                   {m.license && (
                     <>
-                      <span className="text-nx-text-ghost">License</span>
+                      <span className="text-nx-text-ghost">{t("about.license")}</span>
                       <span className="text-nx-text-secondary">{m.license}</span>
                     </>
                   )}
-                  <span className="text-nx-text-ghost">Type</span>
-                  <span className="text-nx-text-secondary">{m.ui ? "UI Plugin" : "Headless Service"}</span>
+                  <span className="text-nx-text-ghost">{t("about.type")}</span>
+                  <span className="text-nx-text-secondary">{m.ui ? t("about.uiPlugin") : t("about.headlessService")}</span>
                   {m.mcp && (
                     <>
-                      <span className="text-nx-text-ghost">MCP Tools</span>
+                      <span className="text-nx-text-ghost">{t("viewport.mcpTools")}</span>
                       <span className="text-nx-text-secondary">{m.mcp.tools?.length ?? 0}</span>
                     </>
                   )}
@@ -353,11 +322,10 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <TriangleAlert size={18} className="text-nx-warning" />
-              Remove {m.name}?
+              {t("common:confirm.removePlugin", { name: m.name })}
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-relaxed pt-1">
-              This will permanently delete all plugin data, including stored files and settings.
-              This action cannot be undone.
+              {t("common:confirm.removePluginDesc")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-2">
@@ -366,7 +334,7 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
               size="sm"
               onClick={() => setRemoveDialogOpen(false)}
             >
-              Cancel
+              {t("common:action.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -374,7 +342,7 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
               onClick={handleRemove}
               className="bg-nx-error text-white hover:bg-nx-error/80"
             >
-              Remove & Delete Data
+              {t("common:confirm.removeAndDeleteData")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -443,6 +411,8 @@ function McpToolDetailSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation("plugins");
+
   if (!tool) return null;
 
   const properties = (tool.input_schema?.properties ?? {}) as Record<string, { type?: string; description?: string }>;
@@ -473,7 +443,7 @@ function McpToolDetailSheet({
           {params.length > 0 && (
             <div>
               <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
-                Parameters
+                {t("viewport.parameters")}
               </p>
               <div className="space-y-2">
                 {params.map(([name, meta]) => (
@@ -492,7 +462,7 @@ function McpToolDetailSheet({
                       )}
                       {required.includes(name) && (
                         <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-nx-accent-muted text-nx-accent">
-                          required
+                          {t("viewport.required")}
                         </span>
                       )}
                     </div>
@@ -508,13 +478,13 @@ function McpToolDetailSheet({
           )}
 
           {tool.input_schema && Object.keys(tool.input_schema).length > 0 && (
-            <SchemaBlock label="Input Schema" schema={tool.input_schema} />
+            <SchemaBlock label={t("viewport.inputSchema")} schema={tool.input_schema} />
           )}
 
           {tool.permissions.length > 0 && (
             <div>
               <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-1.5">
-                Required Permissions
+                {t("viewport.requiredPermissions")}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {tool.permissions.map((p) => (
@@ -535,6 +505,7 @@ function McpToolDetailSheet({
 }
 
 function HeadlessPluginStatus({ plugin }: { plugin: InstalledPlugin }) {
+  const { t } = useTranslation("plugins");
   const mcpTools = plugin.manifest.mcp?.tools ?? [];
   const [detailTool, setDetailTool] = useState<McpToolDef | null>(null);
 
@@ -545,18 +516,16 @@ function HeadlessPluginStatus({ plugin }: { plugin: InstalledPlugin }) {
           <Terminal size={24} strokeWidth={1.5} className="text-nx-accent" />
         </div>
         <p className="text-[14px] font-semibold text-nx-text mb-1">
-          Headless Service Running
+          {t("viewport.headlessRunning")}
         </p>
         <p className="text-[12px] text-nx-text-muted max-w-md">
-          This plugin runs without a UI. It provides {mcpTools.length}{" "}
-          {mcpTools.length === 1 ? "tool" : "tools"} to AI assistants via the
-          Model Context Protocol.
+          {t("viewport.headlessDesc", { count: mcpTools.length })}
         </p>
       </div>
       {mcpTools.length > 0 && (
         <div>
           <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-3">
-            MCP Tools
+            {t("viewport.mcpTools")}
           </p>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
             {mcpTools.map((tool) => (
@@ -576,6 +545,42 @@ function HeadlessPluginStatus({ plugin }: { plugin: InstalledPlugin }) {
 }
 
 function BusyOverlay({ action, pluginName }: { action: PluginAction; pluginName: string }) {
+  const { t } = useTranslation("plugins");
+
+  const overlayConfig: Record<
+    PluginAction,
+    { icon: typeof Trash2; label: string; sub: string; color: string; bg: string }
+  > = {
+    removing: {
+      icon: Trash2,
+      label: t("overlay.removing"),
+      sub: t("overlay.removingSub"),
+      color: "text-nx-error",
+      bg: "bg-nx-error-muted",
+    },
+    stopping: {
+      icon: Square,
+      label: t("overlay.stopping"),
+      sub: t("overlay.stoppingSub"),
+      color: "text-nx-warning",
+      bg: "bg-nx-warning-muted",
+    },
+    starting: {
+      icon: Play,
+      label: t("overlay.starting"),
+      sub: t("overlay.startingSub"),
+      color: "text-nx-success",
+      bg: "bg-nx-success-muted",
+    },
+    rebuilding: {
+      icon: Hammer,
+      label: t("overlay.rebuilding"),
+      sub: t("overlay.rebuildingSub"),
+      color: "text-nx-accent",
+      bg: "bg-nx-accent-muted",
+    },
+  };
+
   const config = overlayConfig[action];
   const Icon = config.icon;
 

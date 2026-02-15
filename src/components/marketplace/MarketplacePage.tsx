@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useMarketplace } from "../../hooks/useMarketplace";
 import { usePlugins } from "../../hooks/usePlugins";
@@ -13,6 +14,7 @@ import { McpWrapWizard } from "./McpWrapWizard";
 import { Button } from "@/components/ui/button";
 
 export function MarketplacePage() {
+  const { t } = useTranslation("plugins");
   const { plugins, isLoading, refresh, search } = useMarketplace();
   const { previewLocal, installLocal } = usePlugins();
   const { installedPlugins, selectRegistryEntry, setView } = useAppStore();
@@ -65,9 +67,9 @@ export function MarketplacePage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-[18px] font-bold text-nx-text">Add Plugins</h2>
+          <h2 className="text-[18px] font-bold text-nx-text">{t("marketplace.title")}</h2>
           <p className="text-[13px] text-nx-text-secondary">
-            Browse the marketplace or install from a local manifest
+            {t("marketplace.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -76,7 +78,7 @@ export function MarketplacePage() {
             onClick={() => setShowMcpWizard(true)}
           >
             <Wand2 size={12} strokeWidth={1.5} />
-            Wrap MCP Server
+            {t("marketplace.wrapMcp")}
           </Button>
           <Button
             variant="secondary"
@@ -85,7 +87,7 @@ export function MarketplacePage() {
             disabled={installing}
           >
             <FolderOpen size={12} strokeWidth={1.5} />
-            {installing ? "Installing..." : "Install Local"}
+            {installing ? t("common:action.installing") : t("marketplace.installLocal")}
           </Button>
           <Button
             variant="secondary"
@@ -94,7 +96,7 @@ export function MarketplacePage() {
             disabled={isLoading}
           >
             <RefreshCw size={12} strokeWidth={1.5} className={isLoading ? "animate-spin" : ""} />
-            {isLoading ? "Refreshing..." : "Refresh"}
+            {isLoading ? t("common:action.refreshing") : t("common:action.refresh")}
           </Button>
         </div>
       </div>
@@ -110,11 +112,13 @@ export function MarketplacePage() {
           </div>
           <p className="text-nx-text-secondary text-[13px] mb-1">
             {isLoading
-              ? "Loading plugins..."
-              : "No marketplace plugins available yet."}
+              ? t("marketplace.loadingPlugins")
+              : t("marketplace.noPluginsAvailable")}
           </p>
           <p className="text-nx-text-muted text-[11px] mb-4">
-            You can install a plugin from a local <code className="bg-nx-deep text-nx-text-secondary px-1.5 py-0.5 rounded-[var(--radius-tag)] font-mono">plugin.json</code> manifest.
+            {t("marketplace.localManifestHint", {
+              interpolation: { escapeValue: false },
+            })}
           </p>
           <Button
             onClick={handleLocalInstall}
@@ -122,7 +126,7 @@ export function MarketplacePage() {
             className="mx-auto"
           >
             <FolderOpen size={14} strokeWidth={1.5} />
-            {installing ? "Installing..." : "Install Local Plugin"}
+            {installing ? t("common:action.installing") : t("marketplace.installLocalPlugin")}
           </Button>
         </div>
       ) : (

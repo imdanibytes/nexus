@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 import {
   checkUpdates,
   marketplaceRefresh,
@@ -34,14 +36,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const CHECK_INTERVALS: { value: number; label: string }[] = [
-  { value: 30, label: "Every 30 min" },
-  { value: 60, label: "Hourly" },
-  { value: 360, label: "Every 6 hours" },
-  { value: 1440, label: "Daily" },
-  { value: 10080, label: "Weekly" },
-  { value: 0, label: "Manual only" },
-];
+function useCheckIntervalOptions() {
+  const { t } = useTranslation("settings");
+  return [
+    { value: 30, label: t("updates.every30min") },
+    { value: 60, label: t("updates.hourly") },
+    { value: 360, label: t("updates.every6hours") },
+    { value: 1440, label: t("updates.daily") },
+    { value: 10080, label: t("updates.weekly") },
+    { value: 0, label: t("updates.manualOnly") },
+  ];
+}
 
 const SECURITY_BADGE_STYLES: Record<
   string,
@@ -78,16 +83,19 @@ function SecurityBadges({ security }: { security: UpdateSecurity[] }) {
 }
 
 function RegistryBadge({ source }: { source: string }) {
+  const { t } = useTranslation("settings");
   const isOfficial =
     source.toLowerCase() === "official" || source.toLowerCase() === "nexus";
   return (
     <Badge variant={isOfficial ? "secondary" : "warning"}>
-      {isOfficial ? "Official" : "Community"}
+      {isOfficial ? t("common:status.official") : t("common:status.community")}
     </Badge>
   );
 }
 
 export function UpdatesTab() {
+  const { t } = useTranslation("settings");
+  const CHECK_INTERVALS = useCheckIntervalOptions();
   const { availableUpdates, setAvailableUpdates, addNotification } =
     useAppStore();
   const { refresh: refreshPlugins } = usePlugins();
@@ -129,10 +137,10 @@ export function UpdatesTab() {
       setAvailableUpdates(updates);
       await loadLastChecked();
       if (updates.length === 0) {
-        addNotification("Everything is up to date", "success");
+        addNotification(i18n.t("common:notification.allUpToDate"), "success");
       }
     } catch (e) {
-      addNotification(`Update check failed: ${e}`, "error");
+      addNotification(i18n.t("common:error.updateCheckFailed", { error: e }), "error");
     } finally {
       setChecking(false);
     }
@@ -145,7 +153,7 @@ export function UpdatesTab() {
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
     } catch (e) {
-      addNotification(`Failed to dismiss: ${e}`, "error");
+      addNotification(i18n.t("common:error.dismissFailed", { error: e }), "error");
     }
   }
 
@@ -158,7 +166,7 @@ export function UpdatesTab() {
         await updateExtension(update.manifest_url);
       }
       addNotification(
-        `${update.item_name} updated to ${update.available_version}`,
+        i18n.t("common:notification.updatedTo", { name: update.item_name, version: update.available_version }),
         "success"
       );
       await refreshPlugins();
@@ -166,7 +174,7 @@ export function UpdatesTab() {
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
     } catch (e) {
-      addNotification(`Update failed: ${e}`, "error");
+      addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
     } finally {
       setUpdatingId(null);
     }
@@ -178,7 +186,7 @@ export function UpdatesTab() {
     try {
       await updateExtensionForceKey(update.manifest_url);
       addNotification(
-        `${update.item_name} updated to ${update.available_version} (key change accepted)`,
+        i18n.t("common:notification.updatedToKeyChange", { name: update.item_name, version: update.available_version }),
         "success"
       );
       await refreshPlugins();
@@ -186,7 +194,7 @@ export function UpdatesTab() {
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
     } catch (e) {
-      addNotification(`Update failed: ${e}`, "error");
+      addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
     } finally {
       setUpdatingId(null);
     }
@@ -194,7 +202,7 @@ export function UpdatesTab() {
 
   const formattedTime = lastChecked
     ? new Date(lastChecked).toLocaleString()
-    : "Never";
+    : t("updates.never");
 
   return (
     <div className="space-y-6">
@@ -209,16 +217,15 @@ export function UpdatesTab() {
                 className="text-nx-text-muted"
               />
               <h3 className="text-[14px] font-semibold text-nx-text">
-                Available Updates
+                {t("updates.availableUpdates")}
               </h3>
             </div>
             <p className="text-[11px] text-nx-text-ghost">
-              Last checked: {formattedTime}
+              {t("updates.lastChecked", { time: formattedTime })}
             </p>
             <div className="mt-3 flex items-center gap-2">
               <span className="text-[11px] text-nx-text-muted font-medium">
-                {availableUpdates.length} update
-                {availableUpdates.length !== 1 ? "s" : ""} available
+                {t("updates.updatesCount", { count: availableUpdates.length })}
               </span>
             </div>
           </div>
@@ -233,7 +240,7 @@ export function UpdatesTab() {
             ) : (
               <RefreshCw size={12} strokeWidth={1.5} />
             )}
-            {checking ? "Checking..." : "Check Now"}
+            {checking ? t("common:action.checking") : t("updates.checkNow")}
           </Button>
         </div>
       </section>
@@ -245,10 +252,10 @@ export function UpdatesTab() {
             <Clock size={15} strokeWidth={1.5} className="text-nx-text-muted" />
             <div>
               <h3 className="text-[13px] font-semibold text-nx-text">
-                Auto-Check Frequency
+                {t("updates.autoCheckFrequency")}
               </h3>
               <p className="text-[11px] text-nx-text-ghost">
-                How often Nexus checks for plugin and extension updates
+                {t("updates.autoCheckDesc")}
               </p>
             </div>
           </div>
@@ -273,7 +280,7 @@ export function UpdatesTab() {
           <div className="flex items-center gap-2">
             <Check size={14} strokeWidth={1.5} className="text-nx-success" />
             <p className="text-[12px] text-nx-text-ghost">
-              Everything is up to date.
+              {t("updates.allUpToDate")}
             </p>
           </div>
         </section>
@@ -318,7 +325,7 @@ export function UpdatesTab() {
                   size="sm"
                 >
                   <X size={12} strokeWidth={1.5} />
-                  Dismiss
+                  {t("common:action.dismiss")}
                 </Button>
                 {hasKeyChange ? (
                   <Button
@@ -329,7 +336,7 @@ export function UpdatesTab() {
                     className="border-nx-error text-nx-error hover:bg-nx-error-muted"
                   >
                     <ShieldX size={12} strokeWidth={1.5} />
-                    Review Key Change
+                    {t("updates.reviewKeyChange")}
                   </Button>
                 ) : (
                   <Button
@@ -346,7 +353,7 @@ export function UpdatesTab() {
                     ) : (
                       <ArrowUpCircle size={12} strokeWidth={1.5} />
                     )}
-                    {isBusy ? "Updating..." : "Update"}
+                    {isBusy ? t("updates.updating") : t("updates.update")}
                   </Button>
                 )}
               </div>

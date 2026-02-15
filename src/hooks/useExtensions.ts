@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
 import * as api from "../lib/tauri";
+import i18n from "../i18n";
 
 const SYNC_INTERVAL_MS = 10_000;
 
@@ -37,7 +38,7 @@ export function useExtensions() {
       const exts = await api.extensionList();
       setExtensions(exts);
     } catch (e) {
-      addNotification(`Failed to load extensions: ${e}`, "error");
+      addNotification(i18n.t("error.loadExtensions", { error: e }), "error");
     }
   }, [setExtensions, addNotification]);
 
@@ -46,10 +47,10 @@ export function useExtensions() {
       setExtensionBusy(extId, "enabling");
       try {
         await api.extensionEnable(extId);
-        addNotification("Extension enabled", "success");
+        addNotification(i18n.t("notification.extensionEnabled"), "success");
         await refresh();
       } catch (e) {
-        addNotification(`Enable failed: ${e}`, "error");
+        addNotification(i18n.t("error.enableFailed", { error: e }), "error");
       } finally {
         setExtensionBusy(extId, null);
       }
@@ -62,10 +63,10 @@ export function useExtensions() {
       setExtensionBusy(extId, "disabling");
       try {
         await api.extensionDisable(extId);
-        addNotification("Extension disabled", "info");
+        addNotification(i18n.t("notification.extensionDisabled"), "info");
         await refresh();
       } catch (e) {
-        addNotification(`Disable failed: ${e}`, "error");
+        addNotification(i18n.t("error.disableFailed", { error: e }), "error");
       } finally {
         setExtensionBusy(extId, null);
       }
@@ -79,9 +80,9 @@ export function useExtensions() {
       try {
         await api.extensionRemove(extId);
         removeFromStore(extId);
-        addNotification("Extension removed", "info");
+        addNotification(i18n.t("notification.extensionRemoved"), "info");
       } catch (e) {
-        addNotification(`Remove failed: ${e}`, "error");
+        addNotification(i18n.t("error.removeFailed", { error: e }), "error");
       } finally {
         setExtensionBusy(extId, null);
       }

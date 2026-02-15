@@ -1,3 +1,5 @@
+import i18n from "../i18n";
+
 /** Well-known built-in permissions. */
 export type BuiltinPermission =
   | "system:info"
@@ -44,15 +46,21 @@ export interface PermissionMeta {
 
 /** Look up permission metadata. Supports both built-in and ext:* permissions. */
 export function getPermissionInfo(perm: string): PermissionMeta {
-  const builtin = PERMISSION_INFO[perm as BuiltinPermission];
-  if (builtin) return builtin;
+  const risk = PERMISSION_RISK[perm as BuiltinPermission];
+  if (risk) {
+    const key = perm.replace(/:/g, "_");
+    return {
+      description: i18n.t(`permissions:meta.${key}`, { defaultValue: perm }),
+      risk,
+    };
+  }
   // Extension permissions: ext:{ext_id}:{operation}
   if (perm.startsWith("ext:")) {
     const parts = perm.slice(4).split(":");
     const extId = parts[0] || "unknown";
     const op = parts[1] || "unknown";
     return {
-      description: `Extension ${extId}: ${op.replace(/_/g, " ")}`,
+      description: i18n.t("permissions:meta.extensionPerm", { extId, operation: op.replace(/_/g, " ") }),
       risk: "medium",
     };
   }
@@ -72,40 +80,14 @@ export function allPermissions(manifest: { permissions: string[]; extensions?: R
   return perms;
 }
 
-export const PERMISSION_INFO: Record<
-  string,
-  PermissionMeta
-> = {
-  "system:info": {
-    description: "Read OS info, hostname, uptime",
-    risk: "low",
-  },
-  "filesystem:read": {
-    description: "Read files on approved paths",
-    risk: "medium",
-  },
-  "filesystem:write": {
-    description: "Write files to approved paths",
-    risk: "high",
-  },
-  "process:list": {
-    description: "List running processes",
-    risk: "medium",
-  },
-  "docker:read": {
-    description: "List containers, read stats",
-    risk: "medium",
-  },
-  "docker:manage": {
-    description: "Start/stop/create containers",
-    risk: "high",
-  },
-  "network:local": {
-    description: "HTTP requests to LAN",
-    risk: "medium",
-  },
-  "network:internet": {
-    description: "HTTP requests to internet",
-    risk: "medium",
-  },
+/** Risk levels for built-in permissions. Descriptions come from i18n. */
+const PERMISSION_RISK: Record<string, "low" | "medium" | "high"> = {
+  "system:info": "low",
+  "filesystem:read": "medium",
+  "filesystem:write": "high",
+  "process:list": "medium",
+  "docker:read": "medium",
+  "docker:manage": "high",
+  "network:local": "medium",
+  "network:internet": "medium",
 };

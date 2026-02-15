@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   mcpGetSettings,
   mcpSetEnabled,
@@ -27,6 +28,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 type ConfigTab = "desktop" | "code";
 
 function CopyButton({ text }: { text: string }) {
+  const { t } = useTranslation("settings");
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -41,7 +43,7 @@ function CopyButton({ text }: { text: string }) {
       size="icon-xs"
       onClick={copy}
       className="absolute top-2 right-2 bg-nx-surface border border-nx-border-subtle hover:bg-nx-wash"
-      title="Copy to clipboard"
+      title={t("common:action.copyToClipboard")}
     >
       {copied ? (
         <Check size={12} strokeWidth={1.5} className="text-nx-success" />
@@ -64,6 +66,7 @@ function CodeBlock({ text }: { text: string }) {
 }
 
 export function McpTab() {
+  const { t } = useTranslation("settings");
   const [settings, setSettings] = useState<McpSettings | null>(null);
   const [tools, setTools] = useState<McpToolStatus[]>([]);
   const [configData, setConfigData] = useState<{
@@ -151,7 +154,7 @@ export function McpTab() {
     return (
       <div className="space-y-6">
         <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-          <p className="text-[12px] text-nx-text-ghost">Loading MCP settings...</p>
+          <p className="text-[12px] text-nx-text-ghost">{t("mcp.loadingSettings")}</p>
         </section>
       </div>
     );
@@ -176,7 +179,7 @@ export function McpTab() {
           <div className="flex items-center gap-2">
             <Cpu size={15} strokeWidth={1.5} className="text-nx-text-muted" />
             <h3 className="text-[14px] font-semibold text-nx-text">
-              MCP Gateway
+              {t("mcp.gateway")}
             </h3>
           </div>
 
@@ -195,13 +198,12 @@ export function McpTab() {
               globalEnabled ? "text-nx-success" : "text-nx-text-ghost"
             }`}
           >
-            {globalEnabled ? "Gateway Active" : "Gateway Disabled"}
+            {globalEnabled ? t("mcp.gatewayActive") : t("mcp.gatewayDisabled")}
           </span>
         </div>
 
         <p className="text-[11px] text-nx-text-ghost">
-          Expose plugin tools to AI assistants like Claude Desktop via the Model
-          Context Protocol.
+          {t("mcp.gatewayDesc")}
         </p>
       </section>
 
@@ -211,22 +213,22 @@ export function McpTab() {
           <div className="flex items-center gap-2 mb-4">
             <Terminal size={15} strokeWidth={1.5} className="text-nx-text-muted" />
             <h3 className="text-[14px] font-semibold text-nx-text">
-              Client Setup
+              {t("mcp.clientSetup")}
             </h3>
           </div>
 
           {/* Client tabs */}
           <Tabs value={configTab} onValueChange={(v) => { setConfigTab(v as ConfigTab); }} className="mb-3">
             <TabsList>
-              <TabsTrigger value="desktop">Claude Desktop</TabsTrigger>
-              <TabsTrigger value="code">Claude Code</TabsTrigger>
+              <TabsTrigger value="desktop">{t("mcp.claudeDesktop")}</TabsTrigger>
+              <TabsTrigger value="code">{t("mcp.claudeCode")}</TabsTrigger>
             </TabsList>
           </Tabs>
 
           {configTab === "desktop" ? (
             <div className="space-y-3">
               <p className="text-[11px] text-nx-text-ghost">
-                Add this to your Claude Desktop config file.
+                {t("mcp.desktopHint")}
               </p>
               <CodeBlock text={desktopSnippet} />
             </div>
@@ -234,11 +236,11 @@ export function McpTab() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] text-nx-text-ghost">
-                  Run this in your terminal to register the MCP server.
+                  {t("mcp.codeHint")}
                 </p>
                 <label className="flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
                   <Switch size="sm" checked={userScope} onCheckedChange={setUserScope} />
-                  <span className="text-[11px] text-nx-text-muted">All projects</span>
+                  <span className="text-[11px] text-nx-text-muted">{t("mcp.allProjects")}</span>
                 </label>
               </div>
               <CodeBlock text={injectScope(configData.claude_code_command)} />
@@ -252,13 +254,13 @@ export function McpTab() {
         <div className="flex items-center gap-2 mb-4">
           <Wrench size={15} strokeWidth={1.5} className="text-nx-text-muted" />
           <h3 className="text-[14px] font-semibold text-nx-text">
-            Tool Registry
+            {t("mcp.toolRegistry")}
           </h3>
         </div>
 
         {Object.keys(pluginGroups).length === 0 ? (
           <p className="text-[11px] text-nx-text-ghost">
-            No MCP tools available.
+            {t("mcp.noTools")}
           </p>
         ) : (
           <div className="space-y-2">
@@ -294,11 +296,11 @@ export function McpTab() {
                           </span>
                           {group.pluginId === "nexus" && (
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 flex-shrink-0">
-                              Built-in
+                              {t("common:status.builtIn")}
                             </Badge>
                           )}
                           <span className="text-[11px] text-nx-text-ghost flex-shrink-0">
-                            {group.tools.length} tool{group.tools.length !== 1 ? "s" : ""}
+                            {t("mcp.toolCount", { count: group.tools.length })}
                           </span>
                           <ChevronDown
                             size={14}
@@ -348,8 +350,8 @@ export function McpTab() {
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     {tool.permissions_granted
-                                      ? "All required permissions granted"
-                                      : `Missing permissions: ${tool.required_permissions.join(", ")}`}
+                                      ? t("mcp.allPermissionsGranted")
+                                      : t("mcp.missingPermissions", { permissions: tool.required_permissions.join(", ") })}
                                   </TooltipContent>
                                 </Tooltip>
                               </div>

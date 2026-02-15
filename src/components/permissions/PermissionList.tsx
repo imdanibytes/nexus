@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { usePermissions } from "../../hooks/usePermissions";
 import { getPermissionInfo } from "../../types/permissions";
 import type { Permission, GrantedPermission } from "../../types/permissions";
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function PermissionList({ pluginId }: Props) {
+  const { t } = useTranslation("permissions");
   const { grants, loadGrants, revoke, unrevoke, removePath } = usePermissions();
   const [expandedPerms, setExpandedPerms] = useState<Set<string>>(new Set());
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function PermissionList({ pluginId }: Props) {
 
   if (grants.length === 0) {
     return (
-      <p className="text-[11px] text-nx-text-ghost">No permissions granted</p>
+      <p className="text-[11px] text-nx-text-ghost">{t("list.noPermissions")}</p>
     );
   }
 
@@ -72,7 +74,7 @@ export function PermissionList({ pluginId }: Props) {
             <div className="flex items-center gap-2 pt-2 pb-0.5">
               <div className="flex-1 h-px bg-nx-border-subtle" />
               <span className="text-[10px] text-nx-warning font-medium uppercase tracking-wide">
-                Deferred
+                {t("list.deferred")}
               </span>
               <div className="flex-1 h-px bg-nx-border-subtle" />
             </div>
@@ -94,14 +96,14 @@ export function PermissionList({ pluginId }: Props) {
                       </p>
                       <span className="flex items-center gap-1 text-[10px] text-nx-warning font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-warning-muted flex-shrink-0">
                         <Clock size={10} strokeWidth={1.5} />
-                        DEFERRED
+                        {t("common:status.deferred")}
                       </span>
                     </div>
                     <p className="text-[11px] text-nx-text-muted mt-0.5">
-                      {info?.description ?? "Unknown permission"}
+                      {info?.description ?? t("permissions:meta.unknown")}
                     </p>
                     <p className="text-[10px] text-nx-text-ghost mt-0.5">
-                      Will prompt for approval on first use
+                      {t("list.willPrompt")}
                     </p>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 ml-2">
@@ -109,17 +111,17 @@ export function PermissionList({ pluginId }: Props) {
                       size="xs"
                       onClick={() => unrevoke(pluginId, [grant.permission as Permission])}
                       className="bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20"
-                      title="Activate this permission now"
+                      title={t("list.activateTooltip")}
                     >
                       <ShieldCheck size={11} strokeWidth={1.5} />
-                      Activate
+                      {t("list.activate")}
                     </Button>
                     <Button
                       variant="destructive"
                       size="xs"
                       onClick={() => revoke(pluginId, [grant.permission as Permission])}
                     >
-                      Revoke
+                      {t("list.revoke")}
                     </Button>
                   </div>
                 </div>
@@ -136,7 +138,7 @@ export function PermissionList({ pluginId }: Props) {
             <div className="flex items-center gap-2 pt-2 pb-0.5">
               <div className="flex-1 h-px bg-nx-border-subtle" />
               <span className="text-[10px] text-nx-text-ghost font-medium uppercase tracking-wide">
-                Revoked
+                {t("list.revoked")}
               </span>
               <div className="flex-1 h-px bg-nx-border-subtle" />
             </div>
@@ -158,16 +160,16 @@ export function PermissionList({ pluginId }: Props) {
                         {grant.permission}
                       </p>
                       <span className="text-[10px] text-nx-error font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-error-muted flex-shrink-0">
-                        REVOKED
+                        {t("common:status.revoked")}
                       </span>
                       {scopeCount > 0 && (
                         <span className="text-[10px] text-nx-text-ghost font-mono flex-shrink-0">
-                          {scopeCount} saved scope{scopeCount !== 1 ? "s" : ""}
+                          {t("list.savedScopes", { count: scopeCount })}
                         </span>
                       )}
                     </div>
                     <p className="text-[11px] text-nx-text-ghost mt-0.5">
-                      {info?.description ?? "Unknown permission"}
+                      {info?.description ?? t("permissions:meta.unknown")}
                     </p>
                   </div>
                   <Button
@@ -176,7 +178,7 @@ export function PermissionList({ pluginId }: Props) {
                     className="bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20 flex-shrink-0 ml-2"
                   >
                     <RotateCcw size={11} strokeWidth={1.5} />
-                    Restore
+                    {t("list.restore")}
                   </Button>
                 </div>
               </div>
@@ -190,7 +192,7 @@ export function PermissionList({ pluginId }: Props) {
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[14px]">
-              Restore Permission
+              {t("list.restorePermission")}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
@@ -198,13 +200,13 @@ export function PermissionList({ pluginId }: Props) {
                   Restore <span className="font-mono font-medium text-nx-text">{confirmRestore}</span> for this plugin?
                 </p>
                 <p className="text-[11px] text-nx-text-ghost">
-                  Previously approved scopes will be preserved. The plugin will regain access immediately.
+                  {t("list.restoreDetail")}
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:action.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 unrevoke(pluginId, [confirmRestore as Permission]);
@@ -212,7 +214,7 @@ export function PermissionList({ pluginId }: Props) {
               }}
               className="bg-nx-accent-muted border border-nx-accent/30 text-nx-text hover:bg-nx-accent/20"
             >
-              Restore
+              {t("list.restore")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -239,6 +241,7 @@ function ActivePermissionRow({
   onRevoke: (pluginId: string, permissions: Permission[]) => void;
   onRemovePath: (pluginId: string, permission: Permission, path: string) => void;
 }) {
+  const { t } = useTranslation("permissions");
   const info = getPermissionInfo(grant.permission);
   const isFs = fsPermissions.includes(grant.permission);
   const hasPaths =
@@ -273,18 +276,18 @@ function ActivePermissionRow({
               {hasPaths && (
                 <span className="text-[10px] text-nx-text-ghost font-mono flex-shrink-0">
                   {paths.length === 0
-                    ? "no paths approved"
-                    : `${paths.length} path${paths.length !== 1 ? "s" : ""}`}
+                    ? t("list.noPathsApproved")
+                    : t("list.pathCount", { count: paths.length })}
                 </span>
               )}
               {isFs && grant.approved_scopes === null && (
                 <span className="text-[10px] text-nx-warning font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-warning-muted flex-shrink-0">
-                  UNRESTRICTED
+                  {t("common:status.unrestricted")}
                 </span>
               )}
             </div>
             <p className="text-[11px] text-nx-text-muted mt-0.5">
-              {info?.description ?? "Unknown permission"}
+              {info?.description ?? t("permissions:meta.unknown")}
             </p>
           </div>
         </div>
@@ -297,7 +300,7 @@ function ActivePermissionRow({
           }}
           className="flex-shrink-0 ml-2"
         >
-          Revoke
+          {t("list.revoke")}
         </Button>
       </div>
 
@@ -306,8 +309,7 @@ function ActivePermissionRow({
         <div className="px-2.5 pb-2.5 border-t border-nx-border-subtle">
           {paths.length === 0 ? (
             <p className="text-[11px] text-nx-text-ghost pt-2">
-              No directories approved yet. Access will be prompted at
-              runtime.
+              {t("list.noDirectoriesApproved")}
             </p>
           ) : (
             <div className="pt-2 space-y-1">
@@ -336,7 +338,7 @@ function ActivePermissionRow({
                         p
                       )
                     }
-                    title={`Revoke access to ${p}`}
+                    title={t("list.revokeAccessTo", { path: p })}
                     className="text-nx-text-ghost hover:text-nx-error flex-shrink-0"
                   >
                     <X size={12} strokeWidth={1.5} />

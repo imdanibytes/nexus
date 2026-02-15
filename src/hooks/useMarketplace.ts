@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useAppStore } from "../stores/appStore";
 import * as api from "../lib/tauri";
+import i18n from "../i18n";
 
 export function useMarketplace() {
   const {
@@ -20,7 +21,7 @@ export function useMarketplace() {
       const results = await api.marketplaceSearch("");
       setMarketplace(results);
     } catch (e) {
-      addNotification(`Failed to load marketplace: ${e}`, "error");
+      addNotification(i18n.t("error.loadMarketplace", { error: e }), "error");
     } finally {
       setLoading(false);
     }
@@ -33,7 +34,7 @@ export function useMarketplace() {
         const results = await api.marketplaceSearch(query);
         setMarketplace(results);
       } catch (e) {
-        addNotification(`Search failed: ${e}`, "error");
+        addNotification(i18n.t("error.searchFailed", { error: e }), "error");
       }
     },
     [setMarketplace, setSearchQuery, addNotification]

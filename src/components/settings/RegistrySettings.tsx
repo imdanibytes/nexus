@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { RegistryKind, RegistrySource } from "../../types/plugin";
 import * as api from "../../lib/tauri";
 import { Database, FolderOpen, Globe, Plus, Trash2 } from "lucide-react";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 const PROTECTED_REGISTRIES = new Set(["nexus-community", "nexus-mcp-local"]);
 
 export function RegistrySettings() {
+  const { t } = useTranslation("settings");
   const [registries, setRegistries] = useState<RegistrySource[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -69,9 +71,9 @@ export function RegistrySettings() {
         <div className="flex items-center gap-2">
           <Database size={15} strokeWidth={1.5} className="text-nx-text-muted" />
           <div>
-            <h3 className="text-[14px] font-semibold text-nx-text">Registries</h3>
+            <h3 className="text-[14px] font-semibold text-nx-text">{t("registries.title")}</h3>
             <p className="text-[11px] text-nx-text-ghost mt-0.5">
-              Plugin sources for the marketplace
+              {t("registries.subtitle")}
             </p>
           </div>
         </div>
@@ -81,7 +83,7 @@ export function RegistrySettings() {
           onClick={() => setShowAdd(!showAdd)}
         >
           <Plus size={12} strokeWidth={1.5} />
-          {showAdd ? "Cancel" : "Add Registry"}
+          {showAdd ? t("common:action.cancel") : t("registries.addRegistry")}
         </Button>
       </div>
 
@@ -90,17 +92,17 @@ export function RegistrySettings() {
         <div className="mb-4 p-4 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-3">
           <div>
             <label className="block text-[11px] font-medium text-nx-text-muted mb-1.5">
-              Name
+              {t("registries.name")}
             </label>
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="My Private Registry"
+              placeholder={t("registries.namePlaceholder")}
             />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-nx-text-muted mb-1.5">
-              Type
+              {t("registries.type")}
             </label>
             <div className="flex gap-2">
               <Button
@@ -110,7 +112,7 @@ export function RegistrySettings() {
                 className={newKind === "local" ? "bg-nx-accent text-nx-deep hover:bg-nx-accent-hover" : "text-nx-text-muted hover:text-nx-text-secondary"}
               >
                 <FolderOpen size={12} strokeWidth={1.5} />
-                Local Path
+                {t("registries.localPath")}
               </Button>
               <Button
                 variant="secondary"
@@ -119,28 +121,28 @@ export function RegistrySettings() {
                 className={newKind === "remote" ? "bg-nx-accent text-nx-deep hover:bg-nx-accent-hover" : "text-nx-text-muted hover:text-nx-text-secondary"}
               >
                 <Globe size={12} strokeWidth={1.5} />
-                Remote URL
+                {t("registries.remoteUrl")}
               </Button>
             </div>
           </div>
           <div>
             <label className="block text-[11px] font-medium text-nx-text-muted mb-1.5">
-              {newKind === "local" ? "Directory Path" : "Registry URL"}
+              {newKind === "local" ? t("registries.directoryPath") : t("registries.registryUrl")}
             </label>
             <Input
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
               placeholder={
                 newKind === "local"
-                  ? "/path/to/my-registry"
-                  : "https://example.com/registry/index.json"
+                  ? t("registries.localPathPlaceholder")
+                  : t("registries.remoteUrlPlaceholder")
               }
               className="font-mono"
             />
             <p className="text-[11px] text-nx-text-ghost mt-1.5">
               {newKind === "local"
-                ? "Path to a registry directory with plugins/ and extensions/ YAML files"
-                : "URL to the raw index.json file of the registry"}
+                ? t("registries.localHint")
+                : t("registries.remoteHint")}
             </p>
           </div>
           <Button
@@ -148,7 +150,7 @@ export function RegistrySettings() {
             onClick={handleAdd}
             disabled={adding || !newName.trim() || !newUrl.trim()}
           >
-            {adding ? "Adding..." : "Add Registry"}
+            {adding ? t("registries.adding") : t("registries.addRegistry")}
           </Button>
         </div>
       )}
@@ -156,7 +158,7 @@ export function RegistrySettings() {
       {/* Registry list */}
       <div className="space-y-2">
         {registries.length === 0 ? (
-          <p className="text-[11px] text-nx-text-ghost">No registries configured</p>
+          <p className="text-[11px] text-nx-text-ghost">{t("registries.noRegistries")}</p>
         ) : (
           registries.map((reg) => (
             <div
@@ -177,7 +179,7 @@ export function RegistrySettings() {
                           : "bg-nx-info-muted text-nx-info"
                       }`}
                     >
-                      {reg.kind === "local" ? "LOCAL" : "REMOTE"}
+                      {reg.kind === "local" ? t("registries.local") : t("registries.remote")}
                     </span>
                   </div>
                   <p className="text-[11px] text-nx-text-ghost truncate font-mono mt-0.5">
@@ -191,7 +193,7 @@ export function RegistrySettings() {
                   size="icon-xs"
                   onClick={() => handleRemove(reg.id)}
                   className="text-nx-text-ghost hover:text-nx-error flex-shrink-0 ml-2"
-                  title="Remove registry"
+                  title={t("registries.removeRegistry")}
                 >
                   <Trash2 size={14} strokeWidth={1.5} />
                 </Button>

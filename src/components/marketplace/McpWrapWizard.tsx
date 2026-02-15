@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ClassifiedTool, PluginMetadata } from "../../types/mcp_wrap";
 import type { Permission } from "../../types/permissions";
 import { getPermissionInfo } from "../../types/permissions";
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export function McpWrapWizard({ onClose, onInstalled }: Props) {
+  const { t } = useTranslation("plugins");
   const [step, setStep] = useState<Step>("command");
 
   // Step 1: Command
@@ -78,7 +80,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
         mcpSuggestMetadata(command),
       ]);
       if (classified.length === 0) {
-        setDiscoverError("MCP server reported 0 tools. Nothing to wrap.");
+        setDiscoverError(t("mcpWrap.zeroTools"));
         return;
       }
       setTools(classified);
@@ -118,11 +120,11 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
     }
 
     try {
-      setBuildPhase("Generating plugin...");
+      setBuildPhase(t("mcpWrap.generating"));
       // Small delay so the user sees the phase text
       await new Promise((r) => setTimeout(r, 100));
 
-      setBuildPhase("Building Docker image...");
+      setBuildPhase(t("mcpWrap.buildingDocker"));
       await mcpGenerateAndInstall(
         command,
         selectedTools,
@@ -131,7 +133,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
         deferred
       );
 
-      setBuildPhase("Done!");
+      setBuildPhase(t("mcpWrap.done"));
       setBuildSuccess(true);
     } catch (err) {
       setBuildError(String(err));
@@ -143,11 +145,11 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
   // ── Navigation ────────────────────────────────────────────────
 
   const steps: { id: Step; label: string }[] = [
-    { id: "command", label: "Command" },
-    { id: "tools", label: "Tools" },
-    { id: "details", label: "Details" },
-    { id: "permissions", label: "Permissions" },
-    { id: "build", label: "Build" },
+    { id: "command", label: t("mcpWrap.stepCommand") },
+    { id: "tools", label: t("mcpWrap.stepTools") },
+    { id: "details", label: t("mcpWrap.stepDetails") },
+    { id: "permissions", label: t("mcpWrap.stepPermissions") },
+    { id: "build", label: t("mcpWrap.stepBuild") },
   ];
 
   // ── Render ────────────────────────────────────────────────────
@@ -158,7 +160,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
           <DialogTitle className="text-[16px] font-bold">
-            Wrap MCP Server
+            {t("mcpWrap.title")}
           </DialogTitle>
           <DialogClose asChild>
             <Button variant="ghost" size="icon-xs" className="text-nx-text-muted">
@@ -259,16 +261,17 @@ function CommandStep({
   onDiscover: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("plugins");
+
   return (
     <>
       <p className="text-[13px] text-nx-text-secondary mb-4">
-        Enter the command used to start your MCP server. Nexus will discover its
-        tools, infer permissions, and generate a headless plugin.
+        {t("mcpWrap.commandDesc")}
       </p>
 
       <div className="mb-2">
         <label className="block text-[11px] font-medium text-nx-text-muted mb-1.5 uppercase tracking-wider">
-          MCP Server Command
+          {t("mcpWrap.mcpServerCommand")}
         </label>
         <div className="relative">
           <Terminal
@@ -282,7 +285,7 @@ function CommandStep({
             onKeyDown={(e) => {
               if (e.key === "Enter" && command.trim()) onDiscover();
             }}
-            placeholder="npx -y @org/server-name"
+            placeholder={t("mcpWrap.commandPlaceholder")}
             className="pl-9 font-mono"
             autoFocus
           />
@@ -290,8 +293,9 @@ function CommandStep({
       </div>
 
       <p className="text-[11px] text-nx-text-ghost mb-4">
-        Supported runtimes: <code className="text-nx-text-muted">npx</code>,{" "}
-        <code className="text-nx-text-muted">node</code>
+        {t("mcpWrap.supportedRuntimes", {
+          interpolation: { escapeValue: false },
+        })}
       </p>
 
       {error && (
@@ -302,7 +306,7 @@ function CommandStep({
 
       <div className="flex gap-3 justify-end">
         <Button variant="secondary" onClick={onClose}>
-          Cancel
+          {t("common:action.cancel")}
         </Button>
         <Button
           onClick={onDiscover}
@@ -311,11 +315,11 @@ function CommandStep({
           {discovering ? (
             <>
               <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
-              Discovering...
+              {t("mcpWrap.discovering")}
             </>
           ) : (
             <>
-              Discover Tools
+              {t("mcpWrap.discoverTools")}
               <ArrowRight size={14} strokeWidth={1.5} />
             </>
           )}
@@ -338,6 +342,8 @@ function ToolsStep({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const { t } = useTranslation("plugins");
+
   function toggleTool(name: string) {
     const next = new Set(includedTools);
     if (next.has(name)) next.delete(name);
@@ -348,8 +354,7 @@ function ToolsStep({
   return (
     <>
       <p className="text-[13px] text-nx-text-secondary mb-4">
-        Discovered <span className="font-semibold text-nx-text">{tools.length}</span> tool{tools.length !== 1 ? "s" : ""}.
-        Toggle tools to include or exclude them from the plugin.
+        {t("mcpWrap.toolsDiscovered", { count: tools.length })}
       </p>
 
       <div className="space-y-2 mb-5 max-h-64 overflow-y-auto">
@@ -425,13 +430,13 @@ function ToolsStep({
       <div className="flex justify-between">
         <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
-          Back
+          {t("common:action.back")}
         </Button>
         <Button
           onClick={onNext}
           disabled={includedTools.size === 0}
         >
-          Continue
+          {t("common:action.continue")}
           <ArrowRight size={14} strokeWidth={1.5} />
         </Button>
       </div>
@@ -450,54 +455,54 @@ function DetailsStep({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const { t } = useTranslation("plugins");
   const idValid = /^[a-z0-9][a-z0-9.-]*$/.test(metadata.id);
 
   return (
     <>
       <p className="text-[13px] text-nx-text-secondary mb-4">
-        Review and edit the plugin metadata. These are auto-filled from the
-        server command.
+        {t("mcpWrap.reviewMetadata")}
       </p>
 
       <div className="space-y-3 mb-5">
         <FieldInput
-          label="Plugin ID"
+          label={t("mcpWrap.pluginId")}
           value={metadata.id}
           onChange={(v) => setMetadata({ ...metadata, id: v })}
           mono
-          placeholder="mcp.my-server"
-          error={metadata.id && !idValid ? "Lowercase, dots, and dashes only" : undefined}
+          placeholder={t("mcpWrap.pluginIdPlaceholder")}
+          error={metadata.id && !idValid ? t("mcpWrap.idValidation") : undefined}
         />
         <FieldInput
-          label="Display Name"
+          label={t("mcpWrap.displayName")}
           value={metadata.name}
           onChange={(v) => setMetadata({ ...metadata, name: v })}
-          placeholder="My MCP Server"
+          placeholder={t("mcpWrap.displayNamePlaceholder")}
         />
         <FieldInput
-          label="Description"
+          label={t("mcpWrap.description")}
           value={metadata.description}
           onChange={(v) => setMetadata({ ...metadata, description: v })}
-          placeholder="What this plugin does"
+          placeholder={t("mcpWrap.descriptionPlaceholder")}
         />
         <FieldInput
-          label="Author"
+          label={t("mcpWrap.author")}
           value={metadata.author}
           onChange={(v) => setMetadata({ ...metadata, author: v })}
-          placeholder="Your name"
+          placeholder={t("mcpWrap.authorPlaceholder")}
         />
       </div>
 
       <div className="flex justify-between">
         <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
-          Back
+          {t("common:action.back")}
         </Button>
         <Button
           onClick={onNext}
           disabled={!metadata.id || !metadata.name || !idValid}
         >
-          Continue
+          {t("common:action.continue")}
           <ArrowRight size={14} strokeWidth={1.5} />
         </Button>
       </div>
@@ -516,6 +521,7 @@ function PermissionsStep({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const { t } = useTranslation("plugins");
   const permissions = Object.keys(permToggles);
   const deferredCount = permissions.filter((p) => !permToggles[p]).length;
 
@@ -526,19 +532,18 @@ function PermissionsStep({
   return (
     <>
       <p className="text-[13px] text-nx-text-secondary mb-1">
-        Review the permissions this plugin will request.
+        {t("mcpWrap.reviewPermissions")}
       </p>
       {deferredCount > 0 && (
         <p className="text-[11px] text-nx-warning mb-4">
-          {deferredCount} permission{deferredCount !== 1 ? "s" : ""} deferred —
-          will prompt on first use
+          {t("mcpWrap.deferredCount", { count: deferredCount })}
         </p>
       )}
       {deferredCount === 0 && <div className="mb-4" />}
 
       {permissions.length === 0 ? (
         <p className="text-[12px] text-nx-text-ghost mb-5">
-          No permissions required.
+          {t("mcpWrap.noPermissionsRequired")}
         </p>
       ) : (
         <div className="space-y-2 mb-5 max-h-52 overflow-y-auto">
@@ -583,11 +588,11 @@ function PermissionsStep({
       <div className="flex justify-between">
         <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
-          Back
+          {t("common:action.back")}
         </Button>
         <Button onClick={onNext}>
           <ShieldCheck size={14} strokeWidth={1.5} />
-          Build & Install
+          {t("marketplace.buildAndInstall")}
         </Button>
       </div>
     </>
@@ -609,6 +614,8 @@ function BuildStep({
   onRetry: () => void;
   onDone: () => void;
 }) {
+  const { t } = useTranslation("plugins");
+
   return (
     <div className="text-center py-6">
       {building && (
@@ -620,7 +627,7 @@ function BuildStep({
           />
           <p className="text-[14px] font-medium text-nx-text mb-1">{phase}</p>
           <p className="text-[12px] text-nx-text-muted">
-            This may take a minute for the first build...
+            {t("mcpWrap.firstBuildNote")}
           </p>
         </>
       )}
@@ -631,13 +638,13 @@ function BuildStep({
             <AlertTriangle size={22} strokeWidth={1.5} className="text-nx-error" />
           </div>
           <p className="text-[14px] font-medium text-nx-text mb-2">
-            Build Failed
+            {t("mcpWrap.buildFailed")}
           </p>
           <p className="text-[12px] text-nx-error mb-5 max-w-sm mx-auto break-words">
             {error}
           </p>
           <Button onClick={onRetry}>
-            Try Again
+            {t("mcpWrap.tryAgain")}
           </Button>
         </>
       )}
@@ -648,15 +655,14 @@ function BuildStep({
             <Check size={22} strokeWidth={1.5} className="text-nx-success" />
           </div>
           <p className="text-[14px] font-medium text-nx-text mb-2">
-            Plugin Installed
+            {t("mcpWrap.pluginInstalledTitle")}
           </p>
           <p className="text-[12px] text-nx-text-muted mb-5">
-            Your MCP server has been wrapped and installed as a headless Nexus
-            plugin. Start it from the plugins page.
+            {t("mcpWrap.pluginInstalledDesc")}
           </p>
           <Button onClick={onDone} className="mx-auto">
             <Check size={14} strokeWidth={1.5} />
-            Go to Plugins
+            {t("mcpWrap.goToPlugins")}
           </Button>
         </>
       )}

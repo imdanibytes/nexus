@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useExtensionMarketplace } from "../../hooks/useExtensionMarketplace";
 import { useAppStore } from "../../stores/appStore";
@@ -9,6 +10,7 @@ import { FolderOpen, RefreshCw, Blocks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ExtensionMarketplacePage() {
+  const { t } = useTranslation("plugins");
   const { extensions, isLoading, refresh, search } = useExtensionMarketplace();
   const { selectExtensionEntry, setView, addNotification, setInstallStatus } = useAppStore();
   const [installing, setInstalling] = useState(false);
@@ -20,19 +22,19 @@ export function ExtensionMarketplacePage() {
   async function handleLocalInstall() {
     const manifestPath = await open({
       multiple: false,
-      title: "Select extension manifest.json",
+      title: t("extensions.selectManifest"),
       filters: [{ name: "Extension Manifest", extensions: ["json"] }],
     });
     if (!manifestPath) return;
 
     setInstalling(true);
-    setInstallStatus("Installing extension...");
+    setInstallStatus(t("extensions.installingExtension"));
     try {
       await extensionInstallLocal(manifestPath);
-      addNotification("Extension installed from local manifest", "success");
+      addNotification(t("common:notification.extensionInstalledLocal"), "success");
       setView("settings");
     } catch (e) {
-      addNotification(`Local install failed: ${e}`, "error");
+      addNotification(t("common:error.localInstallFailed", { error: e }), "error");
     } finally {
       setInstalling(false);
       setInstallStatus(null);
@@ -43,9 +45,9 @@ export function ExtensionMarketplacePage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-[18px] font-bold text-nx-text">Add Host Extension</h2>
+          <h2 className="text-[18px] font-bold text-nx-text">{t("extensions.title")}</h2>
           <p className="text-[13px] text-nx-text-secondary">
-            Browse extensions or install from local manifest + binary
+            {t("extensions.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -55,7 +57,7 @@ export function ExtensionMarketplacePage() {
             disabled={installing}
           >
             <FolderOpen size={12} strokeWidth={1.5} />
-            {installing ? "Installing..." : "Install Local"}
+            {installing ? t("common:action.installing") : t("marketplace.installLocal")}
           </Button>
           <Button
             variant="secondary"
@@ -64,7 +66,7 @@ export function ExtensionMarketplacePage() {
             disabled={isLoading}
           >
             <RefreshCw size={12} strokeWidth={1.5} className={isLoading ? "animate-spin" : ""} />
-            {isLoading ? "Refreshing..." : "Refresh"}
+            {isLoading ? t("common:action.refreshing") : t("common:action.refresh")}
           </Button>
         </div>
       </div>
@@ -80,15 +82,13 @@ export function ExtensionMarketplacePage() {
           </div>
           <p className="text-nx-text-secondary text-[13px] mb-1">
             {isLoading
-              ? "Loading extensions..."
-              : "No marketplace extensions available yet."}
+              ? t("extensions.loadingExtensions")
+              : t("extensions.noExtensions")}
           </p>
           <p className="text-nx-text-muted text-[11px] mb-4">
-            You can install an extension from a local{" "}
-            <code className="bg-nx-deep text-nx-text-secondary px-1.5 py-0.5 rounded-[var(--radius-tag)] font-mono">
-              manifest.json
-            </code>{" "}
-            + binary.
+            {t("extensions.localManifestHint", {
+              interpolation: { escapeValue: false },
+            })}
           </p>
           <Button
             onClick={handleLocalInstall}
@@ -96,7 +96,7 @@ export function ExtensionMarketplacePage() {
             className="mx-auto"
           >
             <FolderOpen size={14} strokeWidth={1.5} />
-            {installing ? "Installing..." : "Install Local Extension"}
+            {installing ? t("common:action.installing") : t("extensions.installLocalExtension")}
           </Button>
         </div>
       ) : (

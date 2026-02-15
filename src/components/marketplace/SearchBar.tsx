@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function SearchBar({ onSearch, initialQuery = "" }: Props) {
+  const { t } = useTranslation("plugins");
   const [value, setValue] = useState(initialQuery);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function SearchBar({ onSearch, initialQuery = "" }: Props) {
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search plugins..."
+        placeholder={t("marketplace.searchPlaceholder")}
         className="w-full pl-10 pr-10 py-2.5 bg-nx-wash border border-nx-border-strong rounded-[var(--radius-input)] text-[13px] text-nx-text placeholder:text-nx-text-muted focus:outline-none focus:shadow-[var(--shadow-focus)] transition-shadow duration-150"
       />
       {value && (

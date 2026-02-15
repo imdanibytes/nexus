@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { RefreshCw, Download, RotateCcw, Check, ChevronDown, ChevronUp } from "lucide-react";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -25,6 +26,7 @@ function ReleaseNotes({ markdown }: { markdown: string }) {
 }
 
 export function UpdateCheck() {
+  const { t } = useTranslation("settings");
   const [state, setState] = useState<UpdateState>({ phase: "idle" });
 
   async function handleCheck() {
@@ -97,7 +99,7 @@ export function UpdateCheck() {
             onClick={handleCheck}
           >
             <RefreshCw size={12} strokeWidth={1.5} />
-            Check for Updates
+            {t("updateCheck.checkForUpdates")}
           </Button>
         )}
 
@@ -108,7 +110,7 @@ export function UpdateCheck() {
             disabled
           >
             <RefreshCw size={12} strokeWidth={1.5} className="animate-spin" />
-            Checking...
+            {t("common:action.checking")}
           </Button>
         )}
 
@@ -118,7 +120,7 @@ export function UpdateCheck() {
             onClick={handleDownload}
           >
             <Download size={12} strokeWidth={1.5} />
-            Install v{state.update.version}
+            {t("updateCheck.installVersion", { version: state.update.version })}
           </Button>
         )}
 
@@ -129,7 +131,7 @@ export function UpdateCheck() {
             className="bg-nx-success hover:brightness-110 text-nx-deep"
           >
             <RotateCcw size={12} strokeWidth={1.5} />
-            Restart to Update
+            {t("updateCheck.restartToUpdate")}
           </Button>
         )}
 
@@ -137,7 +139,7 @@ export function UpdateCheck() {
         {state.phase === "up-to-date" && (
           <span className="flex items-center gap-1 text-[11px] text-nx-success">
             <Check size={12} strokeWidth={1.5} />
-            You're on the latest version
+            {t("updateCheck.latestVersion")}
           </span>
         )}
 
@@ -154,10 +156,10 @@ export function UpdateCheck() {
             className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-nx-overlay/50 transition-colors"
           >
             <span className="text-[11px] font-semibold uppercase tracking-wider text-nx-text-muted">
-              What's New
+              {t("updateCheck.whatsNew")}
               {state.phase === "available" && (
                 <span className="ml-2 normal-case tracking-normal font-normal text-nx-text-ghost">
-                  v{state.update.version}
+                  {t("updateCheck.version", { version: state.update.version })}
                 </span>
               )}
             </span>
@@ -185,7 +187,7 @@ export function UpdateCheck() {
             />
           </div>
           <p className="text-[10px] text-nx-text-muted">
-            Downloading... {Math.round(state.progress)}%
+            {t("updateCheck.downloading", { percent: Math.round(state.progress) })}
           </p>
         </div>
       )}

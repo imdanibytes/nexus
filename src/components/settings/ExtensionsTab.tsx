@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useExtensions } from "../../hooks/useExtensions";
 import { useAppStore } from "../../stores/appStore";
 import {
@@ -33,6 +34,7 @@ const RISK_VARIANT: Record<string, "success" | "warning" | "error"> = {
 };
 
 export function ExtensionsTab() {
+  const { t } = useTranslation("settings");
   const { extensions, busyExtensions, enable, disable, remove } = useExtensions();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const { setView, focusExtensionId, setFocusExtensionId } = useAppStore();
@@ -66,19 +68,15 @@ export function ExtensionsTab() {
             <div className="flex items-center gap-2 mb-2">
               <Blocks size={15} strokeWidth={1.5} className="text-nx-text-muted" />
               <h3 className="text-[14px] font-semibold text-nx-text">
-                Host Extensions
+                {t("extensionsTab.hostExtensions")}
               </h3>
             </div>
             <p className="text-[11px] text-nx-text-ghost">
-              Extensions run trusted code on the host and expose typed, validated
-              operations to plugins. Plugins consume extensions through the Host API
-              to perform privileged tasks like credential management and cache
-              control.
+              {t("extensionsTab.extensionsDesc")}
             </p>
             <div className="mt-3 flex items-center gap-2">
               <span className="text-[11px] text-nx-text-muted font-medium">
-                {extensions.length} extension{extensions.length !== 1 ? "s" : ""}{" "}
-                registered
+                {t("extensionsTab.extensionsCount", { count: extensions.length })}
               </span>
             </div>
           </div>
@@ -88,7 +86,7 @@ export function ExtensionsTab() {
             className="flex-shrink-0 ml-4"
           >
             <Plus size={12} strokeWidth={1.5} />
-            Add Extension
+            {t("extensionsTab.addExtension")}
           </Button>
         </div>
       </section>
@@ -97,7 +95,7 @@ export function ExtensionsTab() {
       {extensions.length === 0 ? (
         <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
           <p className="text-[12px] text-nx-text-ghost">
-            No extensions registered.
+            {t("extensionsTab.noExtensions")}
           </p>
         </section>
       ) : (
@@ -129,7 +127,7 @@ export function ExtensionsTab() {
                             variant={ext.enabled ? "success" : "secondary"}
                             className="text-[9px]"
                           >
-                            {ext.enabled ? "Enabled" : "Disabled"}
+                            {ext.enabled ? t("common:status.enabled") : t("common:status.disabled")}
                           </Badge>
                         )}
                       </div>
@@ -138,13 +136,11 @@ export function ExtensionsTab() {
                       </p>
                       <div className="flex items-center gap-3 mt-2">
                         <span className="text-[10px] text-nx-text-muted">
-                          {ext.operations.length} operation
-                          {ext.operations.length !== 1 ? "s" : ""}
+                          {t("extensionsTab.operationCount", { count: ext.operations.length })}
                         </span>
                         {ext.consumers.length > 0 && (
                           <span className="text-[10px] text-nx-text-muted">
-                            {ext.consumers.length} plugin
-                            {ext.consumers.length !== 1 ? "s" : ""}
+                            {t("extensionsTab.pluginCount", { count: ext.consumers.length })}
                           </span>
                         )}
                       </div>
@@ -180,7 +176,7 @@ export function ExtensionsTab() {
                           ) : (
                             <Power size={12} strokeWidth={1.5} />
                           )}
-                          {ext.enabled ? "Disable" : "Enable"}
+                          {ext.enabled ? t("common:action.disable") : t("common:action.enable")}
                         </Button>
                         <Dialog>
                           <DialogTrigger asChild>
@@ -191,21 +187,20 @@ export function ExtensionsTab() {
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Trash2 size={12} strokeWidth={1.5} />
-                              Remove
+                              {t("common:action.remove")}
                             </Button>
                           </DialogTrigger>
                           <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
                             <DialogHeader>
                               <DialogTitle className="flex items-center gap-2 text-base">
-                                Remove {ext.display_name}?
+                                {t("common:confirm.removeExtension", { name: ext.display_name })}
                               </DialogTitle>
                               <DialogDescription className="text-[13px] leading-relaxed pt-1" asChild>
                                 <div>
                                   {ext.consumers.length > 0 ? (
                                     <>
                                       <p>
-                                        The following plugin{ext.consumers.length !== 1 ? "s" : ""} will
-                                        lose access to this extension's operations:
+                                        {t("common:confirm.removeExtensionConsumers", { count: ext.consumers.length })}
                                       </p>
                                       <ul className="mt-2 space-y-1.5">
                                         {ext.consumers.map((c) => (
@@ -226,8 +221,7 @@ export function ExtensionsTab() {
                                     </>
                                   ) : (
                                     <p>
-                                      No plugins currently use this extension.
-                                      You can reinstall it later from the marketplace.
+                                      {t("common:confirm.removeExtensionNoConsumers")}
                                     </p>
                                   )}
                                 </div>
@@ -236,7 +230,7 @@ export function ExtensionsTab() {
                             <DialogFooter className="pt-2">
                               <DialogTrigger asChild>
                                 <Button variant="secondary" size="sm">
-                                  Cancel
+                                  {t("common:action.cancel")}
                                 </Button>
                               </DialogTrigger>
                               <DialogTrigger asChild>
@@ -245,7 +239,7 @@ export function ExtensionsTab() {
                                   size="sm"
                                   onClick={() => remove(ext.id)}
                                 >
-                                  Remove Extension
+                                  {t("common:confirm.removeExtensionAction")}
                                 </Button>
                               </DialogTrigger>
                             </DialogFooter>
@@ -263,7 +257,7 @@ export function ExtensionsTab() {
                           className="text-nx-text-ghost"
                         />
                         <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
-                          Operations
+                          {t("extensionsTab.operations")}
                         </span>
                       </div>
                       <div className="space-y-1">
@@ -304,7 +298,7 @@ export function ExtensionsTab() {
                             className="text-nx-text-ghost"
                           />
                           <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
-                            Capabilities
+                            {t("extensionsTab.capabilities")}
                           </span>
                         </div>
                         <div className="flex gap-1.5 flex-wrap">
@@ -326,12 +320,12 @@ export function ExtensionsTab() {
                           className="text-nx-text-ghost"
                         />
                         <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wide">
-                          Plugin Consumers
+                          {t("extensionsTab.pluginConsumers")}
                         </span>
                       </div>
                       {ext.consumers.length === 0 ? (
                         <p className="text-[11px] text-nx-text-ghost px-3">
-                          No plugins using this extension.
+                          {t("extensionsTab.noConsumers")}
                         </p>
                       ) : (
                         <div className="space-y-1">
@@ -363,8 +357,8 @@ export function ExtensionsTab() {
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   {consumer.granted
-                                    ? "All extension permissions granted"
-                                    : "Some extension permissions missing"}
+                                    ? t("extensionsTab.allPermsGranted")
+                                    : t("extensionsTab.somePermsMissing")}
                                 </TooltipContent>
                               </Tooltip>
                             </div>

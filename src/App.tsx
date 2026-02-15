@@ -16,11 +16,14 @@ import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InstallOverlay } from "./components/InstallOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useTranslation } from "react-i18next";
+import i18n from "./i18n";
 
 const VIEWPORT_TTL_MS = 5 * 60 * 1000; // evict after 5 min inactive
 const EVICTION_CHECK_MS = 30_000;       // check every 30s
 
 function PluginsView() {
+  const { t } = useTranslation("common");
   const { plugins, selectedPluginId, busyPlugins, start } =
     usePlugins();
   const { setView, showLogsPluginId, setShowLogs } = useAppStore();
@@ -72,19 +75,19 @@ function PluginsView() {
             <Package size={36} strokeWidth={1.5} className="text-nx-text-ghost" />
           </div>
           <h3 className="text-[16px] font-semibold text-nx-text-secondary mb-1">
-            {plugins.length === 0 ? "No plugins installed" : "Select a plugin"}
+            {plugins.length === 0 ? t("empty.noPlugins") : t("empty.selectPlugin")}
           </h3>
           <p className="text-[13px] text-nx-text-muted max-w-sm mb-4">
             {plugins.length === 0
-              ? "Get started by adding a plugin from the marketplace or a local manifest."
-              : "Click on a plugin in the sidebar to view it here."}
+              ? t("empty.noPluginsHint")
+              : t("empty.selectPluginHint")}
           </p>
           {plugins.length === 0 && (
             <button
               onClick={() => setView("marketplace")}
               className="px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
             >
-              Add Plugins
+              {t("nav.addPlugins")}
             </button>
           )}
         </div>
@@ -157,12 +160,12 @@ function App() {
       .then((status) => {
         if (!status.installed) {
           addNotification(
-            "Container engine not found. Plugins require a running container engine.",
+            i18n.t("common:notification.engineNotFound"),
             "error"
           );
         } else if (!status.running) {
           addNotification(
-            "Container engine is not running. Start it to use plugins.",
+            i18n.t("common:notification.engineNotRunning"),
             "error"
           );
         }
@@ -174,7 +177,7 @@ function App() {
       .then((update) => {
         if (update) {
           addNotification(
-            `Update available: v${update.version}. Go to Settings to install.`,
+            i18n.t("common:notification.updateAvailable", { version: update.version }),
             "info"
           );
         }

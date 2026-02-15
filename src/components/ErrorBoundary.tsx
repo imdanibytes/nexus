@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import i18n from "../i18n";
 
 interface Props {
   children: ReactNode;
@@ -29,7 +30,8 @@ export class ErrorBoundary extends Component<Props, State> {
       return this.props.children;
     }
 
-    const message = this.state.error.message || "Something went wrong";
+    const t = i18n.t.bind(i18n);
+    const message = this.state.error.message || t("common:status.error");
 
     if (this.props.inline) {
       return (
@@ -48,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex items-center gap-2 mb-2">
           <AlertTriangle size={15} strokeWidth={1.5} className="text-nx-error" />
           <h3 className="text-[13px] font-medium text-nx-error">
-            {this.props.label ? `${this.props.label} — ` : ""}Render Error
+            {this.props.label ? `${this.props.label} — ` : ""}{t("common:status.error")}
           </h3>
         </div>
         <p className="text-[12px] text-nx-text-muted font-mono break-all">
@@ -58,7 +60,7 @@ export class ErrorBoundary extends Component<Props, State> {
           onClick={() => this.setState({ error: null })}
           className="mt-3 px-3 py-1.5 text-[11px] font-medium bg-nx-overlay text-nx-text rounded-[var(--radius-button)] hover:bg-nx-wash transition-colors duration-150"
         >
-          Retry
+          {t("common:action.retry")}
         </button>
       </div>
     );

@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Permission } from "../../types/permissions";
 import type { PluginManifest } from "../../types/plugin";
 import { getPermissionInfo, allPermissions } from "../../types/permissions";
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
+  const { t } = useTranslation("permissions");
   const requestedPermissions = allPermissions(manifest) as Permission[];
   const hasPermissions = requestedPermissions.length > 0;
   const mcpTools = manifest.mcp?.tools ?? [];
@@ -66,13 +68,13 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
 
   // Determine which steps are visible for the step indicator
   const steps: { id: Step; label: string; count?: number }[] = [
-    { id: "info", label: "Plugin Info" },
+    { id: "info", label: t("dialog.pluginInfo") },
   ];
   if (hasPermissions) {
-    steps.push({ id: "permissions", label: "Permissions", count: requestedPermissions.length });
+    steps.push({ id: "permissions", label: t("dialog.permissions"), count: requestedPermissions.length });
   }
   if (hasMcpTools) {
-    steps.push({ id: "mcp_tools", label: "MCP Tools", count: mcpTools.length });
+    steps.push({ id: "mcp_tools", label: t("dialog.mcpTools"), count: mcpTools.length });
   }
 
   return (
@@ -139,6 +141,7 @@ function InfoStep({
   onNext: () => void;
   onDeny: () => void;
 }) {
+  const { t } = useTranslation("permissions");
   return (
     <>
       <div className="flex items-start gap-4 mb-5">
@@ -160,12 +163,12 @@ function InfoStep({
       </p>
 
       <div className="space-y-2 mb-6">
-        <InfoRow label="Author" value={manifest.author} />
-        <InfoRow label="License" value={manifest.license ?? "Not specified"} />
-        <InfoRow label="Image" value={manifest.image} mono />
+        <InfoRow label={t("dialog.author")} value={manifest.author} />
+        <InfoRow label={t("dialog.license")} value={manifest.license ?? t("common:status.notSpecified")} />
+        <InfoRow label={t("dialog.image")} value={manifest.image} mono />
         {manifest.homepage && (
           <div className="flex items-center justify-between py-2 border-b border-nx-border-subtle">
-            <span className="text-[12px] text-nx-text-muted">Homepage</span>
+            <span className="text-[12px] text-nx-text-muted">{t("dialog.homepage")}</span>
             <a
               href={manifest.homepage}
               target="_blank"
@@ -179,27 +182,27 @@ function InfoStep({
         )}
         {/* TODO: Signature verification status */}
         <div className="flex items-center justify-between py-2">
-          <span className="text-[12px] text-nx-text-muted">Verified</span>
+          <span className="text-[12px] text-nx-text-muted">{t("common:status.verified")}</span>
           <span className="text-[11px] px-2 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-ghost font-medium">
-            Unsigned
+            {t("common:status.unsigned")}
           </span>
         </div>
       </div>
 
       <div className="flex gap-3 justify-end">
         <Button variant="secondary" onClick={onDeny}>
-          Cancel
+          {t("common:action.cancel")}
         </Button>
         <Button onClick={onNext}>
           {hasMoreSteps ? (
             <>
-              Continue
+              {t("common:action.continue")}
               <ArrowRight size={14} strokeWidth={1.5} />
             </>
           ) : (
             <>
               <ShieldCheck size={14} strokeWidth={1.5} />
-              Install
+              {t("common:action.install")}
             </>
           )}
         </Button>
@@ -244,6 +247,7 @@ function PermissionsStep({
   onDeny: () => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation("permissions");
   const [hasSeenAll, setHasSeenAll] = useState(false);
   // Per-permission toggle: true = approved (active), false = deferred
   const [toggles, setToggles] = useState<Record<string, boolean>>(() => {
@@ -301,11 +305,11 @@ function PermissionsStep({
         {manifest.name}
       </h3>
       <p className="text-[13px] text-nx-text-secondary mb-1">
-        This plugin requests the following permissions:
+        {t("dialog.requestsPermissions")}
       </p>
       {deferredCount > 0 && (
         <p className="text-[11px] text-nx-warning mb-4">
-          {deferredCount} permission{deferredCount !== 1 ? "s" : ""} deferred — will prompt on first use
+          {t("dialog.deferredCount", { count: deferredCount })}
         </p>
       )}
       {deferredCount === 0 && <div className="mb-4" />}
@@ -339,12 +343,12 @@ function PermissionsStep({
                 {isMissing ? (
                   <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-warning-muted text-nx-warning">
                     <AlertTriangle size={10} strokeWidth={1.5} />
-                    Not installed
+                    {t("dialog.notInstalled")}
                   </span>
                 ) : extensionsLoaded ? (
                   <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-success-muted text-nx-success">
                     <Check size={10} strokeWidth={1.5} />
-                    Installed
+                    {t("common:status.installed")}
                   </span>
                 ) : null}
               </div>
@@ -365,26 +369,26 @@ function PermissionsStep({
       {extensionsLoaded && declaredExtensions.some((e) => !installedExtensions.has(e)) && (
         <div className="mb-4 p-2.5 rounded-[var(--radius-button)] bg-nx-warning-muted/50 border border-nx-warning/20">
           <p className="text-[11px] text-nx-warning leading-relaxed">
-            Some required extensions are not installed. Extension operations will fail until they are installed from the Extensions marketplace.
+            {t("dialog.extensionsMissing")}
           </p>
         </div>
       )}
 
       {!hasSeenAll && (
         <p className="text-[11px] text-nx-text-ghost text-center mb-3">
-          Scroll to review all permissions before continuing
+          {t("dialog.scrollToReview")}
         </p>
       )}
 
       <div className="flex justify-between">
         <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
-          Plugin Info
+          {t("dialog.pluginInfo")}
         </Button>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={onDeny}>
             <ShieldX size={14} strokeWidth={1.5} />
-            Deny
+            {t("common:action.deny")}
           </Button>
           {hasMcpTools ? (
             <Button
@@ -394,7 +398,7 @@ function PermissionsStep({
                 onNext(approved, deferred);
               }}
             >
-              Review MCP Tools
+              {t("dialog.reviewMcpTools")}
               <ArrowRight size={14} strokeWidth={1.5} />
             </Button>
           ) : (
@@ -406,7 +410,7 @@ function PermissionsStep({
               }}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
-              Approve & Install
+              {t("dialog.approveAndInstall")}
             </Button>
           )}
         </div>
@@ -425,6 +429,7 @@ function PermissionToggleRow({
   enabled: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation("permissions");
   const info = getPermissionInfo(perm);
 
   return (
@@ -454,7 +459,7 @@ function PermissionToggleRow({
         checked={enabled}
         onCheckedChange={() => onToggle()}
         className="ml-3"
-        aria-label={enabled ? "Approved — click to defer" : "Deferred — click to approve"}
+        aria-label={enabled ? t("dialog.approvedClickToDefer") : t("dialog.deferredClickToApprove")}
       />
     </div>
   );
@@ -471,6 +476,7 @@ function McpToolsStep({
   onDeny: () => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation("permissions");
   const mcpTools = manifest.mcp?.tools ?? [];
 
   return (
@@ -478,12 +484,11 @@ function McpToolsStep({
       <div className="flex items-center gap-2 mb-1">
         <Cpu size={16} strokeWidth={1.5} className="text-nx-accent" />
         <h3 className="text-[16px] font-bold text-nx-text">
-          MCP Tools
+          {t("dialog.mcpTools")}
         </h3>
       </div>
       <p className="text-[13px] text-nx-text-secondary mb-5">
-        This plugin exposes {mcpTools.length} tool{mcpTools.length !== 1 ? "s" : ""} to
-        AI assistants via the Model Context Protocol:
+        {t("dialog.mcpToolsDesc", { count: mcpTools.length })}
       </p>
 
       <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
@@ -521,22 +526,22 @@ function McpToolsStep({
       </div>
 
       <p className="text-[11px] text-nx-text-ghost mb-5">
-        MCP tools can be individually enabled or disabled after installation in Settings.
+        {t("dialog.mcpToolsCanToggle")}
       </p>
 
       <div className="flex justify-between">
         <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
           <ArrowLeft size={14} strokeWidth={1.5} />
-          Back
+          {t("common:action.back")}
         </Button>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={onDeny}>
             <ShieldX size={14} strokeWidth={1.5} />
-            Deny
+            {t("common:action.deny")}
           </Button>
           <Button onClick={onApprove}>
             <ShieldCheck size={14} strokeWidth={1.5} />
-            Approve & Install
+            {t("dialog.approveAndInstall")}
           </Button>
         </div>
       </div>

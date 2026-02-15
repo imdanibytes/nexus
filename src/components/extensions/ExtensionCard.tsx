@@ -1,12 +1,6 @@
+import { useTranslation } from "react-i18next";
 import type { ExtensionRegistryEntry } from "../../types/extension";
 import { timeAgo } from "../../lib/timeAgo";
-
-const PLATFORM_LABELS: Record<string, string> = {
-  "aarch64-apple-darwin": "macOS ARM",
-  "x86_64-apple-darwin": "macOS Intel",
-  "x86_64-unknown-linux-gnu": "Linux x64",
-  "aarch64-unknown-linux-gnu": "Linux ARM",
-};
 
 interface Props {
   entry: ExtensionRegistryEntry;
@@ -14,6 +8,8 @@ interface Props {
 }
 
 export function ExtensionRegistryCard({ entry, onSelect }: Props) {
+  const { t } = useTranslation("plugins");
+
   return (
     <div
       onClick={onSelect}
@@ -37,13 +33,13 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
                 {entry.author}
               </a>
             ) : (
-              <span className="font-sans ml-1.5">by {entry.author}</span>
+              <span className="font-sans ml-1.5">{t("common:by")} {entry.author}</span>
             )}
           </p>
         </div>
         {entry.status === "deprecated" && (
           <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-warning-muted text-nx-warning flex-shrink-0">
-            Deprecated
+            {t("common:status.deprecated")}
           </span>
         )}
       </div>
@@ -61,7 +57,7 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
             key={platform}
             className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-info-muted text-nx-info font-medium"
           >
-            {PLATFORM_LABELS[platform] ?? platform}
+            {t(`card.platforms.${platform}`, { defaultValue: platform })}
           </span>
         ))}
         {entry.categories.map((cat) => (

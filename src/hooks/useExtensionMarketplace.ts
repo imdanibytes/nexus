@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useAppStore } from "../stores/appStore";
 import { extensionMarketplaceSearch } from "../lib/tauri";
+import i18n from "../i18n";
 
 export function useExtensionMarketplace() {
   const {
@@ -17,7 +18,7 @@ export function useExtensionMarketplace() {
       const results = await extensionMarketplaceSearch("");
       setExtensionMarketplace(results);
     } catch (e) {
-      addNotification(`Failed to load extension marketplace: ${e}`, "error");
+      addNotification(i18n.t("error.loadExtensionMarketplace", { error: e }), "error");
     } finally {
       setLoading(false);
     }
@@ -29,7 +30,7 @@ export function useExtensionMarketplace() {
         const results = await extensionMarketplaceSearch(query);
         setExtensionMarketplace(results);
       } catch (e) {
-        addNotification(`Extension search failed: ${e}`, "error");
+        addNotification(i18n.t("error.extensionSearchFailed", { error: e }), "error");
       }
     },
     [setExtensionMarketplace, addNotification]

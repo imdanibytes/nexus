@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { PluginStatus } from "../../types/plugin";
 import { Play, Square, Trash2, ScrollText, Hammer, Wrench, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ export function PluginControls({
   onRebuild,
   onToggleDevMode,
 }: Props) {
+  const { t } = useTranslation("plugins");
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -48,10 +50,10 @@ export function PluginControls({
         size="xs"
         onClick={onShowLogs}
         disabled={disabled}
-        title="View logs"
+        title={t("controls.viewLogs")}
       >
         <ScrollText size={12} strokeWidth={1.5} />
-        Logs
+        {t("logs.title")}
       </Button>
 
       {isLocal && onRebuild && (
@@ -61,10 +63,10 @@ export function PluginControls({
           onClick={onRebuild}
           disabled={disabled}
           className="bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20"
-          title="Rebuild from source"
+          title={t("controls.rebuildFromSource")}
         >
           <Hammer size={12} strokeWidth={1.5} />
-          Rebuild
+          {t("menu.rebuild")}
         </Button>
       )}
 
@@ -74,10 +76,10 @@ export function PluginControls({
           size="xs"
           onClick={() => onToggleDevMode(!devMode)}
           disabled={disabled}
-          title={devMode ? "Disable dev mode (auto-rebuild on file changes)" : "Enable dev mode (auto-rebuild on file changes)"}
+          title={devMode ? t("controls.disableDevModeTooltip") : t("controls.enableDevModeTooltip")}
         >
           <Wrench size={12} strokeWidth={1.5} />
-          Dev
+          {t("menu.dev")}
         </Button>
       )}
 
@@ -90,7 +92,7 @@ export function PluginControls({
           className="bg-nx-warning-muted text-nx-warning hover:bg-nx-warning/20"
         >
           <Square size={12} strokeWidth={1.5} />
-          Stop
+          {t("common:action.stop")}
         </Button>
       ) : (
         <Button
@@ -101,7 +103,7 @@ export function PluginControls({
           className="bg-nx-success-muted text-nx-success hover:bg-nx-success/20"
         >
           <Play size={12} strokeWidth={1.5} />
-          Start
+          {t("common:action.start")}
         </Button>
       )}
 
@@ -113,18 +115,17 @@ export function PluginControls({
             disabled={disabled}
           >
             <Trash2 size={12} strokeWidth={1.5} />
-            Remove
+            {t("common:action.remove")}
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <TriangleAlert size={18} className="text-nx-warning" />
-              Remove {pluginName || "plugin"}?
+              {t("common:confirm.removePlugin", { name: pluginName || "plugin" })}
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-relaxed pt-1">
-              This will permanently delete all plugin data, including stored files and settings.
-              This action cannot be undone.
+              {t("common:confirm.removePluginDesc")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-2">
@@ -133,7 +134,7 @@ export function PluginControls({
               size="sm"
               onClick={() => setDialogOpen(false)}
             >
-              Cancel
+              {t("common:action.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -144,7 +145,7 @@ export function PluginControls({
               }}
               className="bg-nx-error text-white hover:bg-nx-error/80"
             >
-              Remove & Delete Data
+              {t("common:confirm.removeAndDeleteData")}
             </Button>
           </DialogFooter>
         </DialogContent>

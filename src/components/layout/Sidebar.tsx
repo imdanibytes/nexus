@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { ExtensionStatus } from "../../types/extension";
@@ -42,6 +43,7 @@ const statusColor: Record<string, string> = {
 };
 
 function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
+  const { t } = useTranslation(["common", "plugins"]);
   const { selectedPluginId, selectPlugin, setView, availableUpdates, busyPlugins, setBusy, removePlugin, addNotification, setShowLogs, warmViewports } = useAppStore();
   const isSelected = selectedPluginId === plugin.manifest.id;
   const isRunning = plugin.status === "running";
@@ -56,11 +58,11 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
     setBusy(id, "starting");
     try {
       await api.pluginStart(id);
-      addNotification("Plugin started", "success");
+      addNotification(t("common:notification.pluginStarted"), "success");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Start failed: ${e}`, "error");
+      addNotification(t("common:error.startFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -71,11 +73,11 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
     setBusy(id, "stopping");
     try {
       await api.pluginStop(id);
-      addNotification("Plugin stopped", "info");
+      addNotification(t("common:notification.pluginStopped"), "info");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Stop failed: ${e}`, "error");
+      addNotification(t("common:error.stopFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -88,9 +90,9 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
     try {
       await api.pluginRemove(id);
       removePlugin(id);
-      addNotification("Plugin removed", "info");
+      addNotification(t("common:notification.pluginRemoved"), "info");
     } catch (e) {
-      addNotification(`Remove failed: ${e}`, "error");
+      addNotification(t("common:error.removeFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -101,11 +103,11 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
     setBusy(id, "rebuilding");
     try {
       await api.pluginRebuild(id);
-      addNotification("Plugin rebuilt", "success");
+      addNotification(t("common:notification.pluginRebuilt"), "success");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Rebuild failed: ${e}`, "error");
+      addNotification(t("common:error.rebuildFailed", { error: e }), "error");
     } finally {
       setBusy(id, null);
     }
@@ -116,11 +118,11 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
     const next = !plugin.dev_mode;
     try {
       await api.pluginDevModeToggle(id, next);
-      addNotification(next ? "Dev mode enabled" : "Dev mode disabled", "info");
+      addNotification(next ? t("common:notification.devModeEnabled") : t("common:notification.devModeDisabled"), "info");
       const plugins = await api.pluginList();
       useAppStore.getState().setPlugins(plugins);
     } catch (e) {
-      addNotification(`Dev mode toggle failed: ${e}`, "error");
+      addNotification(t("common:error.devModeToggleFailed", { error: e }), "error");
     }
   }
 
@@ -158,18 +160,18 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
           {isRunning ? (
             <DropdownMenuItem onClick={handleStop} disabled={isBusy}>
               <Square size={14} strokeWidth={1.5} className="text-nx-warning" />
-              Stop
+              {t("common:action.stop")}
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem onClick={handleStart} disabled={isBusy}>
               <Play size={14} strokeWidth={1.5} className="text-nx-success" />
-              Start
+              {t("common:action.start")}
             </DropdownMenuItem>
           )}
 
           <DropdownMenuItem onClick={() => setShowLogs(plugin.manifest.id)}>
             <ScrollText size={14} strokeWidth={1.5} />
-            Logs
+            {t("plugins:menu.logs")}
           </DropdownMenuItem>
 
           {isLocal && (
@@ -177,11 +179,11 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleRebuild} disabled={isBusy}>
                 <Hammer size={14} strokeWidth={1.5} className="text-nx-accent" />
-                Rebuild
+                {t("plugins:menu.rebuild")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleToggleDevMode} disabled={isBusy}>
                 <Wrench size={14} strokeWidth={1.5} />
-                {plugin.dev_mode ? "Disable Dev Mode" : "Enable Dev Mode"}
+                {plugin.dev_mode ? t("plugins:menu.disableDevMode") : t("plugins:menu.enableDevMode")}
               </DropdownMenuItem>
             </>
           )}
@@ -193,7 +195,7 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
             disabled={isBusy}
           >
             <Trash2 size={14} strokeWidth={1.5} />
-            Remove
+            {t("common:action.remove")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -203,11 +205,10 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <TriangleAlert size={18} className="text-nx-warning" />
-              Remove {plugin.manifest.name}?
+              {t("common:confirm.removePlugin", { name: plugin.manifest.name })}
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-relaxed pt-1">
-              This will permanently delete all plugin data, including stored files and settings.
-              This action cannot be undone.
+              {t("common:confirm.removePluginDesc")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-2">
@@ -216,7 +217,7 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
               size="sm"
               onClick={() => setRemoveDialogOpen(false)}
             >
-              Cancel
+              {t("common:action.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -224,7 +225,7 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
               onClick={handleRemove}
               className="bg-nx-error text-white hover:bg-nx-error/80"
             >
-              Remove & Delete Data
+              {t("common:confirm.removeAndDeleteData")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -234,6 +235,7 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
 }
 
 function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
+  const { t } = useTranslation(["common", "plugins"]);
   const { busyExtensions, setExtensionBusy, setExtensions, addNotification, setView, setSettingsTab, setFocusExtensionId } = useAppStore();
   const isBusy = !!busyExtensions[ext.id];
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
@@ -244,15 +246,20 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
     try {
       if (ext.enabled) {
         await api.extensionDisable(ext.id);
-        addNotification(`Extension "${ext.display_name}" disabled`, "info");
+        addNotification(t("common:notification.extensionDisabledName", { name: ext.display_name }), "info");
       } else {
         await api.extensionEnable(ext.id);
-        addNotification(`Extension "${ext.display_name}" enabled`, "success");
+        addNotification(t("common:notification.extensionEnabledName", { name: ext.display_name }), "success");
       }
       const exts = await api.extensionList();
       setExtensions(exts);
     } catch (e) {
-      addNotification(`Failed to ${ext.enabled ? "disable" : "enable"} extension: ${e}`, "error");
+      addNotification(
+        ext.enabled
+          ? t("common:error.extensionDisableFailed", { error: e })
+          : t("common:error.extensionEnableFailed", { error: e }),
+        "error"
+      );
     } finally {
       setExtensionBusy(ext.id, null);
     }
@@ -264,9 +271,9 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
     try {
       await api.extensionRemove(ext.id);
       useAppStore.getState().removeExtension(ext.id);
-      addNotification(`Extension "${ext.display_name}" removed`, "info");
+      addNotification(t("common:notification.extensionRemovedName", { name: ext.display_name }), "info");
     } catch (e) {
-      addNotification(`Failed to remove extension: ${e}`, "error");
+      addNotification(t("common:error.extensionRemoveFailed", { error: e }), "error");
     } finally {
       setExtensionBusy(ext.id, null);
     }
@@ -298,7 +305,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
         <DropdownMenuContent side="right" align="start" className="w-48">
           <DropdownMenuItem onClick={handleToggle} disabled={isBusy}>
             <Power size={14} strokeWidth={1.5} className={ext.enabled ? "text-nx-warning" : "text-nx-success"} />
-            {ext.enabled ? "Disable" : "Enable"}
+            {ext.enabled ? t("common:action.disable") : t("common:action.enable")}
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={() => {
@@ -306,7 +313,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
             setView("settings");
           }}>
             <Settings size={14} strokeWidth={1.5} />
-            Manage Extensions
+            {t("plugins:menu.manageExtensions")}
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
@@ -316,7 +323,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
             disabled={isBusy}
           >
             <Trash2 size={14} strokeWidth={1.5} />
-            Remove
+            {t("common:action.remove")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -326,15 +333,14 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <TriangleAlert size={18} className="text-nx-warning" />
-              Remove {ext.display_name}?
+              {t("common:confirm.removeExtension", { name: ext.display_name })}
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-relaxed pt-1" asChild>
               <div>
                 {ext.consumers.length > 0 ? (
                   <>
                     <p>
-                      The following plugin{ext.consumers.length !== 1 ? "s" : ""} will
-                      lose access to this extension's operations:
+                      {t("common:confirm.removeExtensionConsumers", { count: ext.consumers.length })}
                     </p>
                     <ul className="mt-2 space-y-1.5">
                       {ext.consumers.map((c) => (
@@ -352,8 +358,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
                   </>
                 ) : (
                   <p>
-                    No plugins currently use this extension.
-                    You can reinstall it later from the marketplace.
+                    {t("common:confirm.removeExtensionNoConsumers")}
                   </p>
                 )}
               </div>
@@ -365,7 +370,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
               size="sm"
               onClick={() => setRemoveDialogOpen(false)}
             >
-              Cancel
+              {t("common:action.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -373,7 +378,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
               onClick={handleRemove}
               className="bg-nx-error text-white hover:bg-nx-error/80"
             >
-              Remove Extension
+              {t("common:confirm.removeExtensionAction")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -383,6 +388,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
 }
 
 export function AppSidebar() {
+  const { t } = useTranslation(["common", "plugins"]);
   const { currentView, setView, installedPlugins, installedExtensions, availableUpdates } = useAppStore();
 
   const plugins = installedPlugins.filter((p) => p.manifest.ui !== null);
@@ -403,7 +409,7 @@ export function AppSidebar() {
           <span className="text-nx-accent">Nexus</span>
         </h1>
         <p className="text-[10px] text-nx-text-muted font-medium tracking-wide uppercase mt-0.5">
-          Plugin Dashboard
+          {t("common:nav.pluginDashboard")}
         </p>
       </SidebarHeader>
 
@@ -411,11 +417,11 @@ export function AppSidebar() {
         {installedPlugins.length === 0 ? (
           <SidebarGroup>
             <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-              Installed
+              {t("common:nav.installed")}
             </SidebarGroupLabel>
             <SidebarMenu>
               <p className="text-[11px] text-nx-text-ghost px-2 py-2">
-                No plugins installed
+                {t("common:empty.noPlugins")}
               </p>
             </SidebarMenu>
           </SidebarGroup>
@@ -424,7 +430,7 @@ export function AppSidebar() {
             {plugins.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-                  Plugins
+                  {t("common:nav.plugins")}
                 </SidebarGroupLabel>
                 <SidebarMenu>
                   {plugins.map((plugin) => (
@@ -436,7 +442,7 @@ export function AppSidebar() {
             {integrations.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-                  Integrations
+                  {t("common:nav.integrations")}
                 </SidebarGroupLabel>
                 <SidebarMenu>
                   {integrations.map((plugin) => (
@@ -448,7 +454,7 @@ export function AppSidebar() {
             {installedExtensions.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-                  Extensions
+                  {t("common:nav.extensions")}
                 </SidebarGroupLabel>
                 <SidebarMenu>
                   {installedExtensions.map((ext) => (
@@ -471,7 +477,7 @@ export function AppSidebar() {
               className="text-[12px]"
             >
               <Plus size={15} strokeWidth={1.5} />
-              Add Plugins
+              {t("common:nav.addPlugins")}
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -482,7 +488,7 @@ export function AppSidebar() {
               className="text-[12px]"
             >
               <Settings size={15} strokeWidth={1.5} />
-              Settings
+              {t("common:nav.settings")}
             </SidebarMenuButton>
             {availableUpdates.length > 0 && (
               <SidebarMenuBadge className="min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-nx-accent text-nx-deep">

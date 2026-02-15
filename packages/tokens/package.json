@@ -8,12 +8,14 @@
     ".": "./tokens.css",
     "./tokens.css": "./tokens.css",
     "./tokens.json": "./tokens.json",
-    "./theme.css": "./theme.css"
+    "./theme.css": "./theme.css",
+    "./bridge.css": "./bridge.css"
   },
   "files": [
     "tokens.css",
     "tokens.json",
-    "theme.css"
+    "theme.css",
+    "bridge.css"
   ],
   "keywords": [
     "nexus",

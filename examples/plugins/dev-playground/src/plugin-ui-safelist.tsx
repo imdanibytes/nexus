@@ -1,8 +1,8 @@
 /**
- * Safelist for plugin-ui component classes.
+ * Safelist for nexus-ui component classes.
  *
  * Tailwind v4's scanner can't extract complex class patterns (data attributes,
- * arbitrary values with CSS variables) from the plugin-ui source directory.
+ * arbitrary values with CSS variables) from the nexus-ui source directory.
  * This file makes them discoverable by listing them as string literals in
  * a project-local .tsx file that the auto-scanner processes.
  *

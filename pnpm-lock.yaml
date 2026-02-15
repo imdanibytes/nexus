@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@nexus-dashboard/tokens':
+        specifier: workspace:*
+        version: link:packages/tokens
       '@tailwindcss/vite':
         specifier: ^4.1.18
         version: 4.1.18(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2))
@@ -108,9 +111,9 @@ importers:
 
   examples/plugins/dev-playground:
     dependencies:
-      '@imdanibytes/plugin-ui':
-        specifier: file:../../../packages/plugin-ui
-        version: file:packages/plugin-ui(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tailwindcss@4.1.18)
+      '@imdanibytes/nexus-ui':
+        specifier: file:../../../packages/nexus-ui
+        version: file:packages/nexus-ui(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tailwindcss@4.1.18)
       '@nexus-dashboard/tokens':
         specifier: file:../../../packages/tokens
         version: link:../../../packages/tokens
@@ -146,16 +149,7 @@ importers:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)
 
-  packages/plugin-sdk:
-    devDependencies:
-      '@hey-api/openapi-ts':
-        specifier: ^0.92.3
-        version: 0.92.4(typescript@5.9.3)
-      typescript:
-        specifier: ~5.9.3
-        version: 5.9.3
-
-  packages/plugin-ui:
+  packages/nexus-ui:
     dependencies:
       '@nexus-dashboard/tokens':
         specifier: workspace:*
@@ -209,6 +203,15 @@ importers:
       vite-plugin-dts:
         specifier: ^4.5.0
         version: 4.5.4(@types/node@25.2.3)(rollup@4.57.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2))
+
+  packages/plugin-sdk:
+    devDependencies:
+      '@hey-api/openapi-ts':
+        specifier: ^0.92.3
+        version: 0.92.4(typescript@5.9.3)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
 
   packages/tokens: {}
 
@@ -554,8 +557,8 @@ packages:
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
 
-  '@imdanibytes/plugin-ui@file:packages/plugin-ui':
-    resolution: {directory: packages/plugin-ui, type: directory}
+  '@imdanibytes/nexus-ui@file:packages/nexus-ui':
+    resolution: {directory: packages/nexus-ui, type: directory}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -3330,7 +3333,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@imdanibytes/plugin-ui@file:packages/plugin-ui(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tailwindcss@4.1.18)':
+  '@imdanibytes/nexus-ui@file:packages/nexus-ui(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tailwindcss@4.1.18)':
     dependencies:
       '@nexus-dashboard/tokens': link:packages/tokens
       class-variance-authority: 0.7.1

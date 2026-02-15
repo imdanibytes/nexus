@@ -27,8 +27,9 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
+      "@/components/ui/*": ["./packages/nexus-ui/src/components/*"],
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "packages/nexus-ui/src"]
 }

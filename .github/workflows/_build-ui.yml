@@ -1,4 +1,4 @@
-name: Build Plugin UI (reusable)
+name: Build Nexus UI (reusable)
 
 on:
   workflow_call:
@@ -24,17 +24,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build plugin-ui
-        run: cd packages/plugin-ui && pnpm build
+      - name: Build nexus-ui
+        run: cd packages/nexus-ui && pnpm build
 
       - name: Typecheck
-        run: cd packages/plugin-ui && pnpm typecheck
+        run: cd packages/nexus-ui && pnpm typecheck
 
-      - name: Check component drift
-        run: bash scripts/check-ui-drift.sh
-
-      - name: Upload plugin-ui artifact
+      - name: Upload nexus-ui artifact
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-ui
-          path: packages/plugin-ui/dist/
+          name: nexus-ui
+          path: packages/nexus-ui/dist/

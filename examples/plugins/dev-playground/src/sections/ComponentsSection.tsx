@@ -32,7 +32,7 @@ import {
   TooltipTrigger,
   TooltipContent,
   toast,
-} from "@imdanibytes/plugin-ui";
+} from "@imdanibytes/nexus-ui";
 import {
   Heart,
   Download,

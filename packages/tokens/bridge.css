@@ -25,6 +25,14 @@
   --color-border: var(--color-nx-border);
   --color-input: var(--color-nx-border-strong);
   --color-ring: var(--color-nx-accent);
+  --color-sidebar-background: var(--color-nx-base);
+  --color-sidebar-foreground: var(--color-nx-text);
+  --color-sidebar-primary: var(--color-nx-accent);
+  --color-sidebar-primary-foreground: #0C0E12;
+  --color-sidebar-accent: var(--color-nx-overlay);
+  --color-sidebar-accent-foreground: var(--color-nx-text);
+  --color-sidebar-border: var(--color-nx-border);
+  --color-sidebar-ring: var(--color-nx-accent);
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;

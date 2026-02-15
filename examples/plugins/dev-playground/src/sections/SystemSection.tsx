@@ -8,7 +8,7 @@ import {
   CardContent,
   CardAction,
   Skeleton,
-} from "@imdanibytes/plugin-ui";
+} from "@imdanibytes/nexus-ui";
 import { RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
 

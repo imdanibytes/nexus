@@ -6,7 +6,7 @@ import {
   CardContent,
   Badge,
   Separator,
-} from "@imdanibytes/plugin-ui";
+} from "@imdanibytes/nexus-ui";
 import manifest from "../../plugin.json";
 
 interface McpTool {

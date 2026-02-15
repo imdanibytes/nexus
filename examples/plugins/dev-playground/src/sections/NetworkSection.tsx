@@ -13,7 +13,7 @@ import {
   SelectContent,
   SelectItem,
   Badge,
-} from "@imdanibytes/plugin-ui";
+} from "@imdanibytes/nexus-ui";
 import { Send } from "lucide-react";
 import { api } from "../lib/api";
 

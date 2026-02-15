@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@imdanibytes/plugin-ui": "file:../../../packages/plugin-ui",
+    "@imdanibytes/nexus-ui": "file:../../../packages/nexus-ui",
     "@nexus-dashboard/tokens": "file:../../../packages/tokens",
     "lucide-react": "^0.564.0",
     "react": "^19.1.0",

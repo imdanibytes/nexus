@@ -52,15 +52,11 @@ build-extension name:
 build-sdk:
     pnpm sdk
 
-# ── Plugin UI ─────────────────────────────────────────────────────────────
+# ── Nexus UI ──────────────────────────────────────────────────────────────
 
-# Build the plugin UI component library
+# Build the nexus-ui component library
 build-ui:
-    cd packages/plugin-ui && pnpm build
-
-# Check for component drift between host app and plugin-ui
-check-ui-drift:
-    bash scripts/check-ui-drift.sh
+    cd packages/nexus-ui && pnpm build
 
 # ── Release ───────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 {
-  "name": "@imdanibytes/plugin-ui",
+  "name": "@imdanibytes/nexus-ui",
   "version": "0.1.0",
   "description": "Nexus-themed React component library for plugins",
   "publishConfig": {

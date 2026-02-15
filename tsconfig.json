@@ -7,6 +7,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "@/components/ui/*": ["./packages/nexus-ui/src/components/*"],
       "@/*": ["./src/*"]
     }
   }

@@ -1,6 +1,6 @@
-@import "@imdanibytes/plugin-ui/styles";
-/* plugin-ui src for basic classes + safelist.tsx for complex patterns */
-@source "../../../../packages/plugin-ui/src";
+@import "@imdanibytes/nexus-ui/styles";
+/* nexus-ui src for basic classes + safelist.tsx for complex patterns */
+@source "../../../../packages/nexus-ui/src";
 
 body {
   margin: 0;

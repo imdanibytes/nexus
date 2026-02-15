@@ -7,7 +7,7 @@ import {
   CardDescription,
   CardContent,
   Input,
-} from "@imdanibytes/plugin-ui";
+} from "@imdanibytes/nexus-ui";
 import { api } from "../lib/api";
 
 export function StorageSection() {

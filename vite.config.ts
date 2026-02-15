@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      "@/components/ui": path.resolve(__dirname, "packages/nexus-ui/src/components"),
       "@": path.resolve(__dirname, "./src"),
     },
   },

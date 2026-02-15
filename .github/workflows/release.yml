@@ -189,9 +189,9 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install
 
-      - name: Publish Plugin UI to GitHub Packages
+      - name: Publish Nexus UI to GitHub Packages
         run: |
-          cd packages/plugin-ui
+          cd packages/nexus-ui
           UI_VERSION="${GITHUB_REF_NAME#v}"
           npm version "$UI_VERSION" --no-git-tag-version --allow-same-version
           pnpm build

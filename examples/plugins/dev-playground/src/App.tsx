@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { NexusProvider } from "@imdanibytes/plugin-ui";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@imdanibytes/plugin-ui";
+import { NexusProvider } from "@imdanibytes/nexus-ui";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@imdanibytes/nexus-ui";
 import { ComponentsSection } from "./sections/ComponentsSection";
 import { StorageSection } from "./sections/StorageSection";
 import { SystemSection } from "./sections/SystemSection";

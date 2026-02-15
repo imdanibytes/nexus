@@ -15,7 +15,7 @@ import {
   Switch,
   Skeleton,
   Badge,
-} from "@imdanibytes/plugin-ui";
+} from "@imdanibytes/nexus-ui";
 import { RefreshCw, Save } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";

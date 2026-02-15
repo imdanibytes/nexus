@@ -50,10 +50,10 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ -d "artifacts/plugin-ui" ]; then
-            echo "### Plugin UI" >> $GITHUB_STEP_SUMMARY
+          if [ -d "artifacts/nexus-ui" ]; then
+            echo "### Nexus UI" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            find "artifacts/plugin-ui" -type f | head -20 >> $GITHUB_STEP_SUMMARY
+            find "artifacts/nexus-ui" -type f | head -20 >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
 

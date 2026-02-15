@@ -29,7 +29,7 @@ pnpm-debug.log*
 .DS_Store
 
 # Plugin SDK build output (built from openapi.json)
-packages/plugin-sdk/dist/
+packages/nexus-sdk/dist/
 
 # Environment
 *.local

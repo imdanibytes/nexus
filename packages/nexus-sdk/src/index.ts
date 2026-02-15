@@ -1,13 +1,13 @@
 /**
- * @nexus/plugin-sdk
+ * @imdanibytes/nexus-sdk
  *
- * TypeScript SDK for Nexus plugins. Auto-generated from the Host API
- * OpenAPI spec, with a convenience wrapper for automatic configuration.
+ * TypeScript SDK for Nexus plugins. Generated HTTP client from the Host API
+ * OpenAPI spec, with a hand-written convenience wrapper.
  *
  * Usage inside a plugin:
  *
  * ```ts
- * import { NexusPlugin } from "@nexus/plugin-sdk";
+ * import { NexusPlugin } from "@imdanibytes/nexus-sdk";
  *
  * const nexus = await NexusPlugin.init();
  * const info = await nexus.systemInfo();
@@ -40,6 +40,16 @@ export type {
   ProxyResponse,
   WriteRequest,
 } from "./client/types.gen";
+
+/** Payload shape for host → plugin system events via postMessage. */
+export interface NexusHostEvent {
+  type: "nexus:system";
+  event: string;
+  data: unknown;
+}
+
+/** Callback for host system events. */
+export type NexusEventHandler = (event: string, data: unknown) => void;
 
 // Re-export raw generated SDK for advanced use
 export * as sdk from "./client/sdk.gen";
@@ -187,5 +197,35 @@ export class NexusPlugin {
 
   async saveSettings(values: Record<string, unknown>) {
     await _putSettings({ body: values });
+  }
+
+  // ── Host Events ──────────────────────────────────────────
+
+  /**
+   * Listen for system events pushed from the Nexus host via postMessage.
+   *
+   * Events include:
+   * - `language_changed` — `{ language: string }`
+   *
+   * Returns an unsubscribe function.
+   *
+   * ```ts
+   * const off = nexus.onHostEvent((event, data) => {
+   *   if (event === "language_changed") {
+   *     console.log("New language:", data.language);
+   *   }
+   * });
+   * // later: off();
+   * ```
+   */
+  onHostEvent(handler: NexusEventHandler): () => void {
+    const listener = (e: MessageEvent) => {
+      const msg = e.data;
+      if (msg && typeof msg === "object" && msg.type === "nexus:system") {
+        handler(msg.event, msg.data);
+      }
+    };
+    window.addEventListener("message", listener);
+    return () => window.removeEventListener("message", listener);
   }
 }

@@ -80,9 +80,9 @@ AI Client → MCP (Streamable HTTP) → Host API (:9600/mcp) → Plugin containe
 
 Native Streamable HTTP MCP server at `/mcp`. AI clients connect directly via HTTP — no sidecar binary needed. Gateway token auth via `X-Nexus-Gateway-Token` header.
 
-### Plugin SDK (packages/plugin-sdk/)
+### Nexus SDK (packages/nexus-sdk/)
 
-Auto-generated TypeScript client from the OpenAPI spec. Published to GitHub Packages as `@imdanibytes/plugin-sdk`.
+TypeScript SDK for plugins. `src/client/` is auto-generated from the OpenAPI spec; `src/index.ts` is the hand-written L2 wrapper (NexusPlugin class, host event bridge). Published to GitHub Packages as `@imdanibytes/nexus-sdk`. See `packages/nexus-sdk/CLAUDE.md` for the generated vs hand-written boundary.
 
 ## Key Patterns
 

@@ -9,8 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "sdk:spec": "cd src-tauri && cargo test export_openapi_spec -- --nocapture",
-    "sdk:generate": "cd packages/plugin-sdk && npx openapi-ts",
-    "sdk:build": "cd packages/plugin-sdk && npx tsc",
+    "sdk:generate": "cd packages/nexus-sdk && npx openapi-ts",
+    "sdk:build": "cd packages/nexus-sdk && npx tsc",
     "sdk": "npm run sdk:spec && npm run sdk:generate && npm run sdk:build",
     "tauri:build": "bash -c 'set -a && [ -f .env.local ] && source .env.local; set +a && cargo tauri build'"
   },

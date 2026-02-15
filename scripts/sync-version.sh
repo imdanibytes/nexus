@@ -24,7 +24,7 @@ awk -v ver="$VERSION" '/^version = "/{print "version = \""ver"\""; next} {print}
 echo "  src-tauri/Cargo.toml"
 
 # Plugin SDK
-jq --arg v "$VERSION" '.version = $v' packages/plugin-sdk/package.json > tmp.json && mv tmp.json packages/plugin-sdk/package.json
-echo "  packages/plugin-sdk/package.json"
+jq --arg v "$VERSION" '.version = $v' packages/nexus-sdk/package.json > tmp.json && mv tmp.json packages/nexus-sdk/package.json
+echo "  packages/nexus-sdk/package.json"
 
 echo "Done."

@@ -7,7 +7,7 @@ fn export_openapi_spec() {
     let out_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
-        .join("packages/plugin-sdk/openapi.json");
+        .join("packages/nexus-sdk/openapi.json");
 
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent).unwrap();

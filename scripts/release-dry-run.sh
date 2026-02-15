@@ -153,11 +153,11 @@ fi
 echo ""
 
 # --- 6. SDK check ---
-echo -e "${BOLD}Plugin SDK${RESET}"
+echo -e "${BOLD}Nexus SDK${RESET}"
 
-SDK_VERSION=$(jq -r '.version' packages/plugin-sdk/package.json)
+SDK_VERSION=$(jq -r '.version' packages/nexus-sdk/package.json)
 echo "  SDK version: $SDK_VERSION"
-if (cd packages/plugin-sdk && npm run build 2>/dev/null); then
+if (cd packages/nexus-sdk && npm run build 2>/dev/null); then
   ok "SDK builds"
 else
   fail "SDK build failed"

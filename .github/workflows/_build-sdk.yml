@@ -14,11 +14,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: packages/plugin-sdk/package-lock.json
+          cache-dependency-path: packages/nexus-sdk/package-lock.json
 
       - name: Build SDK
         run: |
-          cd packages/plugin-sdk
+          cd packages/nexus-sdk
           npm install
           npm run generate
           npm run build
@@ -26,5 +26,5 @@ jobs:
       - name: Upload SDK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-sdk
-          path: packages/plugin-sdk/dist/
+          name: nexus-sdk
+          path: packages/nexus-sdk/dist/

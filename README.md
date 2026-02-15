@@ -107,12 +107,12 @@ Plugins exchange their secret (`NEXUS_PLUGIN_SECRET`) for a short-lived access t
 
 Full OpenAPI spec available at `GET /api/openapi.json` when the app is running.
 
-### Plugin SDK
+### Nexus SDK
 
-An auto-generated TypeScript client is published to GitHub Packages:
+TypeScript SDK for Nexus plugins — published to GitHub Packages:
 
 ```bash
-npm install @imdanibytes/plugin-sdk --registry=https://npm.pkg.github.com
+npm install @imdanibytes/nexus-sdk --registry=https://npm.pkg.github.com
 ```
 
 ## Project Structure
@@ -120,7 +120,7 @@ npm install @imdanibytes/plugin-sdk --registry=https://npm.pkg.github.com
 ```
 src/                    React frontend
 src-tauri/              Rust backend (Tauri shell, Host API, plugin manager)
-packages/plugin-sdk/    Auto-generated TypeScript SDK
+packages/nexus-sdk/     TypeScript SDK (generated client + hand-written wrapper)
 examples/plugins/       Example plugins (hello-world, permission-tester)
 examples/extensions/    Test extension binaries
 scripts/                Build & release scripts

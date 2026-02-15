@@ -61,7 +61,7 @@ automatically syncs all version fields from the git tag:
 | `package.json` | `"version"` | yes |
 | `src-tauri/tauri.conf.json` | `"version"` | yes |
 | `src-tauri/Cargo.toml` | `version` under `[package]` | yes |
-| `packages/plugin-sdk/package.json` | `"version"` | yes |
+| `packages/nexus-sdk/package.json` | `"version"` | yes |
 
 ## Release
 

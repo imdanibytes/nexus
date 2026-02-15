@@ -58,6 +58,7 @@ export {
   DropdownMenuSubContent,
 } from "./components/dropdown-menu"
 export { Input } from "./components/input"
+export { Label } from "./components/label"
 export {
   Menubar,
   MenubarMenu,

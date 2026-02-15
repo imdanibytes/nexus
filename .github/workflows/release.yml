@@ -170,7 +170,7 @@ jobs:
 
       - name: Publish SDK to GitHub Packages
         run: |
-          cd packages/plugin-sdk
+          cd packages/nexus-sdk
           # Sync SDK version with release tag
           SDK_VERSION="${GITHUB_REF_NAME#v}"
           npm version "$SDK_VERSION" --no-git-tag-version --allow-same-version

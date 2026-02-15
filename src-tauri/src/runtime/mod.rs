@@ -111,6 +111,12 @@ pub struct ResourceUsage {
 
 #[async_trait]
 pub trait ContainerRuntime: Send + Sync {
+    // Identity
+    /// Short engine identifier, e.g. `"docker"`, `"podman"`. Frontend maps to display names.
+    fn engine_id(&self) -> &str;
+    /// Socket or pipe path used to connect to the engine.
+    fn socket_path(&self) -> String;
+
     // Daemon
     async fn ping(&self) -> Result<(), RuntimeError>;
     async fn version(&self) -> Result<Option<String>, RuntimeError>;

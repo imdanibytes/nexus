@@ -11,7 +11,7 @@ import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { useExtensions } from "./hooks/useExtensions";
 import { useDevRebuild } from "./hooks/useDevRebuild";
-import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
+import { checkEngine, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InstallOverlay } from "./components/InstallOverlay";
@@ -153,11 +153,16 @@ function App() {
     refresh();
     extensionRefresh();
 
-    checkDocker()
+    checkEngine()
       .then((status) => {
-        if (!status.running) {
+        if (!status.installed) {
           addNotification(
-            "Docker is not running. Check Settings > Docker.",
+            "Container engine not found. Plugins require a running container engine.",
+            "error"
+          );
+        } else if (!status.running) {
+          addNotification(
+            "Container engine is not running. Start it to use plugins.",
             "error"
           );
         }

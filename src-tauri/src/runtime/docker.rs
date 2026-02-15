@@ -50,6 +50,23 @@ fn to_err(e: bollard::errors::Error) -> RuntimeError {
 
 #[async_trait]
 impl ContainerRuntime for DockerRuntime {
+    fn engine_id(&self) -> &str {
+        "docker"
+    }
+
+    fn socket_path(&self) -> String {
+        #[cfg(unix)]
+        {
+            std::env::var("DOCKER_HOST")
+                .unwrap_or_else(|_| "/var/run/docker.sock".to_string())
+        }
+        #[cfg(windows)]
+        {
+            std::env::var("DOCKER_HOST")
+                .unwrap_or_else(|_| r"\\.\pipe\docker_engine".to_string())
+        }
+    }
+
     async fn ping(&self) -> Result<(), RuntimeError> {
         self.docker.ping().await.map_err(to_err)?;
         Ok(())

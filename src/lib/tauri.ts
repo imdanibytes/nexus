@@ -162,19 +162,17 @@ export async function appVersion(): Promise<AppVersionInfo> {
   return invoke("app_version");
 }
 
-export interface DockerStatus {
+export interface EngineStatus {
+  engine_id: string;
   installed: boolean;
   running: boolean;
   version: string | null;
+  socket: string;
   message: string;
 }
 
-export async function checkDocker(): Promise<DockerStatus> {
+export async function checkEngine(): Promise<EngineStatus> {
   return invoke("check_docker");
-}
-
-export async function openDockerDesktop(): Promise<void> {
-  return invoke("open_docker_desktop");
 }
 
 // Resources

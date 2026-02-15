@@ -164,6 +164,14 @@ impl MockRuntime {
 
 #[async_trait]
 impl ContainerRuntime for MockRuntime {
+    fn engine_id(&self) -> &str {
+        "mock"
+    }
+
+    fn socket_path(&self) -> String {
+        "/tmp/mock.sock".to_string()
+    }
+
     async fn ping(&self) -> Result<(), RuntimeError> {
         self.inner.lock().unwrap().calls.push(RuntimeCall::Ping);
         Ok(())

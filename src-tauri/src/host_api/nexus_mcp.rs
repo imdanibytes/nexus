@@ -137,7 +137,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.docker_status".into(),
-            description: "Check if Docker is installed and the engine is running.".into(),
+            description: "Check if the container engine is installed and running.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -454,25 +454,33 @@ async fn handle_get_mcp_settings(state: &AppState) -> Result<McpCallResponse, St
 
 async fn handle_docker_status(state: &AppState) -> Result<McpCallResponse, StatusCode> {
     let runtime = { state.read().await.runtime.clone() };
+    let engine_id = runtime.engine_id().to_string();
+    let socket = runtime.socket_path();
 
     match tokio::time::timeout(std::time::Duration::from_secs(3), runtime.ping()).await {
         Ok(Ok(_)) => {
             let version = runtime.version().await.unwrap_or(None);
             ok_json(&json!({
+                "engine_id": engine_id,
                 "installed": true,
                 "running": true,
                 "version": version,
+                "socket": socket,
             }))
         }
         Ok(Err(e)) => ok_json(&json!({
+            "engine_id": engine_id,
             "installed": true,
             "running": false,
-            "message": format!("Docker not responding: {}", e),
+            "socket": socket,
+            "message": format!("Container engine not responding: {}", e),
         })),
         Err(_) => ok_json(&json!({
+            "engine_id": engine_id,
             "installed": true,
             "running": false,
-            "message": "Docker connection timed out",
+            "socket": socket,
+            "message": "Container engine connection timed out",
         })),
     }
 }

@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  checkDocker,
-  openDockerDesktop,
+  checkEngine,
   containerResourceUsage,
   getResourceQuotas,
   saveResourceQuotas,
-  type DockerStatus,
+  type EngineStatus,
   type ResourceUsage,
   type ResourceQuotas,
 } from "../../lib/tauri";
-import { Container, RefreshCw, ExternalLink, Gauge, Save, Check } from "lucide-react";
+import { Container, RefreshCw, Gauge, Save, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -24,20 +23,22 @@ const ENGINES: { id: RuntimeEngine; label: string; available: boolean }[] = [
 export function SystemTab() {
   // --- Runtime state ---
   const [engine, setEngine] = useState<RuntimeEngine>("docker");
-  const [status, setStatus] = useState<DockerStatus | null>(null);
+  const [status, setStatus] = useState<EngineStatus | null>(null);
   const [checking, setChecking] = useState(false);
 
-  const refreshDocker = useCallback(async () => {
+  const refreshEngine = useCallback(async () => {
     setChecking(true);
     try {
-      const s = await checkDocker();
+      const s = await checkEngine();
       setStatus(s);
     } catch {
       setStatus({
+        engine_id: "unknown",
         installed: false,
         running: false,
         version: null,
-        message: "Failed to check Docker status",
+        socket: "",
+        message: "Failed to check container engine status",
       });
     } finally {
       setChecking(false);
@@ -60,7 +61,7 @@ export function SystemTab() {
       const u = await containerResourceUsage();
       setUsage(u);
     } catch {
-      // Docker may not be running
+      // Engine may not be running
     }
   }, []);
 
@@ -74,12 +75,12 @@ export function SystemTab() {
   }, []);
 
   useEffect(() => {
-    refreshDocker();
+    refreshEngine();
     refreshUsage();
     loadQuotas();
     const interval = setInterval(refreshUsage, 5000);
     return () => clearInterval(interval);
-  }, [refreshDocker, refreshUsage, loadQuotas]);
+  }, [refreshEngine, refreshUsage, loadQuotas]);
 
   async function handleSave() {
     setSaving(true);
@@ -149,7 +150,7 @@ export function SystemTab() {
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-nx-text-muted">Status</span>
               <button
-                onClick={refreshDocker}
+                onClick={refreshEngine}
                 disabled={checking}
                 className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
               >
@@ -164,7 +165,7 @@ export function SystemTab() {
 
             {status === null ? (
               <div className="text-[13px] text-nx-text-muted">
-                Checking Docker status...
+                Checking engine status...
               </div>
             ) : (
               <div className="space-y-3">
@@ -172,34 +173,11 @@ export function SystemTab() {
                   <div className="flex items-center gap-2.5">
                     <span
                       className={`w-1.5 h-1.5 rounded-full ${
-                        status.installed ? "bg-nx-success" : "bg-nx-error"
-                      }`}
-                    />
-                    <span className="text-[13px] text-nx-text-secondary">
-                      Installed
-                    </span>
-                  </div>
-                  {status.installed ? (
-                    <span className="text-[11px] text-nx-text-muted font-mono">
-                      {status.version ? `v${status.version}` : "Yes"}
-                    </span>
-                  ) : (
-                    <a
-                      href="https://www.docker.com/products/docker-desktop/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] font-medium px-2.5 py-1 rounded-[var(--radius-button)] bg-nx-accent hover:bg-nx-accent-hover text-nx-deep transition-all duration-150"
-                    >
-                      Download
-                    </a>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        status.running ? "bg-nx-success" : "bg-nx-error"
+                        status.running
+                          ? "bg-nx-success"
+                          : status.installed
+                            ? "bg-nx-warning"
+                            : "bg-nx-error"
                       }`}
                       style={
                         status.running
@@ -215,33 +193,29 @@ export function SystemTab() {
                     className={`text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-tag)] ${
                       status.running
                         ? "bg-nx-success-muted text-nx-success"
-                        : "bg-nx-error-muted text-nx-error"
+                        : status.installed
+                          ? "bg-nx-warning-muted text-nx-warning"
+                          : "bg-nx-error-muted text-nx-error"
                     }`}
                   >
-                    {status.running ? "Running" : "Stopped"}
+                    {status.running
+                      ? `Running${status.version ? ` · v${status.version}` : ""}`
+                      : status.installed
+                        ? "Stopped"
+                        : "Not Found"}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-nx-text-muted">Socket</span>
-                  <span className="text-[11px] text-nx-text-ghost font-mono">
-                    /var/run/docker.sock
+                  <span className="text-[11px] text-nx-text-ghost font-mono truncate ml-4">
+                    {status.socket}
                   </span>
                 </div>
 
                 <p className="text-[11px] text-nx-text-ghost">
                   {status.message}
                 </p>
-
-                {status.installed && !status.running && (
-                  <button
-                    onClick={() => openDockerDesktop()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150"
-                  >
-                    <ExternalLink size={12} strokeWidth={1.5} />
-                    Open Docker Desktop
-                  </button>
-                )}
               </div>
             )}
           </div>

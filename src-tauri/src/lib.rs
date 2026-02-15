@@ -227,7 +227,6 @@ pub fn run() {
             commands::permissions::permission_remove_path,
             commands::system::app_version,
             commands::system::check_docker,
-            commands::system::open_docker_desktop,
             commands::system::container_resource_usage,
             commands::system::get_resource_quotas,
             commands::system::save_resource_quotas,

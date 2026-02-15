@@ -19,49 +19,71 @@ pub async fn app_version() -> AppVersionInfo {
 }
 
 #[derive(Serialize)]
-pub struct DockerStatus {
+pub struct EngineStatus {
+    pub engine_id: String,
     pub installed: bool,
     pub running: bool,
     pub version: Option<String>,
+    pub socket: String,
     pub message: String,
 }
 
+/// Check whether a socket/pipe path exists on disk.
+fn socket_exists(socket: &str) -> bool {
+    // Strip common URI prefixes
+    let path = socket
+        .strip_prefix("unix://")
+        .or_else(|| socket.strip_prefix("npipe://"))
+        .unwrap_or(socket);
+    std::path::Path::new(path).exists()
+}
+
 #[tauri::command]
-pub async fn check_docker(state: tauri::State<'_, AppState>) -> Result<DockerStatus, String> {
+pub async fn check_docker(state: tauri::State<'_, AppState>) -> Result<EngineStatus, String> {
     let runtime = { state.read().await.runtime.clone() };
+    let engine_id = runtime.engine_id().to_string();
+    let socket = runtime.socket_path();
+
+    if !socket_exists(&socket) {
+        return Ok(EngineStatus {
+            engine_id,
+            installed: false,
+            running: false,
+            version: None,
+            socket,
+            message: "Container engine not found — no socket detected".to_string(),
+        });
+    }
 
     match tokio::time::timeout(std::time::Duration::from_secs(3), runtime.ping()).await {
         Ok(Ok(_)) => {
             let version = runtime.version().await.unwrap_or(None);
-            Ok(DockerStatus {
+            Ok(EngineStatus {
+                engine_id,
                 installed: true,
                 running: true,
                 version,
-                message: "Docker is running".to_string(),
+                socket,
+                message: "Container engine is running".to_string(),
             })
         }
-        Ok(Err(e)) => Ok(DockerStatus {
+        Ok(Err(e)) => Ok(EngineStatus {
+            engine_id,
             installed: true,
             running: false,
             version: None,
-            message: format!("Docker is installed but not responding: {}", e),
+            socket,
+            message: format!("Container engine not responding: {}", e),
         }),
-        Err(_) => Ok(DockerStatus {
+        Err(_) => Ok(EngineStatus {
+            engine_id,
             installed: true,
             running: false,
             version: None,
-            message: "Docker connection timed out — engine may not be running".to_string(),
+            socket,
+            message: "Container engine connection timed out".to_string(),
         }),
     }
-}
-
-#[tauri::command]
-pub async fn open_docker_desktop() -> Result<(), String> {
-    std::process::Command::new("/usr/bin/open")
-        .arg("/Applications/Docker.app")
-        .spawn()
-        .map_err(|e| format!("Failed to open Docker Desktop: {}", e))?;
-    Ok(())
 }
 
 #[tauri::command]

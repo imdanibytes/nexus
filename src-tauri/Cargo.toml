@@ -1,6 +1,6 @@
 [package]
 name = "nexus"
-version = "0.8.0"
+version = "0.9.0"
 description = "A plugin-based desktop dashboard"
 authors = ["danibytes"]
 license = "MIT"

@@ -9,7 +9,7 @@ use crate::extensions::ipc::AppIpcRouter;
 use crate::extensions::loader::ExtensionLoader;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::host_api::mcp_client::McpClientManager;
-use crate::permissions::PermissionStore;
+use crate::permissions::service::PermissionService;
 use crate::runtime::{ContainerConfig, ContainerRuntime, ResourceLimits, SecurityConfig};
 use crate::update_checker::UpdateCheckState;
 use crate::AppState;
@@ -51,7 +51,7 @@ fn check_min_nexus_version(manifest: &PluginManifest) -> NexusResult<()> {
 pub struct PluginManager {
     pub runtime: Arc<dyn ContainerRuntime>,
     pub storage: PluginStorage,
-    pub permissions: PermissionStore,
+    pub permissions: Arc<dyn PermissionService>,
     pub extensions: ExtensionRegistry,
     pub extension_loader: ExtensionLoader,
     pub registry_store: registry::RegistryStore,
@@ -71,9 +71,12 @@ pub struct PluginManager {
 }
 
 impl PluginManager {
-    pub fn new(data_dir: PathBuf, runtime: Arc<dyn ContainerRuntime>) -> Self {
+    pub fn new(
+        data_dir: PathBuf,
+        runtime: Arc<dyn ContainerRuntime>,
+        permissions: Arc<dyn PermissionService>,
+    ) -> Self {
         let storage = PluginStorage::load(&data_dir).unwrap_or_default();
-        let permissions = PermissionStore::load(&data_dir).unwrap_or_default();
         let mut registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
         let settings = NexusSettings::load(&data_dir).unwrap_or_default();
         let plugin_settings = PluginSettingsStore::load(&data_dir).unwrap_or_default();
@@ -792,7 +795,10 @@ mod tests {
     }
 
     fn test_manager(dir: &std::path::Path, mock: Arc<MockRuntime>) -> PluginManager {
-        PluginManager::new(dir.to_path_buf(), mock)
+        let store = crate::permissions::PermissionStore::load(dir).unwrap_or_default();
+        let permissions: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(crate::permissions::DefaultPermissionService::new(store));
+        PluginManager::new(dir.to_path_buf(), mock, permissions)
     }
 
     // -- install --

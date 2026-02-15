@@ -63,7 +63,11 @@ pub fn run() {
                 .expect("failed to connect to Docker daemon");
             let runtime: Arc<dyn runtime::ContainerRuntime> = Arc::new(docker_runtime);
 
-            let mgr = PluginManager::new(data_dir.clone(), runtime.clone());
+            let perm_store = permissions::PermissionStore::load(&data_dir).unwrap_or_default();
+            let perm_service: Arc<dyn permissions::PermissionService> =
+                Arc::new(permissions::DefaultPermissionService::new(perm_store));
+
+            let mgr = PluginManager::new(data_dir.clone(), runtime.clone(), perm_service);
 
             let state = Arc::new(RwLock::new(mgr));
             PluginManager::wire_extension_ipc(&state);

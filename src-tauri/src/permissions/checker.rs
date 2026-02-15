@@ -1,9 +1,9 @@
+use super::service::PermissionService;
 use super::types::Permission;
-use super::store::PermissionStore;
 
 #[allow(dead_code)]
 pub fn check_permission(
-    store: &PermissionStore,
+    store: &dyn PermissionService,
     plugin_id: &str,
     required: &Permission,
 ) -> bool {

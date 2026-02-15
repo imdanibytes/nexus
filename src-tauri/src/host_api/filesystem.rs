@@ -109,7 +109,7 @@ enum PathAccess {
 /// Returns `Allowed` when the grant is unrestricted (`None`) or the path is
 /// covered by an existing approved directory. Returns `NeedsApproval` otherwise.
 fn check_path_access(
-    permissions: &crate::permissions::store::PermissionStore,
+    permissions: &dyn crate::permissions::PermissionService,
     plugin_id: &str,
     permission: &Permission,
     validated_path: &Path,
@@ -209,7 +209,7 @@ pub async fn read_file(
     let needs_approval = {
         let mgr = state.read().await;
         check_path_access(
-            &mgr.permissions,
+            &*mgr.permissions,
             &auth.plugin_id,
             &Permission::FilesystemRead,
             &canonical,
@@ -279,7 +279,7 @@ pub async fn list_dir(
     let needs_approval = {
         let mgr = state.read().await;
         check_path_access(
-            &mgr.permissions,
+            &*mgr.permissions,
             &auth.plugin_id,
             &Permission::FilesystemRead,
             &canonical,
@@ -357,7 +357,7 @@ pub async fn write_file(
     let needs_approval = {
         let mgr = state.read().await;
         check_path_access(
-            &mgr.permissions,
+            &*mgr.permissions,
             &auth.plugin_id,
             &Permission::FilesystemWrite,
             &validated,

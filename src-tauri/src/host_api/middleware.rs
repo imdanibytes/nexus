@@ -89,14 +89,14 @@ pub async fn auth_middleware(
 
                 match bridge.request_approval(request).await {
                     super::approval::ApprovalDecision::Approve => {
-                        let mut mgr = state.write().await;
+                        let mgr = state.read().await;
                         let _ = mgr.permissions.activate(&plugin_id, &required_perm);
                     }
                     super::approval::ApprovalDecision::ApproveOnce => {
                         // Don't persist, just continue this request
                     }
                     super::approval::ApprovalDecision::Deny => {
-                        let mut mgr = state.write().await;
+                        let mgr = state.read().await;
                         let _ = mgr.permissions.revoke(&plugin_id, &required_perm);
                         log::warn!(
                             "AUDIT DENIED plugin={} method={} path={} reason=deferred_denied",

@@ -213,7 +213,7 @@ pub async fn call_extension(
             match bridge.request_approval(request).await {
                 super::approval::ApprovalDecision::Approve => {
                     // Persist: Deferred → Active
-                    let mut mgr = state.write().await;
+                    let mgr = state.read().await;
                     let _ = mgr.permissions.activate(&auth.plugin_id, &required_perm);
                     drop(mgr);
 
@@ -248,7 +248,7 @@ pub async fn call_extension(
                 }
                 super::approval::ApprovalDecision::Deny => {
                     // Deny: Deferred → Revoked
-                    let mut mgr = state.write().await;
+                    let mgr = state.read().await;
                     let _ = mgr.permissions.revoke(&auth.plugin_id, &required_perm);
                     return Err(error_response(
                         StatusCode::FORBIDDEN,
@@ -327,7 +327,7 @@ pub async fn call_extension(
                         match bridge.request_approval(request).await {
                             super::approval::ApprovalDecision::Approve => {
                                 // Persist the approved scope
-                                let mut mgr = state.write().await;
+                                let mgr = state.read().await;
                                 let _ = mgr.permissions.add_approved_scope(
                                     &auth.plugin_id,
                                     &required_perm,

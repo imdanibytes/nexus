@@ -10,7 +10,7 @@ pub async fn permission_grant(
     plugin_id: String,
     permissions: Vec<Permission>,
 ) -> Result<(), String> {
-    let mut mgr = state.write().await;
+    let mgr = state.read().await;
     for perm in permissions {
         mgr.permissions
             .grant(&plugin_id, perm, None)
@@ -26,7 +26,7 @@ pub async fn permission_revoke(
     plugin_id: String,
     permissions: Vec<Permission>,
 ) -> Result<(), String> {
-    let mut mgr = state.write().await;
+    let mgr = state.read().await;
     for perm in &permissions {
         mgr.permissions
             .revoke(&plugin_id, perm)
@@ -42,7 +42,7 @@ pub async fn permission_unrevoke(
     plugin_id: String,
     permissions: Vec<Permission>,
 ) -> Result<(), String> {
-    let mut mgr = state.write().await;
+    let mgr = state.read().await;
     for perm in &permissions {
         mgr.permissions
             .unrevoke(&plugin_id, perm)
@@ -68,7 +68,7 @@ pub async fn permission_remove_path(
     permission: Permission,
     path: String,
 ) -> Result<(), String> {
-    let mut mgr = state.write().await;
+    let mgr = state.read().await;
     mgr.permissions
         .remove_approved_scope(&plugin_id, &permission, &path)
         .map_err(|e| e.to_string())
@@ -82,7 +82,7 @@ pub async fn permission_remove_scope(
     permission: Permission,
     scope: String,
 ) -> Result<(), String> {
-    let mut mgr = state.write().await;
+    let mgr = state.read().await;
     mgr.permissions
         .remove_approved_scope(&plugin_id, &permission, &scope)
         .map_err(|e| e.to_string())
@@ -90,7 +90,7 @@ pub async fn permission_remove_scope(
 
 /// Called by the frontend approval dialog when the user makes a decision.
 ///
-/// For `Approve` (persist): writes the approved scope to `PermissionStore`
+/// For `Approve` (persist): writes the approved scope to `PermissionService`
 /// BEFORE sending the decision on the channel, guaranteeing the scope is
 /// persisted by the time the HTTP handler resumes.
 #[tauri::command]
@@ -111,7 +111,7 @@ pub async fn runtime_approval_respond(
                 serde_json::from_value(serde_json::Value::String(permission_str))
                     .map_err(|e| format!("invalid permission: {}", e))?;
 
-            let mut mgr = state.write().await;
+            let mgr = state.read().await;
             mgr.permissions
                 .activate(&plugin_id, &permission)
                 .map_err(|e| e.to_string())?;
@@ -123,7 +123,7 @@ pub async fn runtime_approval_respond(
                     serde_json::from_value(serde_json::Value::String(permission_str))
                         .map_err(|e| format!("invalid permission: {}", e))?;
 
-                let mut mgr = state.write().await;
+                let mgr = state.read().await;
                 mgr.permissions
                     .add_approved_scope(&plugin_id, &permission, parent_dir.clone())
                     .map_err(|e| e.to_string())?;
@@ -136,7 +136,7 @@ pub async fn runtime_approval_respond(
                     serde_json::from_value(serde_json::Value::String(permission_str))
                         .map_err(|e| format!("invalid permission: {}", e))?;
 
-                let mut mgr = state.write().await;
+                let mgr = state.read().await;
                 mgr.permissions
                     .add_approved_scope(&plugin_id, &permission, scope_value.clone())
                     .map_err(|e| e.to_string())?;

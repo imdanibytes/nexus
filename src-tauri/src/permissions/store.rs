@@ -225,32 +225,6 @@ impl PermissionStore {
         Ok(())
     }
 
-    // --- Backward-compatible aliases for filesystem code ---
-
-    /// Alias for `get_approved_scopes` — used by filesystem handlers.
-    pub fn get_approved_paths(&self, plugin_id: &str, permission: &Permission) -> Option<Vec<String>> {
-        self.get_approved_scopes(plugin_id, permission)
-    }
-
-    /// Alias for `add_approved_scope` — used by filesystem handlers.
-    pub fn add_approved_path(
-        &mut self,
-        plugin_id: &str,
-        permission: &Permission,
-        path: String,
-    ) -> NexusResult<()> {
-        self.add_approved_scope(plugin_id, permission, path)
-    }
-
-    /// Alias for `remove_approved_scope` — used by filesystem handlers.
-    pub fn remove_approved_path(
-        &mut self,
-        plugin_id: &str,
-        permission: &Permission,
-        path: &str,
-    ) -> NexusResult<()> {
-        self.remove_approved_scope(plugin_id, permission, path)
-    }
 }
 
 #[cfg(test)]

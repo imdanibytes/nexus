@@ -75,6 +75,7 @@ export function McpTab() {
   const [configTab, setConfigTab] = useState<ConfigTab>("desktop");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [legacyOpen, setLegacyOpen] = useState(false);
+  const [userScope, setUserScope] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -160,6 +161,11 @@ export function McpTab() {
   }
 
   const globalEnabled = settings?.enabled ?? false;
+
+  function injectScope(cmd: string): string {
+    if (!userScope) return cmd;
+    return cmd.replace("claude mcp add", "claude mcp add -s user");
+  }
 
   const directDesktopSnippet = configData?.direct_config
     ? JSON.stringify(configData.direct_config, null, 2)
@@ -254,10 +260,16 @@ export function McpTab() {
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-[11px] text-nx-text-ghost">
-                Run this in your terminal to register the MCP server. Uses a direct HTTP connection.
-              </p>
-              <CodeBlock text={configData.claude_code_command} />
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-nx-text-ghost">
+                  Run this in your terminal to register the MCP server. Uses a direct HTTP connection.
+                </p>
+                <label className="flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
+                  <Switch size="sm" checked={userScope} onCheckedChange={setUserScope} />
+                  <span className="text-[11px] text-nx-text-muted">All projects</span>
+                </label>
+              </div>
+              <CodeBlock text={injectScope(configData.claude_code_command)} />
 
               {/* Legacy sidecar fallback */}
               <Collapsible open={legacyOpen} onOpenChange={setLegacyOpen}>
@@ -276,7 +288,7 @@ export function McpTab() {
                     <p className="text-[11px] text-nx-text-ghost">
                       For clients that don't support streamable HTTP transport, use the stdio sidecar instead.
                     </p>
-                    <CodeBlock text={configData.claude_code_command_legacy} />
+                    <CodeBlock text={injectScope(configData.claude_code_command_legacy)} />
                   </div>
                 </CollapsibleContent>
               </Collapsible>

@@ -247,7 +247,7 @@ pub async fn mcp_config_snippet(
     });
 
     let claude_code_command = format!(
-        "claude mcp add \\\n  --transport http \\\n  -H \"X-Nexus-Gateway-Token: {}\" \\\n  nexus http://127.0.0.1:9600/mcp",
+        "claude mcp add -t http \\\n  nexus http://127.0.0.1:9600/mcp \\\n  -H \"X-Nexus-Gateway-Token: {}\"",
         token_trimmed
     );
 

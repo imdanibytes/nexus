@@ -1,4 +1,4 @@
-use crate::plugin_manager::docker;
+use crate::runtime::ContainerFilters;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 
@@ -27,53 +27,31 @@ pub struct DockerStatus {
 }
 
 #[tauri::command]
-pub async fn check_docker() -> DockerStatus {
-    match docker::connect() {
-        Ok(docker) => {
-            match tokio::time::timeout(std::time::Duration::from_secs(3), docker.ping()).await {
-                Ok(Ok(_)) => {
-                    let version = match docker.version().await {
-                        Ok(v) => v.version,
-                        Err(_) => None,
-                    };
-                    DockerStatus {
-                        installed: true,
-                        running: true,
-                        version,
-                        message: "Docker is running".to_string(),
-                    }
-                }
-                Ok(Err(e)) => DockerStatus {
-                    installed: true,
-                    running: false,
-                    version: None,
-                    message: format!("Docker is installed but not responding: {}", e),
-                },
-                Err(_) => DockerStatus {
-                    installed: true,
-                    running: false,
-                    version: None,
-                    message: "Docker connection timed out — engine may not be running".to_string(),
-                },
-            }
-        }
-        Err(_) => {
-            let cli_exists = std::process::Command::new("docker")
-                .arg("--version")
-                .output()
-                .is_ok();
+pub async fn check_docker(state: tauri::State<'_, AppState>) -> Result<DockerStatus, String> {
+    let runtime = { state.read().await.runtime.clone() };
 
-            DockerStatus {
-                installed: cli_exists,
-                running: false,
-                version: None,
-                message: if cli_exists {
-                    "Docker is installed but the engine is not running".to_string()
-                } else {
-                    "Docker is not installed".to_string()
-                },
-            }
+    match tokio::time::timeout(std::time::Duration::from_secs(3), runtime.ping()).await {
+        Ok(Ok(_)) => {
+            let version = runtime.version().await.unwrap_or(None);
+            Ok(DockerStatus {
+                installed: true,
+                running: true,
+                version,
+                message: "Docker is running".to_string(),
+            })
         }
+        Ok(Err(e)) => Ok(DockerStatus {
+            installed: true,
+            running: false,
+            version: None,
+            message: format!("Docker is installed but not responding: {}", e),
+        }),
+        Err(_) => Ok(DockerStatus {
+            installed: true,
+            running: false,
+            version: None,
+            message: "Docker connection timed out — engine may not be running".to_string(),
+        }),
     }
 }
 
@@ -86,17 +64,19 @@ pub async fn open_docker_desktop() -> Result<(), String> {
     Ok(())
 }
 
-// Resource usage / quotas
-
-#[derive(Serialize)]
-pub struct ResourceUsage {
-    pub cpu_percent: f64,
-    pub memory_mb: f64,
-}
-
 #[tauri::command]
-pub async fn container_resource_usage() -> Result<ResourceUsage, String> {
-    docker::aggregate_stats().await.map_err(|e| e.to_string())
+pub async fn container_resource_usage(
+    state: tauri::State<'_, AppState>,
+) -> Result<crate::runtime::ResourceUsage, String> {
+    let runtime = { state.read().await.runtime.clone() };
+    let mut filters = ContainerFilters::default();
+    filters
+        .labels
+        .insert("nexus.plugin.id".to_string(), String::new());
+    runtime
+        .aggregate_stats(filters)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -159,7 +139,6 @@ pub async fn check_url_reachable(url: String) -> Result<bool, String> {
         Ok(resp) => Ok(resp.status().is_success() || resp.status().is_redirection()),
         Err(e) => {
             log::warn!("URL reachability check failed for {}: {}", url, e);
-            // Fail-open: let the user try the install
             Ok(true)
         }
     }

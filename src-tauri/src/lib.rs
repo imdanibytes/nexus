@@ -6,12 +6,14 @@ pub mod mcp_wrap;
 mod notification;
 mod permissions;
 mod plugin_manager;
+pub mod runtime;
 mod update_checker;
 mod version;
 
 use host_api::approval::ApprovalBridge;
 use plugin_manager::dev_watcher::DevWatcher;
 use plugin_manager::PluginManager;
+use runtime::docker::DockerRuntime;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::RwLock;
@@ -57,7 +59,11 @@ pub fn run() {
                 .expect("failed to get app data dir");
             std::fs::create_dir_all(&data_dir).ok();
 
-            let mgr = PluginManager::new(data_dir.clone());
+            let docker_runtime = DockerRuntime::new()
+                .expect("failed to connect to Docker daemon");
+            let runtime: Arc<dyn runtime::ContainerRuntime> = Arc::new(docker_runtime);
+
+            let mgr = PluginManager::new(data_dir.clone(), runtime.clone());
 
             let state = Arc::new(RwLock::new(mgr));
             PluginManager::wire_extension_ipc(&state);
@@ -103,9 +109,10 @@ pub fn run() {
 
             // Spawn Host API server and Docker network setup
             let state_clone = state.clone();
+            let runtime_clone = runtime.clone();
             tauri::async_runtime::spawn(async move {
                 // Ensure nexus-bridge Docker network exists
-                if let Err(e) = plugin_manager::docker::ensure_network().await {
+                if let Err(e) = runtime_clone.ensure_network("nexus-bridge").await {
                     log::error!("Failed to create Docker network: {}", e);
                 }
 

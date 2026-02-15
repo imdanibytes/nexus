@@ -27,8 +27,29 @@ pub struct McpToolDef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerConfig {
+    /// Path on the plugin's container port where the MCP server listens.
+    /// Default: "/mcp"
+    #[serde(default = "default_mcp_path")]
+    pub path: String,
+    /// When true, all tools from this MCP server require user approval.
+    #[serde(default)]
+    pub requires_approval: bool,
+}
+
+fn default_mcp_path() -> String {
+    "/mcp".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpConfig {
+    /// DEPRECATED: Static tool declarations via custom HTTP protocol.
+    /// Use `server` instead to run a native MCP server in the plugin container.
+    #[serde(default)]
     pub tools: Vec<McpToolDef>,
+    /// Native MCP server endpoint on the plugin container.
+    #[serde(default)]
+    pub server: Option<McpServerConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,6 +205,18 @@ impl PluginManifest {
         if let Some(icon) = &self.icon {
             if !icon.starts_with("http://") && !icon.starts_with("https://") {
                 return Err("Icon must be an http or https URL".to_string());
+            }
+        }
+
+        // MCP server validation
+        if let Some(mcp) = &self.mcp {
+            if let Some(ref server) = mcp.server {
+                if !server.path.starts_with('/') {
+                    return Err("MCP server path must start with '/'".to_string());
+                }
+                if server.path.len() > 200 {
+                    return Err("MCP server path must be 200 characters or fewer".to_string());
+                }
             }
         }
 

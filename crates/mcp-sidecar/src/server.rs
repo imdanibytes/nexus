@@ -1,29 +1,42 @@
-use std::borrow::Cow;
-use std::sync::Arc;
-
 use rmcp::{
-    ErrorData as McpError, RoleServer, ServerHandler,
+    ErrorData as McpError, RoleClient, RoleServer, ServerHandler,
     model::*,
-    service::RequestContext,
+    service::{RequestContext, ServiceExt},
+    transport::StreamableHttpClientTransport,
 };
-use serde_json::Map;
 
-use crate::gateway::NexusGateway;
-
-/// MCP server that dynamically proxies tools from the Nexus host API.
+/// MCP server that proxies all requests through the Nexus host's native
+/// MCP endpoint via streamable HTTP.
 ///
-/// Because tools are fetched at runtime from the host, we implement
-/// `ServerHandler` manually rather than using the `#[tool_handler]` macro.
+/// This is the "Option A" sidecar simplification: the sidecar acts as
+/// a stdio ↔ streamable HTTP bridge. It no longer implements any tool
+/// logic itself — everything is forwarded to the host.
 pub struct NexusServer {
-    gateway: Arc<NexusGateway>,
+    host_url: String,
+    _token: String,
 }
 
 impl NexusServer {
-    pub fn new(gateway: NexusGateway) -> Self {
+    pub fn new(host_url: String, token: String) -> Self {
         Self {
-            gateway: Arc::new(gateway),
+            host_url,
+            _token: token,
         }
     }
+
+    /// Create a fresh MCP client connection to the host.
+    async fn connect_to_host(&self) -> Result<rmcp::service::RunningService<RoleClient, ()>, McpError> {
+        let transport = StreamableHttpClientTransport::from_uri(self.host_url.as_str());
+
+        ().serve(transport).await.map_err(|e| {
+            McpError::internal_error(format!("host connection failed: {e}"), None)
+        })
+    }
+}
+
+/// Convert a ServiceError to an McpError for ServerHandler return types.
+fn service_err(e: rmcp::service::ServiceError) -> McpError {
+    McpError::internal_error(format!("proxy error: {e}"), None)
 }
 
 impl ServerHandler for NexusServer {
@@ -33,6 +46,10 @@ impl ServerHandler for NexusServer {
             capabilities: ServerCapabilities::builder()
                 .enable_tools()
                 .enable_tool_list_changed()
+                .enable_resources()
+                .enable_resources_list_changed()
+                .enable_prompts()
+                .enable_prompts_list_changed()
                 .build(),
             server_info: Implementation {
                 name: "nexus".into(),
@@ -43,48 +60,21 @@ impl ServerHandler for NexusServer {
                 website_url: None,
             },
             instructions: Some(
-                "Nexus plugin hub — exposes tools from installed Nexus plugins.".to_string(),
+                "Nexus plugin hub — exposes tools, resources, and prompts from installed plugins."
+                    .to_string(),
             ),
         }
     }
 
     async fn list_tools(
         &self,
-        _request: Option<PaginatedRequestParams>,
+        request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        let tools = self.gateway.fetch_tools().await.map_err(|e| {
-            tracing::error!("Failed to fetch tools from host: {e}");
-            McpError::internal_error(format!("host unreachable: {e}"), None)
-        })?;
-
-        let mcp_tools: Vec<Tool> = tools
-            .into_iter()
-            .filter(|t| t.enabled && t.permissions_granted)
-            .map(|t| {
-                let schema = match t.input_schema {
-                    serde_json::Value::Object(map) => map,
-                    _ => Map::new(),
-                };
-                Tool {
-                    name: Cow::Owned(t.name),
-                    title: None,
-                    description: Some(Cow::Owned(t.description)),
-                    input_schema: Arc::new(schema),
-                    output_schema: None,
-                    annotations: None,
-                    execution: None,
-                    icons: None,
-                    meta: None,
-                }
-            })
-            .collect();
-
-        Ok(ListToolsResult {
-            tools: mcp_tools,
-            next_cursor: None,
-            meta: None,
-        })
+        let service = self.connect_to_host().await?;
+        let result = service.list_tools(request).await.map_err(service_err);
+        let _ = service.cancel().await;
+        result
     }
 
     async fn call_tool(
@@ -92,33 +82,64 @@ impl ServerHandler for NexusServer {
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let tool_name = request.name.as_ref();
-        let arguments = request
-            .arguments
-            .map(|obj| serde_json::Value::Object(obj))
-            .unwrap_or(serde_json::Value::Object(Map::new()));
+        let service = self.connect_to_host().await?;
+        let result = service.call_tool(request).await.map_err(service_err);
+        let _ = service.cancel().await;
+        result
+    }
 
-        tracing::info!(tool = tool_name, "Forwarding tool call to Nexus host");
+    async fn list_resources(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        let service = self.connect_to_host().await?;
+        let result = service.list_resources(request).await.map_err(service_err);
+        let _ = service.cancel().await;
+        result
+    }
 
-        let resp = self
-            .gateway
-            .forward_call(tool_name, arguments)
-            .await
-            .map_err(|e| {
-                tracing::error!("Host call failed: {e}");
-                McpError::internal_error(format!("host call failed: {e}"), None)
-            })?;
+    async fn list_resource_templates(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, McpError> {
+        let service = self.connect_to_host().await?;
+        let result = service.list_resource_templates(request).await.map_err(service_err);
+        let _ = service.cancel().await;
+        result
+    }
 
-        let content: Vec<Content> = resp
-            .content
-            .into_iter()
-            .map(|item| Content::text(item.text))
-            .collect();
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        let service = self.connect_to_host().await?;
+        let result = service.read_resource(request).await.map_err(service_err);
+        let _ = service.cancel().await;
+        result
+    }
 
-        if resp.is_error {
-            Ok(CallToolResult::error(content))
-        } else {
-            Ok(CallToolResult::success(content))
-        }
+    async fn list_prompts(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, McpError> {
+        let service = self.connect_to_host().await?;
+        let result = service.list_prompts(request).await.map_err(service_err);
+        let _ = service.cancel().await;
+        result
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, McpError> {
+        let service = self.connect_to_host().await?;
+        let result = service.get_prompt(request).await.map_err(service_err);
+        let _ = service.cancel().await;
+        result
     }
 }

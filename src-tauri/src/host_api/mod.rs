@@ -4,6 +4,8 @@ pub mod docker;
 pub mod extensions;
 pub mod filesystem;
 pub mod mcp;
+pub mod mcp_client;
+pub mod mcp_server;
 mod middleware;
 pub mod nexus_mcp;
 pub mod network;
@@ -18,6 +20,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::{extract::DefaultBodyLimit, middleware as axum_middleware, routing, Extension, Json, Router};
+use rmcp::transport::streamable_http_server::tower::{
+    StreamableHttpServerConfig, StreamableHttpService,
+};
+use tokio_util::sync::CancellationToken;
 use tower_http::cors::{Any, CorsLayer};
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
@@ -151,8 +157,8 @@ pub async fn start_server(
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 
-    // MCP gateway routes — accepts X-Nexus-Gateway-Token (sidecar) OR
-    // Bearer token with mcp:call permission (plugins)
+    // DEPRECATED: Legacy MCP gateway routes (custom HTTP protocol).
+    // Use the native MCP endpoint at /mcp instead.
     let mcp_routes = Router::new()
         .route("/v1/mcp/tools", routing::get(mcp::list_tools))
         .route("/v1/mcp/call", routing::post(mcp::call_tool))
@@ -163,6 +169,37 @@ pub async fn start_server(
         ))
         .layer(Extension(sessions.clone()))
         .layer(Extension(approvals.clone()));
+
+    // Native MCP server (streamable HTTP) — the primary gateway endpoint.
+    // Clients connect via: http://127.0.0.1:9600/mcp
+    let mcp_cancel = CancellationToken::new();
+    let mcp_config = StreamableHttpServerConfig {
+        stateful_mode: true,
+        cancellation_token: mcp_cancel.clone(),
+        ..Default::default()
+    };
+
+    let mcp_state_for_factory = state.clone();
+    let mcp_approvals_for_factory = approvals.clone();
+    let mcp_service = StreamableHttpService::new(
+        move || {
+            Ok(mcp_server::NexusMcpServer::new(
+                mcp_state_for_factory.clone(),
+                mcp_approvals_for_factory.clone(),
+            ))
+        },
+        Arc::new(rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default()),
+        mcp_config,
+    );
+
+    // Wrap the MCP service as an axum route with gateway auth.
+    // The MCP endpoint uses the same gateway auth as the legacy routes.
+    let mcp_native_routes = Router::new()
+        .nest_service("/mcp", mcp_service)
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            mcp::gateway_auth_middleware,
+        ));
 
     // Token exchange route — public, plugins call this with their secret
     let auth_routes = Router::new()
@@ -180,7 +217,9 @@ pub async fn start_server(
         .route("/api/openapi.json", routing::get(openapi_spec))
         // Token exchange (public — plugins exchange secret for access token)
         .nest("/api", auth_routes)
-        // MCP gateway routes (gateway token auth)
+        // Native MCP endpoint (streamable HTTP — primary connection mode)
+        .merge(mcp_native_routes)
+        // DEPRECATED: Legacy MCP gateway routes (custom HTTP protocol)
         .nest("/api", mcp_routes)
         // Authenticated routes (plugin Bearer token auth via session store)
         .nest("/api", authenticated_routes)

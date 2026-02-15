@@ -1,13 +1,14 @@
-use super::docker;
 use super::storage::PluginStatus;
+use crate::runtime::ContainerState;
 use crate::AppState;
 
 /// Reconcile stored plugin states against actual Docker container states.
 /// Returns true if any state was updated.
 pub async fn sync_plugin_states(state: &AppState) -> bool {
-    let container_ids: Vec<(String, Option<String>, PluginStatus)> = {
+    let (container_ids, runtime) = {
         let mgr = state.read().await;
-        mgr.storage
+        let ids: Vec<(String, Option<String>, PluginStatus)> = mgr
+            .storage
             .list()
             .iter()
             .map(|p| {
@@ -17,7 +18,8 @@ pub async fn sync_plugin_states(state: &AppState) -> bool {
                     p.status.clone(),
                 )
             })
-            .collect()
+            .collect();
+        (ids, mgr.runtime.clone())
     };
 
     if container_ids.is_empty() {
@@ -28,8 +30,8 @@ pub async fn sync_plugin_states(state: &AppState) -> bool {
 
     for (plugin_id, container_id, stored_status) in container_ids {
         let actual_status = match &container_id {
-            Some(cid) => match docker::container_state(cid).await {
-                Ok("running") => ContainerState::Running,
+            Some(cid) => match runtime.container_state(cid).await {
+                Ok(ContainerState::Running) => ContainerState::Running,
                 Ok(_) => ContainerState::Stopped,
                 Err(_) => ContainerState::Gone,
             },
@@ -69,11 +71,4 @@ pub async fn sync_plugin_states(state: &AppState) -> bool {
     }
 
     changed
-}
-
-#[derive(Debug, PartialEq)]
-enum ContainerState {
-    Running,
-    Stopped,
-    Gone,
 }

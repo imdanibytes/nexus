@@ -45,6 +45,8 @@ pub async fn mcp_set_enabled(
                 enabled: true,
                 disabled_tools: vec![],
                 approved_tools: vec![],
+                disabled_resources: vec![],
+                disabled_prompts: vec![],
             })
             .enabled = enabled;
     } else if let Some(rest) = scope.strip_prefix("tool:") {
@@ -72,6 +74,8 @@ pub async fn mcp_set_enabled(
                             enabled: true,
                             disabled_tools: vec![],
                             approved_tools: vec![],
+                            disabled_resources: vec![],
+                            disabled_prompts: vec![],
                         });
                     if enabled {
                         plugin_settings
@@ -216,26 +220,40 @@ pub async fn mcp_config_snippet(
 
     let token_trimmed = token.trim();
 
-    let desktop_config = serde_json::json!({
+    // Direct connection (recommended) — no sidecar needed
+    let direct_config = serde_json::json!({
+        "mcpServers": {
+            "nexus": {
+                "url": "http://127.0.0.1:9600/mcp",
+                "headers": {
+                    "X-Nexus-Gateway-Token": token_trimmed
+                }
+            }
+        }
+    });
+
+    // Sidecar connection (legacy/fallback for clients that don't support streamable HTTP)
+    let sidecar_config = serde_json::json!({
         "mcpServers": {
             "nexus": {
                 "command": command,
                 "args": [],
                 "env": {
                     "NEXUS_GATEWAY_TOKEN": token_trimmed,
-                    "NEXUS_API_URL": "http://localhost:9600"
+                    "NEXUS_API_URL": "http://localhost:9600/api"
                 }
             }
         }
     });
 
     let claude_code_command = format!(
-        "claude mcp add \\\n  -e NEXUS_GATEWAY_TOKEN={} \\\n  -e NEXUS_API_URL=http://localhost:9600 \\\n  -- nexus {}",
+        "claude mcp add \\\n  -e NEXUS_GATEWAY_TOKEN={} \\\n  -e NEXUS_API_URL=http://localhost:9600/api \\\n  -- nexus {}",
         token_trimmed, command
     );
 
     Ok(serde_json::json!({
-        "desktop_config": desktop_config,
+        "direct_config": direct_config,
+        "desktop_config": sidecar_config,
         "claude_code_command": claude_code_command
     }))
 }

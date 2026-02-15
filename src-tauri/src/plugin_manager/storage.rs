@@ -408,6 +408,12 @@ pub struct McpPluginSettings {
     /// runtime approval dialog for an MCP tool.
     #[serde(default)]
     pub approved_tools: Vec<String>,
+    /// Resource URIs disabled by the user (native MCP resources).
+    #[serde(default)]
+    pub disabled_resources: Vec<String>,
+    /// Prompt names disabled by the user (native MCP prompts).
+    #[serde(default)]
+    pub disabled_prompts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

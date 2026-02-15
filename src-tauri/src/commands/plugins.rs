@@ -1,9 +1,10 @@
 use crate::permissions::Permission;
 use crate::plugin_manager::dev_watcher::DevWatcher;
-use crate::plugin_manager::{docker, health};
+use crate::plugin_manager::health;
 use crate::plugin_manager::manifest::PluginManifest;
 use crate::plugin_manager::registry;
 use crate::plugin_manager::storage::InstalledPlugin;
+use crate::runtime::docker as docker_utils;
 use crate::AppState;
 use std::collections::HashMap;
 use std::path::Path;
@@ -68,7 +69,9 @@ pub async fn plugin_install(
                 manifest.image,
                 ctx_path.display()
             );
-            docker::build_image(ctx_path, &manifest.image)
+            let runtime = { state.read().await.runtime.clone() };
+            runtime
+                .build_image(ctx_path, &manifest.image)
                 .await
                 .map_err(|e| format!("Docker build failed: {}", e))?;
         }
@@ -107,7 +110,9 @@ pub async fn plugin_install_local(
             manifest.image,
             manifest_dir.display()
         );
-        docker::build_image(manifest_dir, &manifest.image)
+        let runtime = { state.read().await.runtime.clone() };
+        runtime
+            .build_image(manifest_dir, &manifest.image)
             .await
             .map_err(|e| format!("Docker build failed: {}", e))?;
     }
@@ -159,8 +164,12 @@ pub async fn plugin_remove(
 /// Check if a Docker image is available in its remote registry.
 /// Used by the marketplace to disable the install button when images don't exist.
 #[tauri::command]
-pub async fn check_image_available(image: String) -> Result<bool, String> {
-    Ok(docker::check_image_available(&image).await)
+pub async fn check_image_available(
+    state: tauri::State<'_, AppState>,
+    image: String,
+) -> Result<bool, String> {
+    let runtime = { state.read().await.runtime.clone() };
+    Ok(docker_utils::check_image_available(runtime.as_ref(), &image).await)
 }
 
 #[tauri::command]

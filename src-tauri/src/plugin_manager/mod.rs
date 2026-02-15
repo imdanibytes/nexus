@@ -1,5 +1,4 @@
 pub mod dev_watcher;
-pub mod docker;
 pub mod health;
 pub mod manifest;
 pub mod registry;
@@ -9,7 +8,9 @@ use crate::error::{NexusError, NexusResult};
 use crate::extensions::ipc::AppIpcRouter;
 use crate::extensions::loader::ExtensionLoader;
 use crate::extensions::registry::ExtensionRegistry;
+use crate::host_api::mcp_client::McpClientManager;
 use crate::permissions::PermissionStore;
+use crate::runtime::{ContainerConfig, ContainerRuntime, ResourceLimits, SecurityConfig};
 use crate::update_checker::UpdateCheckState;
 use crate::AppState;
 use manifest::PluginManifest;
@@ -48,6 +49,7 @@ fn check_min_nexus_version(manifest: &PluginManifest) -> NexusResult<()> {
 }
 
 pub struct PluginManager {
+    pub runtime: Arc<dyn ContainerRuntime>,
     pub storage: PluginStorage,
     pub permissions: PermissionStore,
     pub extensions: ExtensionRegistry,
@@ -64,10 +66,12 @@ pub struct PluginManager {
     tool_version: AtomicU64,
     tool_version_tx: tokio::sync::watch::Sender<u64>,
     pub tool_version_rx: tokio::sync::watch::Receiver<u64>,
+    /// Native MCP client connections to plugin servers.
+    pub mcp_clients: McpClientManager,
 }
 
 impl PluginManager {
-    pub fn new(data_dir: PathBuf) -> Self {
+    pub fn new(data_dir: PathBuf, runtime: Arc<dyn ContainerRuntime>) -> Self {
         let storage = PluginStorage::load(&data_dir).unwrap_or_default();
         let permissions = PermissionStore::load(&data_dir).unwrap_or_default();
         let mut registry_store = registry::RegistryStore::load(&data_dir).unwrap_or_default();
@@ -115,6 +119,7 @@ impl PluginManager {
         extension_loader.load_enabled(&mut extensions);
 
         PluginManager {
+            runtime,
             storage,
             permissions,
             extensions,
@@ -131,6 +136,21 @@ impl PluginManager {
             tool_version: AtomicU64::new(0),
             tool_version_tx,
             tool_version_rx,
+            mcp_clients: McpClientManager::new(),
+        }
+    }
+
+    /// Build resource limits from current settings.
+    fn resource_limits(&self) -> ResourceLimits {
+        ResourceLimits {
+            nano_cpus: self
+                .settings
+                .cpu_quota_percent
+                .map(|pct| (pct / 100.0 * 1e9) as i64),
+            memory_bytes: self
+                .settings
+                .memory_limit_mb
+                .map(|mb| (mb * 1_048_576) as i64),
         }
     }
 
@@ -173,12 +193,12 @@ impl PluginManager {
             // Also remove by name as fallback (container name survives Docker restarts).
             if let Some(container_id) = &existing.container_id {
                 if existing.status == PluginStatus::Running {
-                    let _ = docker::stop_container(container_id).await;
+                    let _ = self.runtime.stop_container(container_id).await;
                 }
-                let _ = docker::remove_container(container_id).await;
+                let _ = self.runtime.remove_container(container_id).await;
             }
             let name = format!("nexus-{}", manifest.id.replace('.', "-"));
-            let _ = docker::remove_container(&name).await;
+            let _ = self.runtime.remove_container(&name).await;
 
             self.storage.remove(&manifest.id)?;
             dm
@@ -187,17 +207,17 @@ impl PluginManager {
         };
 
         // Pull the Docker image (skip if already present — e.g. locally built)
-        let image_exists = docker::image_exists(&manifest.image).await.unwrap_or(false);
+        let image_exists = self.runtime.image_exists(&manifest.image).await.unwrap_or(false);
         if image_exists {
             log::info!("Image already exists locally: {}", manifest.image);
         } else {
             log::info!("Pulling image: {}", manifest.image);
-            docker::pull_image(&manifest.image).await?;
+            self.runtime.pull_image(&manifest.image).await?;
         }
 
         // Verify image digest if declared in manifest
         if let Some(ref expected_digest) = manifest.image_digest {
-            match docker::get_image_digest(&manifest.image).await? {
+            match self.runtime.get_image_digest(&manifest.image).await? {
                 Some(actual_digest) => {
                     if &actual_digest != expected_digest {
                         return Err(NexusError::Other(format!(
@@ -252,28 +272,19 @@ impl PluginManager {
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
         let volume_name = data_volume_name(&manifest.id);
 
-        let limits = docker::ResourceLimits {
-            nano_cpus: self
-                .settings
-                .cpu_quota_percent
-                .map(|pct| (pct / 100.0 * 1e9) as i64),
-            memory_bytes: self
-                .settings
-                .memory_limit_mb
-                .map(|mb| (mb * 1_048_576) as i64),
-        };
-
         let container_port = manifest.ui.as_ref().map(|u| u.port).unwrap_or(80);
-        let container_id = docker::create_container(
-            &container_name,
-            &manifest.image,
-            port,
+        let container_id = self.runtime.create_container(ContainerConfig {
+            name: container_name,
+            image: manifest.image.clone(),
+            host_port: port,
             container_port,
             env_vars,
             labels,
-            limits,
-            Some(&volume_name),
-        )
+            limits: self.resource_limits(),
+            data_volume: Some(volume_name),
+            network: "nexus-bridge".to_string(),
+            security: SecurityConfig::default(),
+        })
         .await?;
 
         let plugin = InstalledPlugin {
@@ -351,10 +362,10 @@ impl PluginManager {
         // name is still claimed — so we also force-remove by name as a fallback.
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
         if let Some(ref cid) = old_container_id {
-            let _ = docker::stop_container(cid).await;
-            let _ = docker::remove_container(cid).await;
+            let _ = self.runtime.stop_container(cid).await;
+            let _ = self.runtime.remove_container(cid).await;
         }
-        let _ = docker::remove_container(&container_name).await;
+        let _ = self.runtime.remove_container(&container_name).await;
 
         // Fresh token for every start
         let new_token = uuid::Uuid::new_v4().to_string();
@@ -377,32 +388,23 @@ impl PluginManager {
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
         let volume_name = data_volume_name(plugin_id);
 
-        let limits = docker::ResourceLimits {
-            nano_cpus: self
-                .settings
-                .cpu_quota_percent
-                .map(|pct| (pct / 100.0 * 1e9) as i64),
-            memory_bytes: self
-                .settings
-                .memory_limit_mb
-                .map(|mb| (mb * 1_048_576) as i64),
-        };
-
         let container_port = manifest.ui.as_ref().map(|u| u.port).unwrap_or(80);
-        let new_container_id = docker::create_container(
-            &container_name,
-            &manifest.image,
-            port,
+        let new_container_id = self.runtime.create_container(ContainerConfig {
+            name: container_name,
+            image: manifest.image.clone(),
+            host_port: port,
             container_port,
             env_vars,
             labels,
-            limits,
-            Some(&volume_name),
-        )
+            limits: self.resource_limits(),
+            data_volume: Some(volume_name),
+            network: "nexus-bridge".to_string(),
+            security: SecurityConfig::default(),
+        })
         .await?;
 
-        docker::start_container(&new_container_id).await?;
-        docker::wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;
+        self.runtime.start_container(&new_container_id).await?;
+        self.runtime.wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;
 
         if let Some(plugin) = self.storage.get_mut(plugin_id) {
             plugin.auth_token = new_hash;
@@ -410,6 +412,38 @@ impl PluginManager {
             plugin.status = PluginStatus::Running;
         }
         self.storage.save()?;
+
+        // Connect to native MCP server if the plugin declares one
+        if let Some(ref mcp_config) = manifest.mcp {
+            if let Some(ref server_config) = mcp_config.server {
+                match self
+                    .mcp_clients
+                    .connect(plugin_id, port, &server_config.path)
+                    .await
+                {
+                    Ok(()) => {
+                        log::info!(
+                            "Connected to native MCP server for plugin '{}'",
+                            plugin_id
+                        );
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to connect to native MCP server for plugin '{}': {}. \
+                             Plugin is running but native MCP features unavailable.",
+                            plugin_id,
+                            e
+                        );
+                    }
+                }
+            } else if !mcp_config.tools.is_empty() {
+                log::warn!(
+                    "DEPRECATED: Plugin '{}' uses mcp.tools without mcp.server. \
+                     Migrate to a native MCP server for full MCP support.",
+                    plugin_id
+                );
+            }
+        }
 
         log::info!("Started plugin={} with fresh auth token", plugin_id);
         Ok(())
@@ -426,7 +460,10 @@ impl PluginManager {
             .clone()
             .ok_or_else(|| NexusError::Other("No container ID".to_string()))?;
 
-        docker::stop_container(&container_id).await?;
+        // Disconnect native MCP client before stopping the container
+        self.mcp_clients.disconnect(plugin_id);
+
+        self.runtime.stop_container(&container_id).await?;
 
         if let Some(plugin) = self.storage.get_mut(plugin_id) {
             plugin.status = PluginStatus::Stopped;
@@ -444,22 +481,25 @@ impl PluginManager {
 
         let image_name = plugin.manifest.image.clone();
 
+        // Disconnect native MCP client
+        self.mcp_clients.disconnect(plugin_id);
+
         if let Some(container_id) = &plugin.container_id {
             // Stop first if running
             if plugin.status == PluginStatus::Running {
-                let _ = docker::stop_container(container_id).await;
+                let _ = self.runtime.stop_container(container_id).await;
             }
-            docker::remove_container(container_id).await?;
+            self.runtime.remove_container(container_id).await?;
         }
 
         // Remove the Docker image (ignore failure — another container may reference it)
-        if let Err(e) = docker::remove_image(&image_name).await {
+        if let Err(e) = self.runtime.remove_image(&image_name).await {
             log::warn!("Could not remove image {}: {}", image_name, e);
         }
 
         // Remove persistent data: Docker volume + KV storage
         let volume_name = data_volume_name(plugin_id);
-        if let Err(e) = docker::remove_volume(&volume_name).await {
+        if let Err(e) = self.runtime.remove_volume(&volume_name).await {
             log::warn!("Could not remove volume {}: {}", volume_name, e);
         }
         crate::host_api::storage::remove_plugin_storage(&self.data_dir, plugin_id);
@@ -481,7 +521,7 @@ impl PluginManager {
             .as_ref()
             .ok_or_else(|| NexusError::Other("No container ID".to_string()))?;
 
-        docker::get_logs(container_id, tail).await
+        Ok(self.runtime.get_logs(container_id, tail).await?)
     }
 
     pub fn list(&self) -> Vec<&InstalledPlugin> {
@@ -546,20 +586,20 @@ impl PluginManager {
         // Stop old container (also remove by name as fallback for Docker restarts)
         if let Some(ref cid) = old_container_id {
             if was_running {
-                let _ = docker::stop_container(cid).await;
+                let _ = self.runtime.stop_container(cid).await;
             }
-            let _ = docker::remove_container(cid).await;
+            let _ = self.runtime.remove_container(cid).await;
         }
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
-        let _ = docker::remove_container(&container_name).await;
+        let _ = self.runtime.remove_container(&container_name).await;
 
         // Pull new image
         log::info!("Pulling updated image: {}", manifest.image);
-        docker::pull_image(&manifest.image).await?;
+        self.runtime.pull_image(&manifest.image).await?;
 
         // Verify digest if present
         if let Some(ref expected_digest) = manifest.image_digest {
-            match docker::get_image_digest(&manifest.image).await? {
+            match self.runtime.get_image_digest(&manifest.image).await? {
                 Some(actual_digest) => {
                     if &actual_digest != expected_digest {
                         return Err(NexusError::Other(format!(
@@ -601,28 +641,19 @@ impl PluginManager {
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
         let volume_name = data_volume_name(&manifest.id);
 
-        let limits = docker::ResourceLimits {
-            nano_cpus: self
-                .settings
-                .cpu_quota_percent
-                .map(|pct| (pct / 100.0 * 1e9) as i64),
-            memory_bytes: self
-                .settings
-                .memory_limit_mb
-                .map(|mb| (mb * 1_048_576) as i64),
-        };
-
         let container_port = manifest.ui.as_ref().map(|u| u.port).unwrap_or(80);
-        let new_container_id = docker::create_container(
-            &container_name,
-            &manifest.image,
-            port,
+        let new_container_id = self.runtime.create_container(ContainerConfig {
+            name: container_name,
+            image: manifest.image.clone(),
+            host_port: port,
             container_port,
             env_vars,
             labels,
-            limits,
-            Some(&volume_name),
-        )
+            limits: self.resource_limits(),
+            data_volume: Some(volume_name),
+            network: "nexus-bridge".to_string(),
+            security: SecurityConfig::default(),
+        })
         .await?;
 
         let updated_plugin = InstalledPlugin {
@@ -655,8 +686,8 @@ impl PluginManager {
                         .unwrap_or_else(|| "/health".to_string())
                 });
 
-            docker::start_container(&new_container_id).await?;
-            docker::wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;
+            self.runtime.start_container(&new_container_id).await?;
+            self.runtime.wait_for_ready(port, &ready_path, std::time::Duration::from_secs(15)).await?;
 
             if let Some(plugin) = self.storage.get_mut(&updated_plugin.manifest.id) {
                 plugin.status = PluginStatus::Running;
@@ -722,5 +753,484 @@ impl PluginManager {
         let mut mgr = state.try_write().expect("state not yet shared, try_write must succeed");
         mgr.extensions.set_ipc_router(router);
         log::info!("Extension IPC router wired");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests — PluginManager integration tests using MockRuntime
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::mock::{MockRuntime, RuntimeCall};
+
+    fn test_manifest(id: &str) -> manifest::PluginManifest {
+        manifest::PluginManifest {
+            id: id.into(),
+            name: format!("Test Plugin {}", id),
+            version: "1.0.0".into(),
+            description: "A test plugin".into(),
+            author: "Test".into(),
+            license: None,
+            homepage: None,
+            icon: None,
+            image: format!("test-{}:latest", id.replace('.', "-")),
+            image_digest: None,
+            ui: Some(manifest::UiConfig {
+                port: 80,
+                path: "/".into(),
+            }),
+            permissions: vec![],
+            health: None,
+            env: HashMap::new(),
+            min_nexus_version: None,
+            settings: vec![],
+            mcp: None,
+            extensions: HashMap::new(),
+        }
+    }
+
+    fn test_manager(dir: &std::path::Path, mock: Arc<MockRuntime>) -> PluginManager {
+        PluginManager::new(dir.to_path_buf(), mock)
+    }
+
+    // -- install --
+
+    #[tokio::test]
+    async fn install_pulls_image_and_creates_container() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.alpha");
+        let plugin = mgr
+            .install(m.clone(), vec![], vec![], None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(plugin.manifest.id, "com.test.alpha");
+        assert_eq!(plugin.status, PluginStatus::Stopped);
+        assert!(plugin.container_id.is_some());
+
+        // Runtime should have: ImageExists → PullImage → CreateContainer
+        assert!(mock_ref.was_called(&RuntimeCall::PullImage(
+            "test-com-test-alpha:latest".into()
+        )));
+        assert!(mock_ref.was_called(&RuntimeCall::CreateContainer(
+            "nexus-com-test-alpha".into()
+        )));
+    }
+
+    #[tokio::test]
+    async fn install_skips_pull_for_existing_image() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new().with_image("test-com-test-cached:latest"));
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.cached");
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        // PullImage should NOT have been called (image already existed)
+        assert!(!mock_ref.was_called(&RuntimeCall::PullImage(
+            "test-com-test-cached:latest".into()
+        )));
+        // But CreateContainer should still happen
+        assert!(mock_ref.was_called(&RuntimeCall::CreateContainer(
+            "nexus-com-test-cached".into()
+        )));
+    }
+
+    #[tokio::test]
+    async fn install_verifies_matching_digest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let digest = "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+        let mock = Arc::new(
+            MockRuntime::new().with_image_digest("test-com-test-digest:latest", digest),
+        );
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let mut m = test_manifest("com.test.digest");
+        m.image_digest = Some(digest.into());
+
+        let result = mgr.install(m, vec![], vec![], None, None).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn install_rejects_digest_mismatch() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new().with_image_digest(
+            "test-com-test-bad:latest",
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        ));
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let mut m = test_manifest("com.test.bad");
+        m.image_digest = Some(
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".into(),
+        );
+
+        let result = mgr.install(m, vec![], vec![], None, None).await;
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(err.contains("digest mismatch"), "error was: {err}");
+    }
+
+    #[tokio::test]
+    async fn reinstall_removes_old_container() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.reinstall");
+        let first = mgr
+            .install(m.clone(), vec![], vec![], None, None)
+            .await
+            .unwrap();
+        let first_cid = first.container_id.unwrap();
+
+        // Install again — should remove old container
+        let second = mgr.install(m, vec![], vec![], None, None).await.unwrap();
+        let second_cid = second.container_id.unwrap();
+
+        assert_ne!(first_cid, second_cid);
+        assert!(mock_ref.was_called(&RuntimeCall::RemoveContainer(first_cid)));
+    }
+
+    // -- stop --
+
+    #[tokio::test]
+    async fn stop_calls_runtime_and_updates_status() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.stop");
+        let plugin = mgr
+            .install(m, vec![], vec![], None, None)
+            .await
+            .unwrap();
+        let cid = plugin.container_id.clone().unwrap();
+
+        // Simulate that start happened (set status to Running)
+        if let Some(p) = mgr.storage.get_mut("com.test.stop") {
+            p.status = PluginStatus::Running;
+        }
+
+        mgr.stop("com.test.stop").await.unwrap();
+
+        assert!(mock_ref.was_called(&RuntimeCall::StopContainer(cid)));
+        assert_eq!(
+            mgr.storage.get("com.test.stop").unwrap().status,
+            PluginStatus::Stopped
+        );
+    }
+
+    // -- remove --
+
+    #[tokio::test]
+    async fn remove_cleans_container_image_and_volume() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.remove");
+        let plugin = mgr
+            .install(m, vec![], vec![], None, None)
+            .await
+            .unwrap();
+        let cid = plugin.container_id.clone().unwrap();
+
+        mgr.remove("com.test.remove").await.unwrap();
+
+        assert!(mock_ref.was_called(&RuntimeCall::RemoveContainer(cid)));
+        assert!(mock_ref.was_called(&RuntimeCall::RemoveImage(
+            "test-com-test-remove:latest".into()
+        )));
+        assert!(mock_ref.was_called(&RuntimeCall::RemoveVolume(
+            "nexus-data-com-test-remove".into()
+        )));
+        assert!(mgr.storage.get("com.test.remove").is_none());
+    }
+
+    #[tokio::test]
+    async fn remove_stops_running_container_first() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.running");
+        let plugin = mgr
+            .install(m, vec![], vec![], None, None)
+            .await
+            .unwrap();
+        let cid = plugin.container_id.clone().unwrap();
+
+        // Simulate running state
+        if let Some(p) = mgr.storage.get_mut("com.test.running") {
+            p.status = PluginStatus::Running;
+        }
+
+        mgr.remove("com.test.running").await.unwrap();
+
+        // Should stop before removing
+        let calls = mock_ref.calls();
+        let stop_idx = calls
+            .iter()
+            .position(|c| *c == RuntimeCall::StopContainer(cid.clone()))
+            .expect("StopContainer should have been called");
+        let remove_idx = calls
+            .iter()
+            .position(|c| *c == RuntimeCall::RemoveContainer(cid.clone()))
+            .expect("RemoveContainer should have been called");
+        assert!(
+            stop_idx < remove_idx,
+            "stop should happen before remove"
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_nonexistent_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let result = mgr.remove("com.test.nope").await;
+        assert!(result.is_err());
+    }
+
+    // -- logs --
+
+    #[tokio::test]
+    async fn logs_returns_container_output() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.logs");
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        let logs = mgr.logs("com.test.logs", 100).await.unwrap();
+        assert_eq!(logs.len(), 2);
+        assert!(logs[0].contains("mock log"));
+    }
+
+    #[tokio::test]
+    async fn logs_nonexistent_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mgr = test_manager(tmp.path(), mock);
+
+        let result = mgr.logs("com.test.ghost", 100).await;
+        assert!(result.is_err());
+    }
+
+    // -- list --
+
+    #[tokio::test]
+    async fn list_returns_installed_plugins() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        assert_eq!(mgr.list().len(), 0);
+
+        mgr.install(test_manifest("com.a"), vec![], vec![], None, None)
+            .await
+            .unwrap();
+        mgr.install(test_manifest("com.b"), vec![], vec![], None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(mgr.list().len(), 2);
+    }
+
+    // -- start --
+
+    #[tokio::test]
+    async fn start_creates_fresh_container_and_waits() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.start");
+        let installed = mgr
+            .install(m, vec![], vec![], None, None)
+            .await
+            .unwrap();
+        let old_cid = installed.container_id.clone().unwrap();
+
+        mgr.start("com.test.start").await.unwrap();
+
+        let plugin = mgr.storage.get("com.test.start").unwrap();
+        assert_eq!(plugin.status, PluginStatus::Running);
+
+        // Should have a NEW container ID (start recreates the container)
+        let new_cid = plugin.container_id.clone().unwrap();
+        assert_ne!(old_cid, new_cid);
+
+        // Old container should have been removed, new one created + started + waited
+        assert!(mock_ref.was_called(&RuntimeCall::RemoveContainer(old_cid)));
+        assert!(mock_ref.was_called(&RuntimeCall::StartContainer(new_cid.clone())));
+        assert!(mock_ref.was_called(&RuntimeCall::WaitForReady {
+            port: plugin.assigned_port,
+            path: "/".into(),
+        }));
+    }
+
+    #[tokio::test]
+    async fn start_issues_fresh_auth_token() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.token");
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+        let token_before = mgr.storage.get("com.test.token").unwrap().auth_token.clone();
+
+        mgr.start("com.test.token").await.unwrap();
+        let token_after = mgr.storage.get("com.test.token").unwrap().auth_token.clone();
+
+        assert_ne!(token_before, token_after, "start should rotate the auth token");
+    }
+
+    // -- update --
+
+    #[tokio::test]
+    async fn update_plugin_replaces_container_and_pulls_new_image() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.update");
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+        let old_cid = mgr
+            .storage
+            .get("com.test.update")
+            .unwrap()
+            .container_id
+            .clone()
+            .unwrap();
+
+        // Build a v2 manifest
+        let mut m2 = test_manifest("com.test.update");
+        m2.version = "2.0.0".into();
+
+        let updated = mgr.update_plugin(m2, None).await.unwrap();
+        assert_eq!(updated.manifest.version, "2.0.0");
+        assert_eq!(updated.status, PluginStatus::Stopped); // wasn't running
+
+        let new_cid = updated.container_id.unwrap();
+        assert_ne!(old_cid, new_cid);
+
+        // Should have pulled the image and removed old container
+        assert!(mock_ref.was_called(&RuntimeCall::RemoveContainer(old_cid)));
+        assert!(mock_ref.was_called(&RuntimeCall::PullImage(
+            "test-com-test-update:latest".into()
+        )));
+    }
+
+    #[tokio::test]
+    async fn update_plugin_restarts_if_was_running() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.uprun");
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        // Simulate running state
+        if let Some(p) = mgr.storage.get_mut("com.test.uprun") {
+            p.status = PluginStatus::Running;
+        }
+
+        let mut m2 = test_manifest("com.test.uprun");
+        m2.version = "2.0.0".into();
+        let updated = mgr.update_plugin(m2, None).await.unwrap();
+
+        assert_eq!(updated.status, PluginStatus::Running);
+
+        // Should have started the new container and waited for readiness
+        let new_cid = updated.container_id.unwrap();
+        assert!(mock_ref.was_called(&RuntimeCall::StartContainer(new_cid)));
+        assert!(mock_ref.was_called(&RuntimeCall::WaitForReady {
+            port: updated.assigned_port,
+            path: "/".into(),
+        }));
+    }
+
+    // -- install + remove round-trip --
+
+    #[tokio::test]
+    async fn full_lifecycle_install_start_stop_remove() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        // Install
+        let m = test_manifest("com.test.lifecycle");
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+        assert_eq!(mgr.list().len(), 1);
+        assert_eq!(
+            mgr.storage.get("com.test.lifecycle").unwrap().status,
+            PluginStatus::Stopped
+        );
+
+        // Start (real start, not simulated)
+        mgr.start("com.test.lifecycle").await.unwrap();
+        assert_eq!(
+            mgr.storage.get("com.test.lifecycle").unwrap().status,
+            PluginStatus::Running
+        );
+
+        // Stop
+        mgr.stop("com.test.lifecycle").await.unwrap();
+        assert_eq!(
+            mgr.storage.get("com.test.lifecycle").unwrap().status,
+            PluginStatus::Stopped
+        );
+
+        // Remove
+        mgr.remove("com.test.lifecycle").await.unwrap();
+        assert_eq!(mgr.list().len(), 0);
+
+        // Verify the full call sequence covers every phase
+        let calls = mock_ref.calls();
+        let call_types: Vec<&str> = calls
+            .iter()
+            .map(|c| match c {
+                RuntimeCall::ImageExists(_) => "image_exists",
+                RuntimeCall::PullImage(_) => "pull",
+                RuntimeCall::CreateContainer(_) => "create",
+                RuntimeCall::StartContainer(_) => "start",
+                RuntimeCall::WaitForReady { .. } => "wait_for_ready",
+                RuntimeCall::StopContainer(_) => "stop",
+                RuntimeCall::RemoveContainer(_) => "remove_container",
+                RuntimeCall::RemoveImage(_) => "remove_image",
+                RuntimeCall::RemoveVolume(_) => "remove_volume",
+                _ => "other",
+            })
+            .collect();
+
+        assert!(call_types.contains(&"image_exists"));
+        assert!(call_types.contains(&"pull"));
+        assert!(call_types.contains(&"create"));
+        assert!(call_types.contains(&"start"));
+        assert!(call_types.contains(&"wait_for_ready"));
+        assert!(call_types.contains(&"stop"));
+        assert!(call_types.contains(&"remove_container"));
+        assert!(call_types.contains(&"remove_image"));
+        assert!(call_types.contains(&"remove_volume"));
     }
 }

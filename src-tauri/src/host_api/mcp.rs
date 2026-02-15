@@ -117,7 +117,13 @@ pub async fn gateway_auth_middleware(
 // ---------------------------------------------------------------------------
 
 /// List all MCP tools from all installed plugins, with status info.
+///
+/// DEPRECATED: Use the native MCP endpoint at `/mcp` instead.
+/// This endpoint uses the legacy custom HTTP protocol and only supports tools.
 pub async fn list_tools(State(state): State<AppState>) -> Json<Vec<McpToolEntry>> {
+    log::debug!(
+        "DEPRECATED: GET /api/v1/mcp/tools called. Use native MCP endpoint at /mcp instead."
+    );
     let mgr = state.read().await;
 
     let mut entries = Vec::new();
@@ -181,6 +187,9 @@ pub async fn list_tools(State(state): State<AppState>) -> Json<Vec<McpToolEntry>
 }
 
 /// Call an MCP tool by its namespaced name.
+///
+/// DEPRECATED: Use the native MCP endpoint at `/mcp` instead.
+/// This endpoint uses the legacy custom HTTP protocol and only supports tools.
 pub async fn call_tool(
     State(state): State<AppState>,
     Extension(bridge): Extension<Arc<ApprovalBridge>>,
@@ -326,6 +335,8 @@ pub async fn call_tool(
                         enabled: true,
                         disabled_tools: vec![],
                         approved_tools: vec![],
+                        disabled_resources: vec![],
+                        disabled_prompts: vec![],
                     });
                 if !plugin_settings.approved_tools.contains(&local_name) {
                     plugin_settings.approved_tools.push(local_name.clone());

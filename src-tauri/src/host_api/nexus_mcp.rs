@@ -14,7 +14,6 @@ use serde_json::json;
 
 use super::approval::{ApprovalBridge, ApprovalDecision, ApprovalRequest};
 use super::mcp::{McpCallResponse, McpContent, McpToolEntry};
-use crate::plugin_manager::docker;
 use crate::plugin_manager::storage::McpPluginSettings;
 use crate::AppState;
 
@@ -302,7 +301,7 @@ pub async fn handle_call(
         "search_marketplace" => handle_search_marketplace(tool_name, arguments, state).await,
         "get_settings" => handle_get_settings(state).await,
         "get_mcp_settings" => handle_get_mcp_settings(state).await,
-        "docker_status" => handle_docker_status().await,
+        "docker_status" => handle_docker_status(state).await,
         // Mutating (require approval)
         "plugin_start" | "plugin_stop" | "plugin_remove" | "plugin_install"
         | "extension_enable" | "extension_disable" => {
@@ -453,36 +452,27 @@ async fn handle_get_mcp_settings(state: &AppState) -> Result<McpCallResponse, St
     ok_json(&mgr.mcp_settings)
 }
 
-async fn handle_docker_status() -> Result<McpCallResponse, StatusCode> {
-    match docker::connect() {
-        Ok(docker) => {
-            match tokio::time::timeout(std::time::Duration::from_secs(3), docker.ping()).await {
-                Ok(Ok(_)) => {
-                    let version = match docker.version().await {
-                        Ok(v) => v.version,
-                        Err(_) => None,
-                    };
-                    ok_json(&json!({
-                        "installed": true,
-                        "running": true,
-                        "version": version,
-                    }))
-                }
-                Ok(Err(e)) => ok_json(&json!({
-                    "installed": true,
-                    "running": false,
-                    "message": format!("Docker not responding: {}", e),
-                })),
-                Err(_) => ok_json(&json!({
-                    "installed": true,
-                    "running": false,
-                    "message": "Docker connection timed out",
-                })),
-            }
+async fn handle_docker_status(state: &AppState) -> Result<McpCallResponse, StatusCode> {
+    let runtime = { state.read().await.runtime.clone() };
+
+    match tokio::time::timeout(std::time::Duration::from_secs(3), runtime.ping()).await {
+        Ok(Ok(_)) => {
+            let version = runtime.version().await.unwrap_or(None);
+            ok_json(&json!({
+                "installed": true,
+                "running": true,
+                "version": version,
+            }))
         }
-        Err(_) => ok_json(&json!({
-            "installed": false,
+        Ok(Err(e)) => ok_json(&json!({
+            "installed": true,
             "running": false,
+            "message": format!("Docker not responding: {}", e),
+        })),
+        Err(_) => ok_json(&json!({
+            "installed": true,
+            "running": false,
+            "message": "Docker connection timed out",
         })),
     }
 }
@@ -548,6 +538,8 @@ async fn handle_mutating(
                         enabled: true,
                         disabled_tools: vec![],
                         approved_tools: vec![],
+                        disabled_resources: vec![],
+                        disabled_prompts: vec![],
                     });
                 if !plugin_settings
                     .approved_tools

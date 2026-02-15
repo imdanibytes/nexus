@@ -1,4 +1,3 @@
-use crate::plugin_manager::docker;
 use crate::plugin_manager::manifest::PluginManifest;
 use crate::plugin_manager::storage::PluginStatus;
 use crate::AppState;
@@ -180,8 +179,12 @@ pub async fn rebuild_plugin(
     }
 
     // Build Docker image
+    let runtime = {
+        let mgr = state.read().await;
+        mgr.runtime.clone()
+    };
     emit_rebuild(app_handle, plugin_id, "building", format!("Building image {}", manifest.image));
-    if let Err(e) = docker::build_image(source_dir, &manifest.image).await {
+    if let Err(e) = runtime.build_image(source_dir, &manifest.image).await {
         emit_rebuild(app_handle, plugin_id, "error", format!("Docker build failed: {}", e));
         return;
     }

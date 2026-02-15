@@ -2,8 +2,8 @@ use serde::Serialize;
 
 #[derive(Debug, thiserror::Error)]
 pub enum NexusError {
-    #[error("Docker error: {0}")]
-    Docker(#[from] bollard::errors::Error),
+    #[error("Runtime error: {0}")]
+    Runtime(#[from] crate::runtime::RuntimeError),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

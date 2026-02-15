@@ -44,7 +44,15 @@ sha2 = "0.10"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 base64 = "0.22"
 async-stream = "0.3"
+tokio-util = "0.7"
 async-trait = "0.1"
+rmcp = { version = "0.15", features = [
+    "server",
+    "transport-streamable-http-server",
+    "transport-streamable-http-server-session",
+    "client",
+    "transport-streamable-http-client-reqwest",
+] }
 jsonschema = "0.41"
 notify = { version = "7", default-features = false, features = ["macos_fsevent"] }
 notify-rust = "4"

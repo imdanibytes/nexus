@@ -1,6 +1,6 @@
 use crate::mcp_wrap::{classify, discovery, generate, PluginMetadata};
 use crate::mcp_wrap::classify::ClassifiedTool;
-use crate::plugin_manager::{docker, manifest::PluginManifest, storage::InstalledPlugin};
+use crate::plugin_manager::{manifest::PluginManifest, storage::InstalledPlugin};
 use crate::permissions::Permission;
 use crate::AppState;
 use tauri::Manager;
@@ -52,7 +52,9 @@ pub async fn mcp_generate_and_install(
     let manifest: PluginManifest = serde_json::from_str(&manifest_data)
         .map_err(|e| format!("Invalid generated manifest: {}", e))?;
 
-    docker::build_image(&plugin_dir, &manifest.image)
+    let runtime = { state.read().await.runtime.clone() };
+    runtime
+        .build_image(&plugin_dir, &manifest.image)
         .await
         .map_err(|e| format!("Docker build failed: {}", e))?;
 

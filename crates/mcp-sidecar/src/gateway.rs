@@ -1,7 +1,15 @@
+//! DEPRECATED: Custom HTTP gateway client for the legacy MCP protocol.
+//!
+//! This module is no longer used by the sidecar. The sidecar now connects
+//! directly to the host's native MCP endpoint via streamable HTTP.
+//!
+//! Kept for reference only. Will be removed in a future version.
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 /// HTTP client that proxies MCP tool operations to the Nexus host API.
+#[deprecated(note = "Use native MCP connection via StreamableHttpClientTransport instead")]
 pub struct NexusGateway {
     client: Client,
     base_url: String,
@@ -40,13 +48,13 @@ pub struct HostCallResponse {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct HostContentItem {
-    /// Kept for serde round-tripping; only "text" is used currently.
     #[serde(rename = "type")]
     #[allow(dead_code)]
     pub content_type: String,
     pub text: String,
 }
 
+#[allow(deprecated)]
 impl NexusGateway {
     pub fn new(base_url: String, token: String) -> Self {
         Self {
@@ -64,7 +72,6 @@ impl NexusGateway {
         &self.token
     }
 
-    /// Fetch the merged tool list from Nexus host.
     pub async fn fetch_tools(&self) -> anyhow::Result<Vec<HostToolEntry>> {
         let resp = self
             .client
@@ -78,7 +85,6 @@ impl NexusGateway {
         Ok(resp)
     }
 
-    /// Forward a tool call to the Nexus host and return the result.
     pub async fn forward_call(
         &self,
         tool_name: &str,

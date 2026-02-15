@@ -155,6 +155,15 @@ importers:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)
 
+  packages/nexus-sdk:
+    devDependencies:
+      '@hey-api/openapi-ts':
+        specifier: ^0.92.3
+        version: 0.92.4(typescript@5.9.3)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
   packages/nexus-ui:
     dependencies:
       '@nexus-dashboard/tokens':
@@ -212,15 +221,6 @@ importers:
       vite-plugin-dts:
         specifier: ^4.5.0
         version: 4.5.4(@types/node@25.2.3)(rollup@4.57.1)(typescript@5.9.3)(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2))
-
-  packages/plugin-sdk:
-    devDependencies:
-      '@hey-api/openapi-ts':
-        specifier: ^0.92.3
-        version: 0.92.4(typescript@5.9.3)
-      typescript:
-        specifier: ~5.9.3
-        version: 5.9.3
 
   packages/tokens: {}
 
@@ -3390,6 +3390,7 @@ snapshots:
       '@nexus-dashboard/tokens': link:packages/tokens
       class-variance-authority: 0.7.1
       clsx: 2.1.1
+      cmdk: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       lucide-react: 0.564.0(react@19.2.4)
       radix-ui: 1.4.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react: 19.2.4

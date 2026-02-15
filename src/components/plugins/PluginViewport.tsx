@@ -89,6 +89,7 @@ export function PluginViewport({
         </div>
         <PluginControls
           status={plugin.status}
+          pluginName={plugin.manifest.name}
           disabled={isBusy}
           isLocal={!!plugin.local_manifest_path}
           devMode={plugin.dev_mode}

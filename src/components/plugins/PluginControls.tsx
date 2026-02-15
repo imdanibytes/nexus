@@ -1,10 +1,20 @@
 import { useState } from "react";
 import type { PluginStatus } from "../../types/plugin";
-import { Play, Square, Trash2, ScrollText, Hammer, Wrench } from "lucide-react";
+import { Play, Square, Trash2, ScrollText, Hammer, Wrench, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface Props {
   status: PluginStatus;
+  pluginName?: string;
   disabled?: boolean;
   isLocal?: boolean;
   devMode?: boolean;
@@ -18,6 +28,7 @@ interface Props {
 
 export function PluginControls({
   status,
+  pluginName,
   disabled = false,
   isLocal = false,
   devMode = false,
@@ -28,7 +39,7 @@ export function PluginControls({
   onRebuild,
   onToggleDevMode,
 }: Props) {
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
     <div className={`flex items-center gap-2 ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
@@ -94,40 +105,50 @@ export function PluginControls({
         </Button>
       )}
 
-      {showConfirm ? (
-        <div className="flex items-center gap-1">
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogTrigger asChild>
           <Button
             variant="destructive"
             size="xs"
-            onClick={() => {
-              onRemove();
-              setShowConfirm(false);
-            }}
-            disabled={disabled}
-            className="bg-nx-error text-white hover:bg-nx-error/80"
-          >
-            Confirm
-          </Button>
-          <Button
-            variant="secondary"
-            size="xs"
-            onClick={() => setShowConfirm(false)}
             disabled={disabled}
           >
-            Cancel
+            <Trash2 size={12} strokeWidth={1.5} />
+            Remove
           </Button>
-        </div>
-      ) : (
-        <Button
-          variant="destructive"
-          size="xs"
-          onClick={() => setShowConfirm(true)}
-          disabled={disabled}
-        >
-          <Trash2 size={12} strokeWidth={1.5} />
-          Remove
-        </Button>
-      )}
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <TriangleAlert size={18} className="text-nx-warning" />
+              Remove {pluginName || "plugin"}?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-relaxed pt-1">
+              This will permanently delete all plugin data, including stored files and settings.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                onRemove();
+                setDialogOpen(false);
+              }}
+              className="bg-nx-error text-white hover:bg-nx-error/80"
+            >
+              Remove & Delete Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

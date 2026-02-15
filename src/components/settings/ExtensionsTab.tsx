@@ -17,6 +17,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const RISK_VARIANT: Record<string, "success" | "warning" | "error"> = {
   low: "success",
@@ -225,18 +234,75 @@ export function ExtensionsTab() {
                           )}
                           {ext.enabled ? "Disable" : "Enable"}
                         </Button>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemove(ext);
-                          }}
-                          disabled={isBusy}
-                          variant="destructive"
-                          size="xs"
-                        >
-                          <Trash2 size={12} strokeWidth={1.5} />
-                          Remove
-                        </Button>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              disabled={isBusy}
+                              variant="destructive"
+                              size="xs"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2 size={12} strokeWidth={1.5} />
+                              Remove
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center gap-2 text-base">
+                                Remove {ext.display_name}?
+                              </DialogTitle>
+                              <DialogDescription className="text-[13px] leading-relaxed pt-1" asChild>
+                                <div>
+                                  {ext.consumers.length > 0 ? (
+                                    <>
+                                      <p>
+                                        The following plugin{ext.consumers.length !== 1 ? "s" : ""} will
+                                        lose access to this extension's operations:
+                                      </p>
+                                      <ul className="mt-2 space-y-1.5">
+                                        {ext.consumers.map((c) => (
+                                          <li
+                                            key={c.plugin_id}
+                                            className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+                                          >
+                                            <Puzzle size={12} strokeWidth={1.5} className="text-nx-text-ghost flex-shrink-0" />
+                                            <span className="text-[12px] text-nx-text font-medium truncate">
+                                              {c.plugin_name}
+                                            </span>
+                                            <span className="text-[10px] text-nx-text-ghost font-mono truncate ml-auto">
+                                              {c.plugin_id}
+                                            </span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </>
+                                  ) : (
+                                    <p>
+                                      No plugins currently use this extension.
+                                      You can reinstall it later from the marketplace.
+                                    </p>
+                                  )}
+                                </div>
+                              </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter className="pt-2">
+                              <DialogTrigger asChild>
+                                <Button variant="secondary" size="sm">
+                                  Cancel
+                                </Button>
+                              </DialogTrigger>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleRemove(ext)}
+                                >
+                                  Remove Extension
+                                </Button>
+                              </DialogTrigger>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     )}
 

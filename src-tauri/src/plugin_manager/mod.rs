@@ -168,13 +168,16 @@ impl PluginManager {
 
             log::info!("Reinstalling plugin '{}' (replacing existing)", manifest.id);
 
-            // Stop and remove old container, but keep volume (data) and permissions
+            // Stop and remove old container, but keep volume (data) and permissions.
+            // Also remove by name as fallback (container name survives Docker restarts).
             if let Some(container_id) = &existing.container_id {
                 if existing.status == PluginStatus::Running {
                     let _ = docker::stop_container(container_id).await;
                 }
                 let _ = docker::remove_container(container_id).await;
             }
+            let name = format!("nexus-{}", manifest.id.replace('.', "-"));
+            let _ = docker::remove_container(&name).await;
 
             self.storage.remove(&manifest.id)?;
             (dm, lp)
@@ -342,11 +345,15 @@ impl PluginManager {
                     .unwrap_or_else(|| "/health".to_string())
             });
 
-        // Remove the old container (if any)
+        // Remove the old container (if any).
+        // After a Docker engine restart, the container ID may be stale but the
+        // name is still claimed — so we also force-remove by name as a fallback.
+        let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
         if let Some(ref cid) = old_container_id {
             let _ = docker::stop_container(cid).await;
             let _ = docker::remove_container(cid).await;
         }
+        let _ = docker::remove_container(&container_name).await;
 
         // Fresh token for every start
         let new_token = uuid::Uuid::new_v4().to_string();
@@ -535,13 +542,15 @@ impl PluginManager {
         let preserved_dev_mode = plugin.dev_mode;
         let preserved_local_path = plugin.local_manifest_path.clone();
 
-        // Stop old container
+        // Stop old container (also remove by name as fallback for Docker restarts)
         if let Some(ref cid) = old_container_id {
             if was_running {
                 let _ = docker::stop_container(cid).await;
             }
             let _ = docker::remove_container(cid).await;
         }
+        let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
+        let _ = docker::remove_container(&container_name).await;
 
         // Pull new image
         log::info!("Pulling updated image: {}", manifest.image);

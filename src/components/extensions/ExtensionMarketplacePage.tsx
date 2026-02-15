@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useExtensionMarketplace } from "../../hooks/useExtensionMarketplace";
 import { useAppStore } from "../../stores/appStore";
-import { extensionInstallLocal } from "../../lib/extensions";
+import { extensionInstallLocal } from "../../lib/tauri";
 import { ExtensionRegistryCard } from "./ExtensionCard";
 import { SearchBar } from "../marketplace/SearchBar";
 import { FolderOpen, RefreshCw, Blocks } from "lucide-react";

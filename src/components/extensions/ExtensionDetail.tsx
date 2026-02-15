@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ExtensionRegistryEntry, ExtensionManifest, Capability } from "../../types/extension";
-import { extensionPreview, extensionInstall } from "../../lib/extensions";
+import { extensionPreview, extensionInstall } from "../../lib/tauri";
 import { checkUrlReachable } from "../../lib/tauri";
 import { useAppStore } from "../../stores/appStore";
 import {

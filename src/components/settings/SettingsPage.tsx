@@ -1,32 +1,40 @@
-import { useState } from "react";
+import { useAppStore } from "../../stores/appStore";
 import { GeneralTab } from "./GeneralTab";
-import { RuntimeTab } from "./RuntimeTab";
-import { ResourcesTab } from "./ResourcesTab";
+import { SystemTab } from "./SystemTab";
 import { PluginsTab } from "./PluginsTab";
-import { PermissionsTab } from "./PermissionsTab";
 import { McpTab } from "./McpTab";
 import { ExtensionsTab } from "./ExtensionsTab";
-import { NotificationsTab } from "./NotificationsTab";
 import { UpdatesTab } from "./UpdatesTab";
-import { Settings, Container, Gauge, Puzzle, Shield, Cpu, Blocks, Bell, ArrowUpCircle } from "lucide-react";
+import { HelpTab } from "./HelpTab";
+import { Settings, Monitor, Puzzle, Cpu, Blocks, ArrowUpCircle, HelpCircle } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 
-type SettingsTab = "general" | "runtime" | "resources" | "plugins" | "permissions" | "mcp" | "extensions" | "notifications" | "updates";
+type SettingsTab = "general" | "system" | "plugins" | "mcp" | "extensions" | "updates" | "help";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
-  { id: "runtime", label: "Runtime", icon: Container },
-  { id: "resources", label: "Resources", icon: Gauge },
+  { id: "system", label: "System", icon: Monitor },
   { id: "plugins", label: "Plugins", icon: Puzzle },
-  { id: "permissions", label: "Permissions", icon: Shield },
-  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "mcp", label: "MCP", icon: Cpu },
   { id: "extensions", label: "Extensions", icon: Blocks },
   { id: "updates", label: "Updates", icon: ArrowUpCircle },
+  { id: "help", label: "Help", icon: HelpCircle },
 ];
 
+const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
+
+// Map old persisted tab IDs to their new homes so bookmarks/deep links still work
+const TAB_REDIRECTS: Record<string, SettingsTab> = {
+  runtime: "system",
+  resources: "system",
+  permissions: "plugins",
+  notifications: "general",
+};
+
 export function SettingsPage() {
-  const [active, setActive] = useState<SettingsTab>("general");
+  const { settingsTab, setSettingsTab } = useAppStore();
+  const resolved = TAB_REDIRECTS[settingsTab] ?? settingsTab;
+  const active = (TAB_IDS.has(resolved) ? resolved : "general") as SettingsTab;
 
   return (
     <div className="flex flex-col h-full">
@@ -38,14 +46,14 @@ export function SettingsPage() {
             Manage your Nexus installation
           </p>
         </div>
-        <div className="flex gap-0.5 px-5 overflow-x-auto">
+        <div className="flex gap-0.5 px-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = active === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActive(tab.id)}
+                onClick={() => setSettingsTab(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium rounded-t-[var(--radius-button)] transition-colors whitespace-nowrap border-b-2 ${
                   isActive
                     ? "border-nx-accent text-nx-text bg-nx-surface/50"
@@ -64,14 +72,12 @@ export function SettingsPage() {
       <div className="flex-1 overflow-y-auto p-6">
         <ErrorBoundary label={TABS.find((t) => t.id === active)?.label}>
           {active === "general" && <GeneralTab />}
-          {active === "runtime" && <RuntimeTab />}
-          {active === "resources" && <ResourcesTab />}
+          {active === "system" && <SystemTab />}
           {active === "plugins" && <PluginsTab />}
-          {active === "permissions" && <PermissionsTab />}
-          {active === "notifications" && <NotificationsTab />}
           {active === "mcp" && <McpTab />}
           {active === "extensions" && <ExtensionsTab />}
           {active === "updates" && <UpdatesTab />}
+          {active === "help" && <HelpTab />}
         </ErrorBoundary>
       </div>
     </div>

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { Permission } from "../../types/permissions";
 import type { PluginManifest } from "../../types/plugin";
 import { getPermissionInfo, allPermissions } from "../../types/permissions";
-import { extensionList } from "../../lib/tauri";
+import { useAppStore } from "../../stores/appStore";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -254,18 +254,10 @@ function PermissionsStep({
     return initial;
   });
 
-  // Extension availability check
-  const [installedExtensions, setInstalledExtensions] = useState<Set<string>>(new Set());
-  const [extensionsLoaded, setExtensionsLoaded] = useState(false);
-
-  useEffect(() => {
-    extensionList()
-      .then((list) => {
-        setInstalledExtensions(new Set(list.map((e) => e.id)));
-        setExtensionsLoaded(true);
-      })
-      .catch(() => setExtensionsLoaded(true));
-  }, []);
+  // Extension availability — read from centralized store (polled by useExtensions)
+  const storeExtensions = useAppStore((s) => s.installedExtensions);
+  const installedExtensions = new Set(storeExtensions.map((e) => e.id));
+  const extensionsLoaded = true;
 
   const { builtIn, extGroups } = groupPermissions(permissions);
   const declaredExtensions = Object.keys(manifest.extensions ?? {});

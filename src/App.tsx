@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Shell } from "./components/layout/Shell";
 import { PluginViewport } from "./components/plugins/PluginViewport";
 import { PluginLogs } from "./components/plugins/PluginLogs";
@@ -9,6 +9,7 @@ import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarke
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
 import { usePlugins } from "./hooks/usePlugins";
+import { useExtensions } from "./hooks/useExtensions";
 import { useDevRebuild } from "./hooks/useDevRebuild";
 import { checkDocker, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
@@ -16,46 +17,99 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InstallOverlay } from "./components/InstallOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+const VIEWPORT_TTL_MS = 5 * 60 * 1000; // evict after 5 min inactive
+const EVICTION_CHECK_MS = 30_000;       // check every 30s
+
 function PluginsView() {
-  const { plugins, selectedPlugin, busyPlugins, start } =
+  const { plugins, selectedPluginId, busyPlugins, start } =
     usePlugins();
   const { setView, showLogsPluginId, setShowLogs } = useAppStore();
 
-  if (!selectedPlugin) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-center p-6">
-        <div className="w-20 h-20 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4">
-          <Package size={36} strokeWidth={1.5} className="text-nx-text-ghost" />
-        </div>
-        <h3 className="text-[16px] font-semibold text-nx-text-secondary mb-1">
-          {plugins.length === 0 ? "No plugins installed" : "Select a plugin"}
-        </h3>
-        <p className="text-[13px] text-nx-text-muted max-w-sm mb-4">
-          {plugins.length === 0
-            ? "Get started by adding a plugin from the marketplace or a local manifest."
-            : "Click on a plugin in the sidebar to view it here."}
-        </p>
-        {plugins.length === 0 && (
-          <button
-            onClick={() => setView("marketplace")}
-            className="px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
-          >
-            Add Plugins
-          </button>
-        )}
-      </div>
-    );
+  // Track warm viewports: plugin ID → last-active timestamp
+  const [warmEntries, setWarmEntries] = useState<Record<string, number>>({});
+
+  // Adjust during render: mark the selected plugin as warm
+  const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
+  if (selectedPluginId && selectedPluginId !== prevSelectedId) {
+    setPrevSelectedId(selectedPluginId);
+    setWarmEntries((prev) => ({ ...prev, [selectedPluginId]: Date.now() }));
   }
 
+  // Periodic eviction of stale viewports
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const currentId = useAppStore.getState().selectedPluginId;
+      setWarmEntries((prev) => {
+        const next: Record<string, number> = {};
+        let changed = false;
+        for (const [id, ts] of Object.entries(prev)) {
+          if (id === currentId || now - ts < VIEWPORT_TTL_MS) {
+            next[id] = ts;
+          } else {
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, EVICTION_CHECK_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  const warmPluginIds = new Set(Object.keys(warmEntries));
+
+  // Sync warm set to store so the sidebar can read it
+  useEffect(() => {
+    useAppStore.getState().setWarmViewports(Object.keys(warmEntries));
+  }, [warmEntries]);
+
   return (
-    <>
-      <ErrorBoundary label={selectedPlugin.manifest.name}>
-        <PluginViewport
-          plugin={selectedPlugin}
-          busyAction={busyPlugins[selectedPlugin.manifest.id] ?? null}
-          onStart={() => start(selectedPlugin.manifest.id)}
-        />
-      </ErrorBoundary>
+    <div className="relative h-full">
+      {/* Empty / select prompt — shown when no plugin is selected */}
+      {!selectedPluginId && (
+        <div className="flex flex-col items-center justify-center h-full text-center p-6">
+          <div className="w-20 h-20 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4">
+            <Package size={36} strokeWidth={1.5} className="text-nx-text-ghost" />
+          </div>
+          <h3 className="text-[16px] font-semibold text-nx-text-secondary mb-1">
+            {plugins.length === 0 ? "No plugins installed" : "Select a plugin"}
+          </h3>
+          <p className="text-[13px] text-nx-text-muted max-w-sm mb-4">
+            {plugins.length === 0
+              ? "Get started by adding a plugin from the marketplace or a local manifest."
+              : "Click on a plugin in the sidebar to view it here."}
+          </p>
+          {plugins.length === 0 && (
+            <button
+              onClick={() => setView("marketplace")}
+              className="px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
+            >
+              Add Plugins
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Warm plugin viewports — stacked, only selected is visible. Evicted after 5 min idle. */}
+      {plugins.filter((p) => warmPluginIds.has(p.manifest.id)).map((plugin) => {
+        const id = plugin.manifest.id;
+        const isActive = id === selectedPluginId;
+        return (
+          <div
+            key={id}
+            className={`absolute inset-0 ${isActive ? "" : "invisible pointer-events-none"}`}
+          >
+            <ErrorBoundary label={plugin.manifest.name}>
+              <PluginViewport
+                plugin={plugin}
+                busyAction={busyPlugins[id] ?? null}
+                onStart={() => start(id)}
+              />
+            </ErrorBoundary>
+          </div>
+        );
+      })}
+
       {showLogsPluginId && (
         <PluginLogs
           pluginId={showLogsPluginId}
@@ -63,7 +117,7 @@ function PluginsView() {
           onClose={() => setShowLogs(null)}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -78,6 +132,7 @@ function App() {
     selectExtensionEntry,
   } = useAppStore();
   const { refresh } = usePlugins();
+  const { refresh: extensionRefresh } = useExtensions();
   useDevRebuild();
   const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval } = useAppStore();
 
@@ -96,6 +151,7 @@ function App() {
   // One-time startup: docker check, app update check, initial plugin check, load interval setting
   useEffect(() => {
     refresh();
+    extensionRefresh();
 
     checkDocker()
       .then((status) => {
@@ -124,7 +180,7 @@ function App() {
     getUpdateCheckInterval()
       .then(setUpdateCheckInterval)
       .catch(() => {});
-  }, [refresh, addNotification, checkForPluginUpdates, setUpdateCheckInterval]);
+  }, [refresh, extensionRefresh, addNotification, checkForPluginUpdates, setUpdateCheckInterval]);
 
   // Reactive timer — restarts whenever the interval setting changes
   useEffect(() => {
@@ -137,48 +193,58 @@ function App() {
     <TooltipProvider>
     <Shell>
       <InstallOverlay />
-      {currentView === "plugins" && (
+      {/* Always-mounted views — stacked absolutely, hidden with visibility to preserve iframe state */}
+      <div className={`absolute inset-0 overflow-y-auto ${currentView === "plugins" ? "" : "invisible pointer-events-none"}`}>
         <ErrorBoundary label="Plugins">
           <PluginsView />
         </ErrorBoundary>
-      )}
-      {currentView === "marketplace" && (
-        <ErrorBoundary label="Marketplace">
-          <MarketplacePage />
-        </ErrorBoundary>
-      )}
-      {currentView === "settings" && (
+      </div>
+      <div className={`absolute inset-0 overflow-y-auto ${currentView === "settings" ? "" : "invisible pointer-events-none"}`}>
         <ErrorBoundary label="Settings">
           <SettingsPage />
         </ErrorBoundary>
+      </div>
+      {/* Ephemeral views — mount/unmount on demand */}
+      {currentView === "marketplace" && (
+        <div className="absolute inset-0 overflow-y-auto">
+          <ErrorBoundary label="Marketplace">
+            <MarketplacePage />
+          </ErrorBoundary>
+        </div>
       )}
       {currentView === "plugin-detail" && selectedRegistryEntry && (
-        <ErrorBoundary label="Plugin Detail">
-          <PluginDetail
-            entry={selectedRegistryEntry}
-            installedPlugin={installedPlugins.find((p) => p.manifest.id === selectedRegistryEntry.id) ?? null}
-            onBack={() => {
-              selectRegistryEntry(null);
-              setView("marketplace");
-            }}
-          />
-        </ErrorBoundary>
+        <div className="absolute inset-0 overflow-y-auto">
+          <ErrorBoundary label="Plugin Detail">
+            <PluginDetail
+              entry={selectedRegistryEntry}
+              installedPlugin={installedPlugins.find((p) => p.manifest.id === selectedRegistryEntry.id) ?? null}
+              onBack={() => {
+                selectRegistryEntry(null);
+                setView("marketplace");
+              }}
+            />
+          </ErrorBoundary>
+        </div>
       )}
       {currentView === "extension-marketplace" && (
-        <ErrorBoundary label="Extension Marketplace">
-          <ExtensionMarketplacePage />
-        </ErrorBoundary>
+        <div className="absolute inset-0 overflow-y-auto">
+          <ErrorBoundary label="Extension Marketplace">
+            <ExtensionMarketplacePage />
+          </ErrorBoundary>
+        </div>
       )}
       {currentView === "extension-detail" && selectedExtensionEntry && (
-        <ErrorBoundary label="Extension Detail">
-          <ExtensionDetail
-            entry={selectedExtensionEntry}
-            onBack={() => {
-              selectExtensionEntry(null);
-              setView("extension-marketplace");
-            }}
-          />
-        </ErrorBoundary>
+        <div className="absolute inset-0 overflow-y-auto">
+          <ErrorBoundary label="Extension Detail">
+            <ExtensionDetail
+              entry={selectedExtensionEntry}
+              onBack={() => {
+                selectExtensionEntry(null);
+                setView("extension-marketplace");
+              }}
+            />
+          </ErrorBoundary>
+        </div>
       )}
     </Shell>
     </TooltipProvider>

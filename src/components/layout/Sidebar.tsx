@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useAppStore } from "../../stores/appStore";
 import type { InstalledPlugin } from "../../types/plugin";
+import type { ExtensionStatus } from "../../types/extension";
 import * as api from "../../lib/tauri";
-import { Plus, Settings, ArrowUp, Play, Square, ScrollText, Trash2, Hammer, Wrench, MoreHorizontal, TriangleAlert } from "lucide-react";
+import { Plus, Settings, ArrowUp, Play, Square, ScrollText, Trash2, Hammer, Wrench, MoreHorizontal, TriangleAlert, Power, Puzzle } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -41,9 +42,10 @@ const statusColor: Record<string, string> = {
 };
 
 function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
-  const { selectedPluginId, selectPlugin, setView, availableUpdates, busyPlugins, setBusy, removePlugin, addNotification, setShowLogs } = useAppStore();
+  const { selectedPluginId, selectPlugin, setView, availableUpdates, busyPlugins, setBusy, removePlugin, addNotification, setShowLogs, warmViewports } = useAppStore();
   const isSelected = selectedPluginId === plugin.manifest.id;
   const isRunning = plugin.status === "running";
+  const isWarm = !!warmViewports[plugin.manifest.id];
   const hasUpdate = availableUpdates.some((u) => u.item_id === plugin.manifest.id);
   const isBusy = !!busyPlugins[plugin.manifest.id];
   const isLocal = !!plugin.local_manifest_path;
@@ -135,7 +137,7 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
       >
         <span
           className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor[plugin.status] ?? "bg-nx-text-muted"}`}
-          style={isRunning ? { animation: "pulse-status 2s ease-in-out infinite" } : undefined}
+          style={isRunning && !isWarm ? { animation: "pulse-status 2s ease-in-out infinite" } : undefined}
         />
         <span className="truncate">{plugin.manifest.name}</span>
       </SidebarMenuButton>
@@ -231,8 +233,160 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
   );
 }
 
+function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
+  const { busyExtensions, setExtensionBusy, setExtensions, addNotification, setView, setSettingsTab, setFocusExtensionId } = useAppStore();
+  const isBusy = !!busyExtensions[ext.id];
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+
+  async function handleToggle() {
+    const action = ext.enabled ? "disabling" : "enabling";
+    setExtensionBusy(ext.id, action);
+    try {
+      if (ext.enabled) {
+        await api.extensionDisable(ext.id);
+        addNotification(`Extension "${ext.display_name}" disabled`, "info");
+      } else {
+        await api.extensionEnable(ext.id);
+        addNotification(`Extension "${ext.display_name}" enabled`, "success");
+      }
+      const exts = await api.extensionList();
+      setExtensions(exts);
+    } catch (e) {
+      addNotification(`Failed to ${ext.enabled ? "disable" : "enable"} extension: ${e}`, "error");
+    } finally {
+      setExtensionBusy(ext.id, null);
+    }
+  }
+
+  async function handleRemove() {
+    setRemoveDialogOpen(false);
+    setExtensionBusy(ext.id, "removing");
+    try {
+      await api.extensionRemove(ext.id);
+      useAppStore.getState().removeExtension(ext.id);
+      addNotification(`Extension "${ext.display_name}" removed`, "info");
+    } catch (e) {
+      addNotification(`Failed to remove extension: ${e}`, "error");
+    } finally {
+      setExtensionBusy(ext.id, null);
+    }
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        size="sm"
+        className="text-[12px]"
+        onClick={() => {
+          setSettingsTab("extensions");
+          setFocusExtensionId(ext.id);
+          setView("settings");
+        }}
+      >
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${ext.enabled ? "bg-nx-success" : "bg-nx-text-muted"}`}
+        />
+        <span className="truncate">{ext.display_name}</span>
+      </SidebarMenuButton>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction showOnHover className="text-nx-text-ghost hover:text-nx-text">
+            <MoreHorizontal size={14} strokeWidth={1.5} />
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="w-48">
+          <DropdownMenuItem onClick={handleToggle} disabled={isBusy}>
+            <Power size={14} strokeWidth={1.5} className={ext.enabled ? "text-nx-warning" : "text-nx-success"} />
+            {ext.enabled ? "Disable" : "Enable"}
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onClick={() => {
+            setSettingsTab("extensions");
+            setView("settings");
+          }}>
+            <Settings size={14} strokeWidth={1.5} />
+            Manage Extensions
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setRemoveDialogOpen(true)}
+            disabled={isBusy}
+          >
+            <Trash2 size={14} strokeWidth={1.5} />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <TriangleAlert size={18} className="text-nx-warning" />
+              Remove {ext.display_name}?
+            </DialogTitle>
+            <DialogDescription className="text-[13px] leading-relaxed pt-1" asChild>
+              <div>
+                {ext.consumers.length > 0 ? (
+                  <>
+                    <p>
+                      The following plugin{ext.consumers.length !== 1 ? "s" : ""} will
+                      lose access to this extension's operations:
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {ext.consumers.map((c) => (
+                        <li
+                          key={c.plugin_id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+                        >
+                          <Puzzle size={12} strokeWidth={1.5} className="text-nx-text-ghost flex-shrink-0" />
+                          <span className="text-[12px] text-nx-text font-medium truncate">
+                            {c.plugin_name}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p>
+                    No plugins currently use this extension.
+                    You can reinstall it later from the marketplace.
+                  </p>
+                )}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setRemoveDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleRemove}
+              className="bg-nx-error text-white hover:bg-nx-error/80"
+            >
+              Remove Extension
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </SidebarMenuItem>
+  );
+}
+
 export function AppSidebar() {
-  const { currentView, setView, installedPlugins, availableUpdates } = useAppStore();
+  const { currentView, setView, installedPlugins, installedExtensions, availableUpdates } = useAppStore();
+
+  const plugins = installedPlugins.filter((p) => p.manifest.ui !== null);
+  const integrations = installedPlugins.filter((p) => p.manifest.ui === null);
 
   return (
     <Sidebar
@@ -254,22 +408,57 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-            Installed
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            {installedPlugins.length === 0 ? (
+        {installedPlugins.length === 0 ? (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
+              Installed
+            </SidebarGroupLabel>
+            <SidebarMenu>
               <p className="text-[11px] text-nx-text-ghost px-2 py-2">
                 No plugins installed
               </p>
-            ) : (
-              installedPlugins.map((plugin) => (
-                <PluginItem key={plugin.manifest.id} plugin={plugin} />
-              ))
+            </SidebarMenu>
+          </SidebarGroup>
+        ) : (
+          <>
+            {plugins.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
+                  Plugins
+                </SidebarGroupLabel>
+                <SidebarMenu>
+                  {plugins.map((plugin) => (
+                    <PluginItem key={plugin.manifest.id} plugin={plugin} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
             )}
-          </SidebarMenu>
-        </SidebarGroup>
+            {integrations.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
+                  Integrations
+                </SidebarGroupLabel>
+                <SidebarMenu>
+                  {integrations.map((plugin) => (
+                    <PluginItem key={plugin.manifest.id} plugin={plugin} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            )}
+            {installedExtensions.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
+                  Extensions
+                </SidebarGroupLabel>
+                <SidebarMenu>
+                  {installedExtensions.map((ext) => (
+                    <ExtensionItem key={ext.id} ext={ext} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            )}
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-nx-border-subtle">

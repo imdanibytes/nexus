@@ -11,7 +11,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <ErrorBoundary inline label="Sidebar">
         <AppSidebar />
       </ErrorBoundary>
-      <SidebarInset className="overflow-y-auto bg-nx-base">
+      <SidebarInset className="relative overflow-hidden bg-nx-base">
         {children}
       </SidebarInset>
 

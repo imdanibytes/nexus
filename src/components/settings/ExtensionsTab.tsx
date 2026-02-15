@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { extensionList, extensionEnable, extensionDisable, extensionRemove } from "../../lib/tauri";
+import { useState } from "react";
+import { useExtensions } from "../../hooks/useExtensions";
 import { useAppStore } from "../../stores/appStore";
-import type { ExtensionStatus } from "../../types/extension";
 import {
   Blocks,
   ChevronDown,
@@ -34,26 +33,17 @@ const RISK_VARIANT: Record<string, "success" | "warning" | "error"> = {
 };
 
 export function ExtensionsTab() {
-  const [extensions, setExtensions] = useState<ExtensionStatus[]>([]);
+  const { extensions, busyExtensions, enable, disable, remove } = useExtensions();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [busyExt, setBusyExt] = useState<string | null>(null);
-  const { setView, addNotification } = useAppStore();
+  const { setView, focusExtensionId, setFocusExtensionId } = useAppStore();
+  const [prevFocusId, setPrevFocusId] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      const exts = await extensionList();
-      setExtensions(exts);
-    } catch {
-      // backend may not have extension commands yet
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  // Adjust state during render: auto-expand the deep-linked extension
+  if (focusExtensionId && focusExtensionId !== prevFocusId) {
+    setPrevFocusId(focusExtensionId);
+    setExpanded((prev) => new Set(prev).add(focusExtensionId));
+    setFocusExtensionId(null);
+  }
 
   function toggleExpanded(extId: string) {
     setExpanded((prev) => {
@@ -65,49 +55,6 @@ export function ExtensionsTab() {
       }
       return next;
     });
-  }
-
-  async function handleToggle(ext: ExtensionStatus) {
-    setBusyExt(ext.id);
-    try {
-      if (ext.enabled) {
-        await extensionDisable(ext.id);
-        addNotification(`Extension "${ext.display_name}" disabled`, "info");
-      } else {
-        await extensionEnable(ext.id);
-        addNotification(`Extension "${ext.display_name}" enabled`, "success");
-      }
-      await refresh();
-    } catch (e) {
-      addNotification(`Failed to ${ext.enabled ? "disable" : "enable"} extension: ${e}`, "error");
-    } finally {
-      setBusyExt(null);
-    }
-  }
-
-  async function handleRemove(ext: ExtensionStatus) {
-    setBusyExt(ext.id);
-    try {
-      await extensionRemove(ext.id);
-      addNotification(`Extension "${ext.display_name}" removed`, "info");
-      await refresh();
-    } catch (e) {
-      addNotification(`Failed to remove extension: ${e}`, "error");
-    } finally {
-      setBusyExt(null);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-          <p className="text-[12px] text-nx-text-ghost">
-            Loading extensions...
-          </p>
-        </section>
-      </div>
-    );
   }
 
   return (
@@ -156,7 +103,7 @@ export function ExtensionsTab() {
       ) : (
         extensions.map((ext) => {
           const isOpen = expanded.has(ext.id);
-          const isBusy = busyExt === ext.id;
+          const isBusy = !!busyExtensions[ext.id];
           return (
             <Collapsible
               key={ext.id}
@@ -221,7 +168,8 @@ export function ExtensionsTab() {
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggle(ext);
+                            if (ext.enabled) disable(ext.id);
+                            else enable(ext.id);
                           }}
                           disabled={isBusy}
                           variant={ext.enabled ? "secondary" : "default"}
@@ -295,7 +243,7 @@ export function ExtensionsTab() {
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  onClick={() => handleRemove(ext)}
+                                  onClick={() => remove(ext.id)}
                                 >
                                   Remove Extension
                                 </Button>

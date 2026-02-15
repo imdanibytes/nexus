@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useAppStore } from "../stores/appStore";
-import { extensionMarketplaceSearch } from "../lib/extensions";
+import { extensionMarketplaceSearch } from "../lib/tauri";
 
 export function useExtensionMarketplace() {
   const {

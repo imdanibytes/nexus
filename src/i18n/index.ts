@@ -13,6 +13,26 @@ import pluginsJa from "./locales/ja/plugins.json";
 import settingsJa from "./locales/ja/settings.json";
 import permissionsJa from "./locales/ja/permissions.json";
 
+import commonEs from "./locales/es/common.json";
+import pluginsEs from "./locales/es/plugins.json";
+import settingsEs from "./locales/es/settings.json";
+import permissionsEs from "./locales/es/permissions.json";
+
+import commonKo from "./locales/ko/common.json";
+import pluginsKo from "./locales/ko/plugins.json";
+import settingsKo from "./locales/ko/settings.json";
+import permissionsKo from "./locales/ko/permissions.json";
+
+import commonZh from "./locales/zh/common.json";
+import pluginsZh from "./locales/zh/plugins.json";
+import settingsZh from "./locales/zh/settings.json";
+import permissionsZh from "./locales/zh/permissions.json";
+
+import commonDe from "./locales/de/common.json";
+import pluginsDe from "./locales/de/plugins.json";
+import settingsDe from "./locales/de/settings.json";
+import permissionsDe from "./locales/de/permissions.json";
+
 export const defaultNS = "common";
 export const resources = {
   en: {
@@ -27,12 +47,40 @@ export const resources = {
     settings: settingsJa,
     permissions: permissionsJa,
   },
+  es: {
+    common: commonEs,
+    plugins: pluginsEs,
+    settings: settingsEs,
+    permissions: permissionsEs,
+  },
+  ko: {
+    common: commonKo,
+    plugins: pluginsKo,
+    settings: settingsKo,
+    permissions: permissionsKo,
+  },
+  zh: {
+    common: commonZh,
+    plugins: pluginsZh,
+    settings: settingsZh,
+    permissions: permissionsZh,
+  },
+  de: {
+    common: commonDe,
+    plugins: pluginsDe,
+    settings: settingsDe,
+    permissions: permissionsDe,
+  },
 } as const;
 
 /** Available languages — native label shown in the switcher. */
 export const LANGUAGES: { code: string; label: string }[] = [
   { code: "en", label: "English" },
   { code: "ja", label: "日本語" },
+  { code: "es", label: "Español" },
+  { code: "ko", label: "한국어" },
+  { code: "zh", label: "中文" },
+  { code: "de", label: "Deutsch" },
 ];
 
 const STORAGE_KEY = "nexus-language";

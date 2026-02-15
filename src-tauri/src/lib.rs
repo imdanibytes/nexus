@@ -15,14 +15,52 @@ use plugin_manager::dev_watcher::DevWatcher;
 use plugin_manager::PluginManager;
 use runtime::docker::DockerRuntime;
 use std::sync::Arc;
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
 use tokio::sync::RwLock;
 
 pub type AppState = Arc<RwLock<PluginManager>>;
 
+/// Show the main window and switch to Regular activation policy (dock icon visible).
+#[cfg(target_os = "macos")]
+fn show_window(app: &tauri::AppHandle) {
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+/// Hide the main window and switch to Accessory activation policy (no dock icon).
+#[cfg(target_os = "macos")]
+fn hide_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn show_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn hide_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // Another instance tried to launch — bring the existing window to front
             if let Some(window) = app.get_webview_window("main") {
@@ -126,7 +164,41 @@ pub fn run() {
                 }
             });
 
+            // Build system tray with menu (keeps app running when window is closed)
+            let show = MenuItemBuilder::with_id("show", "Show Nexus").build(app)?;
+            let quit = MenuItemBuilder::with_id("quit", "Quit Nexus").build(app)?;
+            let tray_menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;
+
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().cloned().unwrap())
+                .icon_as_template(true)
+                .tooltip("Nexus")
+                .menu(&tray_menu)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "show" => show_window(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_window(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Hide window instead of quitting — MCP gateway stays alive
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                hide_window(window.app_handle());
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::plugins::plugin_list,
@@ -192,6 +264,19 @@ pub fn run() {
             commands::mcp_wrap::mcp_generate_and_install,
             notification::send_notification,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    #[allow(clippy::single_match)]
+    app.run(|app_handle: &tauri::AppHandle, event: tauri::RunEvent| {
+        // macOS dock icon click — re-show the hidden window
+        if let tauri::RunEvent::Reopen {
+            has_visible_windows, ..
+        } = event
+        {
+            if !has_visible_windows {
+                show_window(app_handle);
+            }
+        }
+    });
 }

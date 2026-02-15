@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePlugins } from "../../hooks/usePlugins";
 import { pluginGetSettings, pluginSaveSettings, pluginStorageInfo, pluginClearStorage } from "../../lib/tauri";
 import type { InstalledPlugin, SettingDef } from "../../types/plugin";
-import { Puzzle, Save, Check, Square, Trash2, Database } from "lucide-react";
+import { Puzzle, Save, Check, Square, Trash2, Database, HardDrive, Cloud } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +152,7 @@ function PluginSettingsCard({
   onStop: () => void;
   onRemove: () => void;
 }) {
+  const isLocalSource = plugin.local_manifest_path != null;
   const defs = plugin.manifest.settings ?? [];
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
@@ -254,6 +255,10 @@ function PluginSettingsCard({
           >
             {plugin.status.toUpperCase()}
           </span>
+          <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-ghost flex-shrink-0">
+            {isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
+            {isLocalSource ? "Local" : "Registry"}
+          </span>
           {actionButtons}
         </div>
         <p className="text-[11px] text-nx-text-ghost">
@@ -281,6 +286,10 @@ function PluginSettingsCard({
           }`}
         >
           {plugin.status.toUpperCase()}
+        </span>
+        <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-ghost flex-shrink-0">
+          {isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
+          {isLocalSource ? "Local" : "Registry"}
         </span>
         {actionButtons}
       </div>

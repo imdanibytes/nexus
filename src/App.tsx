@@ -133,8 +133,6 @@ function App() {
     return () => clearInterval(id);
   }, [updateCheckInterval, checkForPluginUpdates]);
 
-  const installedIds = new Set(installedPlugins.map((p) => p.manifest.id));
-
   return (
     <TooltipProvider>
     <Shell>
@@ -158,7 +156,7 @@ function App() {
         <ErrorBoundary label="Plugin Detail">
           <PluginDetail
             entry={selectedRegistryEntry}
-            isInstalled={installedIds.has(selectedRegistryEntry.id)}
+            installedPlugin={installedPlugins.find((p) => p.manifest.id === selectedRegistryEntry.id) ?? null}
             onBack={() => {
               selectRegistryEntry(null);
               setView("marketplace");

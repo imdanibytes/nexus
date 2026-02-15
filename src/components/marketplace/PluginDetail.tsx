@@ -1,32 +1,32 @@
 import { useState, useEffect } from "react";
-import type { RegistryEntry, PluginManifest } from "../../types/plugin";
+import type { RegistryEntry, PluginManifest, InstalledPlugin } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
 import { PermissionDialog } from "../permissions/PermissionDialog";
 import { usePlugins } from "../../hooks/usePlugins";
 import { checkImageAvailable } from "../../lib/tauri";
-import { ArrowLeft, Download, Check, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale, Hammer } from "lucide-react";
+import { ArrowLeft, Download, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale, Hammer, RefreshCw, HardDrive, Cloud } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   entry: RegistryEntry;
-  isInstalled: boolean;
+  installedPlugin: InstalledPlugin | null;
   onBack: () => void;
 }
 
-export function PluginDetail({ entry, isInstalled, onBack }: Props) {
+export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
   const { previewRemote, install } = usePlugins();
   const [loading, setLoading] = useState(false);
   const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
   const [imageAvailable, setImageAvailable] = useState<boolean | null>(null);
 
+  const isInstalled = !!installedPlugin;
+  const isLocalSource = installedPlugin?.local_manifest_path != null;
   const canBuild = !!entry.build_context;
 
   useEffect(() => {
-    if (isInstalled) return;
     if (canBuild) {
-      // Local registry with build context — always installable
-      // Using a microtask to avoid synchronous setState in effect body
       queueMicrotask(() => setImageAvailable(true));
       return;
     }
@@ -35,7 +35,7 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
       if (!cancelled) setImageAvailable(available);
     });
     return () => { cancelled = true; };
-  }, [entry.image, isInstalled, canBuild]);
+  }, [entry.image, canBuild]);
 
   async function handleInstallClick() {
     setLoading(true);
@@ -73,10 +73,32 @@ export function PluginDetail({ entry, isInstalled, onBack }: Props) {
             </p>
           </div>
           {isInstalled ? (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-accent-muted text-nx-accent">
-              <Check size={12} strokeWidth={1.5} />
-              Installed
-            </span>
+            <div className="flex items-center gap-2">
+              <Badge variant={isLocalSource ? "warning" : "accent"} className="gap-1">
+                {isLocalSource ? <HardDrive size={10} strokeWidth={1.5} /> : <Cloud size={10} strokeWidth={1.5} />}
+                {isLocalSource ? "Local Dev" : "Registry"}
+              </Badge>
+              {imageAvailable === false ? (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
+                  <AlertTriangle size={12} strokeWidth={1.5} />
+                  Image Unavailable
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleInstallClick}
+                  disabled={loading || imageAvailable === null}
+                >
+                  {loading || imageAvailable === null ? (
+                    <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={14} strokeWidth={1.5} />
+                  )}
+                  {imageAvailable === null ? "Checking..." : loading ? "Loading..." : "Reinstall"}
+                </Button>
+              )}
+            </div>
           ) : imageAvailable === false ? (
             <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
               <AlertTriangle size={12} strokeWidth={1.5} />

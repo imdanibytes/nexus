@@ -2,6 +2,7 @@ import type { InstalledPlugin, RegistryEntry } from "../../types/plugin";
 import type { PluginStatus } from "../../types/plugin";
 import { timeAgo } from "../../lib/timeAgo";
 import { Badge } from "@/components/ui/badge";
+import { HardDrive, Cloud } from "lucide-react";
 
 const statusVariant: Record<PluginStatus, "success" | "secondary" | "error" | "warning"> = {
   running: "success",
@@ -43,6 +44,10 @@ export function InstalledPluginCard({
           {plugin.dev_mode && (
             <Badge variant="accent">DEV</Badge>
           )}
+          <Badge variant="secondary" className="gap-0.5">
+            {plugin.local_manifest_path ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
+            {plugin.local_manifest_path ? "Local" : "Registry"}
+          </Badge>
           <Badge variant={variant}>{plugin.status}</Badge>
         </div>
       </div>

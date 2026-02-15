@@ -161,10 +161,11 @@ impl PluginManager {
 
         check_min_nexus_version(&manifest)?;
 
-        // Preserve dev_mode and local_manifest_path across reinstalls
-        let (prev_dev_mode, prev_local_path) = if let Some(existing) = self.storage.get(&manifest.id) {
-            let dm = existing.dev_mode;
-            let lp = existing.local_manifest_path.clone();
+        // Preserve dev_mode across local-to-local reinstalls only.
+        // When switching sources (local→registry or registry→local), reset dev_mode
+        // and use the new local_manifest_path as-is (don't carry over the old one).
+        let prev_dev_mode = if let Some(existing) = self.storage.get(&manifest.id) {
+            let dm = if local_manifest_path.is_some() { existing.dev_mode } else { false };
 
             log::info!("Reinstalling plugin '{}' (replacing existing)", manifest.id);
 
@@ -180,9 +181,9 @@ impl PluginManager {
             let _ = docker::remove_container(&name).await;
 
             self.storage.remove(&manifest.id)?;
-            (dm, lp)
+            dm
         } else {
-            (false, None)
+            false
         };
 
         // Pull the Docker image (skip if already present — e.g. locally built)
@@ -284,7 +285,7 @@ impl PluginManager {
             installed_at: chrono::Utc::now(),
             manifest_url_origin: manifest_url.and_then(storage::extract_url_host),
             dev_mode: prev_dev_mode,
-            local_manifest_path: local_manifest_path.or(prev_local_path),
+            local_manifest_path,
         };
 
         // Grant only user-approved permissions.

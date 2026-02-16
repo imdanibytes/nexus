@@ -189,6 +189,25 @@ impl ProcessExtension {
             )));
         }
 
+        // Spawn a thread to forward extension stderr to Nexus logs.
+        // This keeps the pipe alive so eprintln! in the extension doesn't
+        // hit a broken pipe and panic.
+        if let Some(stderr) = stderr {
+            let ext_id = self.manifest.id.clone();
+            std::thread::spawn(move || {
+                let reader = BufReader::new(stderr);
+                for line in reader.lines() {
+                    match line {
+                        Ok(text) if !text.is_empty() => {
+                            log::debug!("[ext:{}] {}", ext_id, text);
+                        }
+                        Err(_) => break,
+                        _ => {}
+                    }
+                }
+            });
+        }
+
         let mut guard = self.child.lock().expect("process lock poisoned");
         *guard = Some(handle);
 

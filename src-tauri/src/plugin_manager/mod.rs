@@ -196,12 +196,27 @@ impl PluginManager {
             // Also remove by name as fallback (container name survives Docker restarts).
             if let Some(container_id) = &existing.container_id {
                 if existing.status == PluginStatus::Running {
-                    let _ = self.runtime.stop_container(container_id).await;
+                    if let Err(e) = self.runtime.stop_container(container_id).await {
+                        log::warn!(
+                            "Failed to stop old container {} for plugin '{}' during reinstall: {}",
+                            container_id, manifest.id, e
+                        );
+                    }
                 }
-                let _ = self.runtime.remove_container(container_id).await;
+                if let Err(e) = self.runtime.remove_container(container_id).await {
+                    log::warn!(
+                        "Failed to remove old container {} for plugin '{}' during reinstall: {}",
+                        container_id, manifest.id, e
+                    );
+                }
             }
             let name = format!("nexus-{}", manifest.id.replace('.', "-"));
-            let _ = self.runtime.remove_container(&name).await;
+            if let Err(e) = self.runtime.remove_container(&name).await {
+                log::warn!(
+                    "Failed to remove container by name '{}' for plugin '{}' during reinstall: {}",
+                    name, manifest.id, e
+                );
+            }
 
             self.storage.remove(&manifest.id)?;
             dm
@@ -367,10 +382,25 @@ impl PluginManager {
         // name is still claimed — so we also force-remove by name as a fallback.
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
         if let Some(ref cid) = old_container_id {
-            let _ = self.runtime.stop_container(cid).await;
-            let _ = self.runtime.remove_container(cid).await;
+            if let Err(e) = self.runtime.stop_container(cid).await {
+                log::warn!(
+                    "Failed to stop old container {} for plugin '{}' during start: {}",
+                    cid, plugin_id, e
+                );
+            }
+            if let Err(e) = self.runtime.remove_container(cid).await {
+                log::warn!(
+                    "Failed to remove old container {} for plugin '{}' during start: {}",
+                    cid, plugin_id, e
+                );
+            }
         }
-        let _ = self.runtime.remove_container(&container_name).await;
+        if let Err(e) = self.runtime.remove_container(&container_name).await {
+            log::warn!(
+                "Failed to remove container by name '{}' for plugin '{}' during start: {}",
+                container_name, plugin_id, e
+            );
+        }
 
         // Fresh token for every start
         let new_token = uuid::Uuid::new_v4().to_string();
@@ -592,12 +622,27 @@ impl PluginManager {
         // Stop old container (also remove by name as fallback for Docker restarts)
         if let Some(ref cid) = old_container_id {
             if was_running {
-                let _ = self.runtime.stop_container(cid).await;
+                if let Err(e) = self.runtime.stop_container(cid).await {
+                    log::warn!(
+                        "Failed to stop old container {} for plugin '{}' during update: {}",
+                        cid, manifest.id, e
+                    );
+                }
             }
-            let _ = self.runtime.remove_container(cid).await;
+            if let Err(e) = self.runtime.remove_container(cid).await {
+                log::warn!(
+                    "Failed to remove old container {} for plugin '{}' during update: {}",
+                    cid, manifest.id, e
+                );
+            }
         }
         let container_name = format!("nexus-{}", manifest.id.replace('.', "-"));
-        let _ = self.runtime.remove_container(&container_name).await;
+        if let Err(e) = self.runtime.remove_container(&container_name).await {
+            log::warn!(
+                "Failed to remove container by name '{}' for plugin '{}' during update: {}",
+                container_name, manifest.id, e
+            );
+        }
 
         // Pull new image
         log::info!("Pulling updated image: {}", manifest.image);

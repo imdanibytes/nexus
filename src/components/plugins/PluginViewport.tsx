@@ -4,7 +4,7 @@ import type { InstalledPlugin } from "../../types/plugin";
 import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
 import { useAppStore } from "../../stores/appStore";
-import * as api from "../../lib/tauri";
+import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
 import { getTheme } from "../../lib/theme";
 import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand, Wrench, ScrollText, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -116,96 +116,20 @@ export function PluginViewport({
 
 function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPlugin; disabled: boolean; onStart: () => void; onOpenChange?: (open: boolean) => void }) {
   const { t } = useTranslation("plugins");
-  const { setBusy, removePlugin, addNotification, setShowLogs } = useAppStore();
+  const { setShowLogs } = useAppStore();
+  const { start, stop, restart, remove, rebuild, toggleDevMode } = usePluginActions();
   const isRunning = plugin.status === "running";
   const isLocal = !!plugin.local_manifest_path;
   const id = plugin.manifest.id;
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
 
-  async function handleStart() {
-    setBusy(id, "starting");
-    try {
-      await api.pluginStart(id);
-      addNotification(t("common:notification.pluginStarted"), "success");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.startFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleStop() {
-    setBusy(id, "stopping");
-    try {
-      await api.pluginStop(id);
-      addNotification(t("common:notification.pluginStopped"), "info");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.stopFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleRestart() {
-    setBusy(id, "stopping");
-    try {
-      await api.pluginStop(id);
-      setBusy(id, "starting");
-      await api.pluginStart(id);
-      addNotification(t("common:notification.pluginStarted"), "success");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.startFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleRemove() {
-    setRemoveDialogOpen(false);
-    setBusy(id, "removing");
-    try {
-      await api.pluginRemove(id);
-      removePlugin(id);
-      addNotification(t("common:notification.pluginRemoved"), "info");
-    } catch (e) {
-      addNotification(t("common:error.removeFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleRebuild() {
-    setBusy(id, "rebuilding");
-    try {
-      await api.pluginRebuild(id);
-      addNotification(t("common:notification.pluginRebuilt"), "success");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.rebuildFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleToggleDevMode() {
-    const next = !plugin.dev_mode;
-    try {
-      await api.pluginDevModeToggle(id, next);
-      addNotification(next ? t("common:notification.devModeEnabled") : t("common:notification.devModeDisabled"), "info");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.devModeToggleFailed", { error: e }), "error");
-    }
-  }
+  const handleStart = () => start(id);
+  const handleStop = () => stop(id);
+  const handleRestart = () => restart(id);
+  const handleRebuild = () => rebuild(id);
+  const handleToggleDevMode = () => toggleDevMode(id, !plugin.dev_mode);
+  const handleRemove = () => { setRemoveDialogOpen(false); remove(id); };
 
   const m = plugin.manifest;
 

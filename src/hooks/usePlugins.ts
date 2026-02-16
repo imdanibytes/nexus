@@ -157,6 +157,57 @@ export function usePlugins() {
     [removeFromStore, setBusy, addNotification]
   );
 
+  const restart = useCallback(
+    async (pluginId: string) => {
+      setBusy(pluginId, "stopping");
+      try {
+        await api.pluginStop(pluginId);
+        setBusy(pluginId, "starting");
+        await api.pluginStart(pluginId);
+        addNotification(i18n.t("notification.pluginStarted"), "success");
+        await refresh();
+      } catch (e) {
+        addNotification(i18n.t("error.startFailed", { error: e }), "error");
+      } finally {
+        setBusy(pluginId, null);
+      }
+    },
+    [refresh, setBusy, addNotification]
+  );
+
+  const rebuild = useCallback(
+    async (pluginId: string) => {
+      setBusy(pluginId, "rebuilding");
+      try {
+        await api.pluginRebuild(pluginId);
+        // Toast + busy clear handled by useDevRebuild() hook on "complete" event.
+        // The command returns immediately (rebuild is spawned in background).
+      } catch (e) {
+        addNotification(i18n.t("error.rebuildFailed", { error: e }), "error");
+        setBusy(pluginId, null);
+      }
+    },
+    [setBusy, addNotification]
+  );
+
+  const toggleDevMode = useCallback(
+    async (pluginId: string, enable: boolean) => {
+      try {
+        await api.pluginDevModeToggle(pluginId, enable);
+        addNotification(
+          enable
+            ? i18n.t("notification.devModeEnabled")
+            : i18n.t("notification.devModeDisabled"),
+          "info"
+        );
+        await refresh();
+      } catch (e) {
+        addNotification(i18n.t("error.devModeToggleFailed", { error: e }), "error");
+      }
+    },
+    [refresh, addNotification]
+  );
+
   const getLogs = useCallback(
     async (pluginId: string, tail?: number) => {
       try {
@@ -182,6 +233,9 @@ export function usePlugins() {
     installLocal,
     start,
     stop,
+    restart,
+    rebuild,
+    toggleDevMode,
     remove,
     getLogs,
   };

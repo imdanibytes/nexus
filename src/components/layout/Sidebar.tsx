@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
+import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { ExtensionStatus } from "../../types/extension";
 import * as api from "../../lib/tauri";
@@ -44,87 +45,22 @@ const statusColor: Record<string, string> = {
 
 function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const { selectedPluginId, selectPlugin, setView, availableUpdates, busyPlugins, setBusy, removePlugin, addNotification, setShowLogs, warmViewports } = useAppStore();
-  const isSelected = selectedPluginId === plugin.manifest.id;
+  const { selectedPluginId, selectPlugin, setView, availableUpdates, busyPlugins, setShowLogs, warmViewports } = useAppStore();
+  const { start, stop, remove, rebuild, toggleDevMode } = usePluginActions();
+  const id = plugin.manifest.id;
+  const isSelected = selectedPluginId === id;
   const isRunning = plugin.status === "running";
-  const isWarm = !!warmViewports[plugin.manifest.id];
-  const hasUpdate = availableUpdates.some((u) => u.item_id === plugin.manifest.id);
-  const isBusy = !!busyPlugins[plugin.manifest.id];
+  const isWarm = !!warmViewports[id];
+  const hasUpdate = availableUpdates.some((u) => u.item_id === id);
+  const isBusy = !!busyPlugins[id];
   const isLocal = !!plugin.local_manifest_path;
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
-  async function handleStart() {
-    const id = plugin.manifest.id;
-    setBusy(id, "starting");
-    try {
-      await api.pluginStart(id);
-      addNotification(t("common:notification.pluginStarted"), "success");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.startFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleStop() {
-    const id = plugin.manifest.id;
-    setBusy(id, "stopping");
-    try {
-      await api.pluginStop(id);
-      addNotification(t("common:notification.pluginStopped"), "info");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.stopFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleRemove() {
-    const id = plugin.manifest.id;
-    setRemoveDialogOpen(false);
-    setBusy(id, "removing");
-    try {
-      await api.pluginRemove(id);
-      removePlugin(id);
-      addNotification(t("common:notification.pluginRemoved"), "info");
-    } catch (e) {
-      addNotification(t("common:error.removeFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleRebuild() {
-    const id = plugin.manifest.id;
-    setBusy(id, "rebuilding");
-    try {
-      await api.pluginRebuild(id);
-      addNotification(t("common:notification.pluginRebuilt"), "success");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.rebuildFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
-    }
-  }
-
-  async function handleToggleDevMode() {
-    const id = plugin.manifest.id;
-    const next = !plugin.dev_mode;
-    try {
-      await api.pluginDevModeToggle(id, next);
-      addNotification(next ? t("common:notification.devModeEnabled") : t("common:notification.devModeDisabled"), "info");
-      const plugins = await api.pluginList();
-      useAppStore.getState().setPlugins(plugins);
-    } catch (e) {
-      addNotification(t("common:error.devModeToggleFailed", { error: e }), "error");
-    }
-  }
+  const handleStart = () => start(id);
+  const handleStop = () => stop(id);
+  const handleRebuild = () => rebuild(id);
+  const handleToggleDevMode = () => toggleDevMode(id, !plugin.dev_mode);
+  const handleRemove = () => { setRemoveDialogOpen(false); remove(id); };
 
   return (
     <SidebarMenuItem>

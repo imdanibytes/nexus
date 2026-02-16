@@ -6,6 +6,11 @@
     "registry": "https://registry.npmjs.org",
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imdanibytes/nexus",
+    "directory": "packages/nexus-ui"
+  },
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

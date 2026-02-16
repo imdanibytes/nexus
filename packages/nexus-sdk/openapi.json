@@ -88,6 +88,183 @@
         ]
       }
     },
+    "/api/v1/fs/edit": {
+      "post": {
+        "tags": [
+          "filesystem"
+        ],
+        "operationId": "edit_file",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "File edited"
+          },
+          "400": {
+            "description": "old_string not found or not unique"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/fs/glob": {
+      "get": {
+        "tags": [
+          "filesystem"
+        ],
+        "operationId": "glob_files",
+        "parameters": [
+          {
+            "name": "pattern",
+            "in": "query",
+            "description": "Glob pattern (e.g. \"**/*.ts\", \"src/**/*.rs\")",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Base directory to search from (must be absolute)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/fs/grep": {
+      "get": {
+        "tags": [
+          "filesystem"
+        ],
+        "operationId": "grep_files",
+        "parameters": [
+          {
+            "name": "pattern",
+            "in": "query",
+            "description": "Regex pattern to search for",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "description": "File or directory to search in (must be absolute)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Optional glob filter for file names (e.g. \"*.ts\")",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "context_lines",
+            "in": "query",
+            "description": "Number of context lines around matches (default: 0)",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          },
+          {
+            "name": "max_results",
+            "in": "query",
+            "description": "Maximum number of matching files to return (default: 50)",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrepResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/fs/list": {
       "get": {
         "tags": [
@@ -239,6 +416,47 @@
           },
           "502": {
             "description": "Upstream error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/process/exec": {
+      "post": {
+        "tags": [
+          "process"
+        ],
+        "operationId": "exec_command",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Command output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
           }
         },
         "security": [
@@ -458,6 +676,90 @@
           }
         }
       },
+      "EditRequest": {
+        "type": "object",
+        "required": [
+          "path",
+          "old_string",
+          "new_string"
+        ],
+        "properties": {
+          "new_string": {
+            "type": "string"
+          },
+          "old_string": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "replace_all": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExecRequest": {
+        "type": "object",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Arguments to pass to the command"
+          },
+          "command": {
+            "type": "string",
+            "description": "The command to execute (e.g. \"git\", \"cargo\", \"ls\")"
+          },
+          "timeout_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Timeout in seconds (default: 30, max: 600)",
+            "minimum": 0
+          },
+          "working_dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Working directory (must be absolute). Defaults to home directory."
+          }
+        }
+      },
+      "ExecResult": {
+        "type": "object",
+        "required": [
+          "stdout",
+          "stderr",
+          "timed_out"
+        ],
+        "properties": {
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "timed_out": {
+            "type": "boolean",
+            "description": "Whether the command was killed due to timeout"
+          }
+        }
+      },
       "FileContent": {
         "type": "object",
         "required": [
@@ -476,6 +778,89 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "GlobResult": {
+        "type": "object",
+        "required": [
+          "pattern",
+          "base_path",
+          "matches"
+        ],
+        "properties": {
+          "base_path": {
+            "type": "string"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pattern": {
+            "type": "string"
+          }
+        }
+      },
+      "GrepFileMatch": {
+        "type": "object",
+        "required": [
+          "path",
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GrepLine"
+            }
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "GrepLine": {
+        "type": "object",
+        "required": [
+          "line_number",
+          "content",
+          "is_context"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "is_context": {
+            "type": "boolean",
+            "description": "Whether this line is a context line (vs a direct match)"
+          },
+          "line_number": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "GrepResult": {
+        "type": "object",
+        "required": [
+          "pattern",
+          "search_path",
+          "matches"
+        ],
+        "properties": {
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GrepFileMatch"
+            }
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "search_path": {
+            "type": "string"
           }
         }
       },

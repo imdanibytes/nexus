@@ -267,7 +267,7 @@ export function McpTab() {
             {Object.values(pluginGroups).map((group) => {
               const isOpen = expanded.has(group.pluginId);
               const pluginSettings = settings?.plugins[group.pluginId];
-              const pluginEnabled = pluginSettings?.enabled ?? true;
+              const pluginEnabled = pluginSettings?.enabled ?? false;
               const firstTool = group.tools[0];
               const pluginRunning = firstTool?.plugin_running ?? false;
 

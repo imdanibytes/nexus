@@ -18,10 +18,17 @@ pub fn check_permission(
 pub fn required_permission_for_endpoint(path: &str) -> Option<Permission> {
     match path {
         p if p.starts_with("/v1/system/") => Some(Permission::SystemInfo),
-        p if p.starts_with("/v1/fs/read") || p.starts_with("/v1/fs/list") => {
+        p if p.starts_with("/v1/fs/read")
+            || p.starts_with("/v1/fs/list")
+            || p.starts_with("/v1/fs/glob")
+            || p.starts_with("/v1/fs/grep") =>
+        {
             Some(Permission::FilesystemRead)
         }
-        p if p.starts_with("/v1/fs/write") => Some(Permission::FilesystemWrite),
+        p if p.starts_with("/v1/fs/write") || p.starts_with("/v1/fs/edit") => {
+            Some(Permission::FilesystemWrite)
+        }
+        p if p.starts_with("/v1/process/exec") => Some(Permission::ProcessExec),
         p if p.starts_with("/v1/process/") => Some(Permission::ProcessList),
         p if p.starts_with("/v1/docker/") => Some(Permission::DockerRead),
         // Network permissions are enforced in the handler itself (local vs internet classification)
@@ -63,12 +70,24 @@ mod tests {
             required_permission_for_endpoint("/v1/fs/list"),
             Some(Permission::FilesystemRead)
         );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/fs/glob"),
+            Some(Permission::FilesystemRead)
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/fs/grep"),
+            Some(Permission::FilesystemRead)
+        );
     }
 
     #[test]
     fn fs_write_endpoint() {
         assert_eq!(
             required_permission_for_endpoint("/v1/fs/write"),
+            Some(Permission::FilesystemWrite)
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/fs/edit"),
             Some(Permission::FilesystemWrite)
         );
     }
@@ -78,6 +97,14 @@ mod tests {
         assert_eq!(
             required_permission_for_endpoint("/v1/process/list"),
             Some(Permission::ProcessList)
+        );
+    }
+
+    #[test]
+    fn process_exec_endpoint() {
+        assert_eq!(
+            required_permission_for_endpoint("/v1/process/exec"),
+            Some(Permission::ProcessExec)
         );
     }
 

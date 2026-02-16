@@ -32,6 +32,7 @@ pub enum Permission {
     NetworkLocal,
     NetworkInternet,
     McpCall,
+    ProcessExec,
     /// Dynamic extension permission: "ext:{ext_id}:{operation}"
     Extension(String),
 }
@@ -42,6 +43,7 @@ const KNOWN_PERMISSIONS: &[&str] = &[
     "filesystem:read",
     "filesystem:write",
     "process:list",
+    "process:exec",
     "docker:read",
     "docker:manage",
     "network:local",
@@ -62,6 +64,7 @@ impl Permission {
             Permission::NetworkLocal => "network:local",
             Permission::NetworkInternet => "network:internet",
             Permission::McpCall => "mcp:call",
+            Permission::ProcessExec => "process:exec",
             Permission::Extension(s) => s.as_str(),
         }
     }
@@ -77,6 +80,7 @@ impl Permission {
             Permission::NetworkLocal => "medium",
             Permission::NetworkInternet => "medium",
             Permission::McpCall => "medium",
+            Permission::ProcessExec => "critical",
             // Extension permissions derive risk from the operation; default to medium
             Permission::Extension(_) => "medium",
         }
@@ -93,6 +97,7 @@ impl Permission {
             Permission::NetworkLocal => "HTTP requests to LAN",
             Permission::NetworkInternet => "HTTP requests to internet",
             Permission::McpCall => "Call MCP tools from other plugins",
+            Permission::ProcessExec => "Execute commands on the host system",
             Permission::Extension(s) => s.as_str(),
         }
     }
@@ -123,6 +128,7 @@ impl<'de> Deserialize<'de> for Permission {
             "network:local" => Ok(Permission::NetworkLocal),
             "network:internet" => Ok(Permission::NetworkInternet),
             "mcp:call" => Ok(Permission::McpCall),
+            "process:exec" => Ok(Permission::ProcessExec),
             _ if s.starts_with("ext:") => Ok(Permission::Extension(s)),
             _ => Err(serde::de::Error::unknown_variant(&s, KNOWN_PERMISSIONS)),
         }
@@ -151,6 +157,7 @@ mod tests {
             Permission::NetworkLocal,
             Permission::NetworkInternet,
             Permission::McpCall,
+            Permission::ProcessExec,
         ];
 
         for perm in perms {
@@ -211,6 +218,7 @@ mod tests {
             Permission::FilesystemRead,
             Permission::FilesystemWrite,
             Permission::ProcessList,
+            Permission::ProcessExec,
             Permission::DockerRead,
             Permission::DockerManage,
             Permission::NetworkLocal,
@@ -221,7 +229,7 @@ mod tests {
         for perm in all_perms {
             let risk = perm.risk_level();
             assert!(
-                ["low", "medium", "high"].contains(&risk),
+                ["low", "medium", "high", "critical"].contains(&risk),
                 "invalid risk level '{}' for {:?}",
                 risk,
                 perm
@@ -240,6 +248,7 @@ mod tests {
             Permission::DockerManage,
             Permission::NetworkLocal,
             Permission::NetworkInternet,
+            Permission::ProcessExec,
         ];
 
         for perm in perms {

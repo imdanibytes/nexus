@@ -58,7 +58,11 @@ impl Modify for SecurityAddon {
         filesystem::read_file,
         filesystem::list_dir,
         filesystem::write_file,
+        filesystem::glob_files,
+        filesystem::grep_files,
+        filesystem::edit_file,
         process::list_processes,
+        process::exec_command,
         docker::list_containers,
         docker::container_stats,
         network::proxy_request,
@@ -71,7 +75,14 @@ impl Modify for SecurityAddon {
         filesystem::DirEntry,
         filesystem::DirListing,
         filesystem::WriteRequest,
+        filesystem::GlobResult,
+        filesystem::GrepResult,
+        filesystem::GrepFileMatch,
+        filesystem::GrepLine,
+        filesystem::EditRequest,
         process::ProcessInfo,
+        process::ExecRequest,
+        process::ExecResult,
         docker::ContainerInfo,
         network::ProxyRequest,
         network::ProxyResponse,
@@ -110,8 +121,12 @@ pub async fn start_server(
         .route("/v1/fs/read", routing::get(filesystem::read_file))
         .route("/v1/fs/list", routing::get(filesystem::list_dir))
         .route("/v1/fs/write", routing::post(filesystem::write_file))
+        .route("/v1/fs/glob", routing::get(filesystem::glob_files))
+        .route("/v1/fs/grep", routing::get(filesystem::grep_files))
+        .route("/v1/fs/edit", routing::post(filesystem::edit_file))
         // Process
         .route("/v1/process/list", routing::get(process::list_processes))
+        .route("/v1/process/exec", routing::post(process::exec_command))
         // Docker
         .route(
             "/v1/docker/containers",
@@ -157,19 +172,6 @@ pub async fn start_server(
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 
-    // DEPRECATED: Legacy MCP gateway routes (custom HTTP protocol).
-    // Use the native MCP endpoint at /mcp instead.
-    let mcp_routes = Router::new()
-        .route("/v1/mcp/tools", routing::get(mcp::list_tools))
-        .route("/v1/mcp/call", routing::post(mcp::call_tool))
-        .route("/v1/mcp/events", routing::get(mcp::tool_events))
-        .layer(axum_middleware::from_fn_with_state(
-            state.clone(),
-            mcp::gateway_auth_middleware,
-        ))
-        .layer(Extension(sessions.clone()))
-        .layer(Extension(approvals.clone()));
-
     // Native MCP server (streamable HTTP) — the primary gateway endpoint.
     // Clients connect via: http://127.0.0.1:9600/mcp
     let mcp_cancel = CancellationToken::new();
@@ -193,13 +195,17 @@ pub async fn start_server(
     );
 
     // Wrap the MCP service as an axum route with gateway auth.
-    // The MCP endpoint uses the same gateway auth as the legacy routes.
+    // McpSessionStore remembers authenticated sessions so subsequent requests
+    // (which may not carry the gateway token) are allowed through.
+    let mcp_session_store = mcp::McpSessionStore::new();
     let mcp_native_routes = Router::new()
         .nest_service("/mcp", mcp_service)
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),
             mcp::gateway_auth_middleware,
-        ));
+        ))
+        .layer(Extension(sessions.clone()))
+        .layer(Extension(mcp_session_store));
 
     // Token exchange route — public, plugins call this with their secret
     let auth_routes = Router::new()
@@ -219,11 +225,10 @@ pub async fn start_server(
         .nest("/api", auth_routes)
         // Native MCP endpoint (streamable HTTP — primary connection mode)
         .merge(mcp_native_routes)
-        // DEPRECATED: Legacy MCP gateway routes (custom HTTP protocol)
-        .nest("/api", mcp_routes)
         // Authenticated routes (plugin Bearer token auth via session store)
         .nest("/api", authenticated_routes)
         .layer(cors)
+        .layer(axum_middleware::from_fn(mcp::http_request_logging))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:9600").await?;

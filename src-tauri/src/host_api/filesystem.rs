@@ -1,6 +1,7 @@
 use axum::{extract::Query, extract::State, http::StatusCode, Extension, Json};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::BufRead;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use utoipa::{IntoParams, ToSchema};
@@ -45,9 +46,71 @@ pub struct WriteRequest {
     pub content: String,
 }
 
+#[derive(Deserialize, IntoParams)]
+pub struct GlobQuery {
+    /// Glob pattern (e.g. "**/*.ts", "src/**/*.rs")
+    pub pattern: String,
+    /// Base directory to search from (must be absolute)
+    pub path: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct GlobResult {
+    pub pattern: String,
+    pub base_path: String,
+    pub matches: Vec<String>,
+}
+
+#[derive(Deserialize, IntoParams)]
+pub struct GrepQuery {
+    /// Regex pattern to search for
+    pub pattern: String,
+    /// File or directory to search in (must be absolute)
+    pub path: String,
+    /// Optional glob filter for file names (e.g. "*.ts")
+    #[serde(default)]
+    pub include: Option<String>,
+    /// Number of context lines around matches (default: 0)
+    #[serde(default)]
+    pub context_lines: Option<usize>,
+    /// Maximum number of matching files to return (default: 50)
+    #[serde(default)]
+    pub max_results: Option<usize>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct GrepResult {
+    pub pattern: String,
+    pub search_path: String,
+    pub matches: Vec<GrepFileMatch>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct GrepFileMatch {
+    pub path: String,
+    pub lines: Vec<GrepLine>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct GrepLine {
+    pub line_number: usize,
+    pub content: String,
+    /// Whether this line is a context line (vs a direct match)
+    pub is_context: bool,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct EditRequest {
+    pub path: String,
+    pub old_string: String,
+    pub new_string: String,
+    #[serde(default)]
+    pub replace_all: bool,
+}
+
 /// Normalize a path by resolving `.` and `..` components without requiring
 /// the path to exist on disk. Used for write targets that don't exist yet.
-fn normalize_path(path: &Path) -> PathBuf {
+pub fn normalize_path(path: &Path) -> PathBuf {
     let mut components = Vec::new();
     for component in path.components() {
         match component {
@@ -387,6 +450,360 @@ pub async fn write_file(
     }
 
     std::fs::write(&validated, &req.content).map_err(|_| StatusCode::FORBIDDEN)?;
+
+    Ok(StatusCode::OK)
+}
+
+// ---------------------------------------------------------------------------
+// Glob
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/fs/glob",
+    tag = "filesystem",
+    security(("bearer_auth" = [])),
+    params(GlobQuery),
+    responses(
+        (status = 200, description = "Matching files", body = GlobResult),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden")
+    )
+)]
+pub async fn glob_files(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthenticatedPlugin>,
+    Extension(bridge): Extension<Arc<ApprovalBridge>>,
+    Query(query): Query<GlobQuery>,
+) -> Result<Json<GlobResult>, StatusCode> {
+    let base = {
+        let mgr = state.read().await;
+        validate_read_safety(&mgr.data_dir, &query.path)?
+    };
+
+    let needs_approval = {
+        let mgr = state.read().await;
+        check_path_access(
+            &*mgr.permissions,
+            &auth.plugin_id,
+            &Permission::FilesystemRead,
+            &base,
+            true,
+        )
+    };
+
+    if matches!(needs_approval, PathAccess::NeedsApproval) {
+        let name = plugin_display_name(&state, &auth.plugin_id).await;
+        let decision = request_fs_approval(
+            &bridge,
+            &auth.plugin_id,
+            &name,
+            &Permission::FilesystemRead,
+            &base,
+        )
+        .await;
+
+        match decision {
+            ApprovalDecision::Approve | ApprovalDecision::ApproveOnce => {}
+            ApprovalDecision::Deny => return Err(StatusCode::FORBIDDEN),
+        }
+    }
+
+    if !base.is_dir() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Build the full glob pattern: base_path + pattern
+    let full_pattern = base.join(&query.pattern).to_string_lossy().to_string();
+
+    let mut matches = Vec::new();
+    for entry in glob::glob(&full_pattern).map_err(|_| StatusCode::BAD_REQUEST)? {
+        if let Ok(path) = entry {
+            matches.push(path.to_string_lossy().to_string());
+        }
+        // Cap results to prevent memory issues on huge repos
+        if matches.len() >= 1000 {
+            break;
+        }
+    }
+
+    Ok(Json(GlobResult {
+        pattern: query.pattern,
+        base_path: base.to_string_lossy().to_string(),
+        matches,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Grep
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/fs/grep",
+    tag = "filesystem",
+    security(("bearer_auth" = [])),
+    params(GrepQuery),
+    responses(
+        (status = 200, description = "Search results", body = GrepResult),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden")
+    )
+)]
+pub async fn grep_files(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthenticatedPlugin>,
+    Extension(bridge): Extension<Arc<ApprovalBridge>>,
+    Query(query): Query<GrepQuery>,
+) -> Result<Json<GrepResult>, StatusCode> {
+    let search_path = {
+        let mgr = state.read().await;
+        validate_read_safety(&mgr.data_dir, &query.path)?
+    };
+
+    let needs_approval = {
+        let mgr = state.read().await;
+        check_path_access(
+            &*mgr.permissions,
+            &auth.plugin_id,
+            &Permission::FilesystemRead,
+            &search_path,
+            true,
+        )
+    };
+
+    if matches!(needs_approval, PathAccess::NeedsApproval) {
+        let name = plugin_display_name(&state, &auth.plugin_id).await;
+        let decision = request_fs_approval(
+            &bridge,
+            &auth.plugin_id,
+            &name,
+            &Permission::FilesystemRead,
+            &search_path,
+        )
+        .await;
+
+        match decision {
+            ApprovalDecision::Approve | ApprovalDecision::ApproveOnce => {}
+            ApprovalDecision::Deny => return Err(StatusCode::FORBIDDEN),
+        }
+    }
+
+    let re = regex::Regex::new(&query.pattern).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let include_glob = query
+        .include
+        .as_ref()
+        .and_then(|g| glob::Pattern::new(g).ok());
+    let context_lines = query.context_lines.unwrap_or(0);
+    let max_results = query.max_results.unwrap_or(50);
+
+    let mut file_matches: Vec<GrepFileMatch> = Vec::new();
+
+    if search_path.is_file() {
+        // Search a single file
+        if let Some(file_match) = grep_single_file(&search_path, &re, context_lines) {
+            file_matches.push(file_match);
+        }
+    } else if search_path.is_dir() {
+        // Walk directory
+        for entry in walkdir::WalkDir::new(&search_path)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                // Skip hidden directories and common noise
+                let name = e.file_name().to_string_lossy();
+                !name.starts_with('.')
+                    && name != "node_modules"
+                    && name != "target"
+                    && name != "__pycache__"
+                    && name != "dist"
+            })
+        {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            if !entry.file_type().is_file() {
+                continue;
+            }
+
+            // Apply include filter
+            if let Some(ref pattern) = include_glob {
+                let file_name = entry.file_name().to_string_lossy();
+                if !pattern.matches(&file_name) {
+                    continue;
+                }
+            }
+
+            // Skip files larger than 5 MB
+            if entry.metadata().map(|m| m.len()).unwrap_or(0) > MAX_READ_BYTES {
+                continue;
+            }
+
+            if let Some(file_match) = grep_single_file(entry.path(), &re, context_lines) {
+                file_matches.push(file_match);
+                if file_matches.len() >= max_results {
+                    break;
+                }
+            }
+        }
+    } else {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(Json(GrepResult {
+        pattern: query.pattern,
+        search_path: search_path.to_string_lossy().to_string(),
+        matches: file_matches,
+    }))
+}
+
+/// Search a single file for regex matches, returning matching lines with context.
+pub fn grep_single_file(
+    path: &Path,
+    re: &regex::Regex,
+    context_lines: usize,
+) -> Option<GrepFileMatch> {
+    let file = std::fs::File::open(path).ok()?;
+    let reader = std::io::BufReader::new(file);
+
+    let all_lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
+    let total = all_lines.len();
+
+    // Find matching line numbers
+    let match_indices: Vec<usize> = all_lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| re.is_match(line))
+        .map(|(i, _)| i)
+        .collect();
+
+    if match_indices.is_empty() {
+        return None;
+    }
+
+    // Build output with context
+    let mut result_lines: Vec<GrepLine> = Vec::new();
+    let mut included: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+    for &idx in &match_indices {
+        let start = idx.saturating_sub(context_lines);
+        let end = (idx + context_lines + 1).min(total);
+        for (i, line) in all_lines.iter().enumerate().take(end).skip(start) {
+            if included.insert(i) {
+                result_lines.push(GrepLine {
+                    line_number: i + 1,
+                    content: line.clone(),
+                    is_context: !match_indices.contains(&i),
+                });
+            }
+        }
+    }
+
+    result_lines.sort_by_key(|l| l.line_number);
+
+    Some(GrepFileMatch {
+        path: path.to_string_lossy().to_string(),
+        lines: result_lines,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Edit (atomic find-and-replace)
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/fs/edit",
+    tag = "filesystem",
+    security(("bearer_auth" = [])),
+    request_body = EditRequest,
+    responses(
+        (status = 200, description = "File edited"),
+        (status = 400, description = "old_string not found or not unique"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden")
+    )
+)]
+pub async fn edit_file(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthenticatedPlugin>,
+    Extension(bridge): Extension<Arc<ApprovalBridge>>,
+    Json(req): Json<EditRequest>,
+) -> Result<StatusCode, StatusCode> {
+    // Validate write safety for the target path
+    let validated = {
+        let mgr = state.read().await;
+        validate_write_safety(&mgr.data_dir, &req.path)?
+    };
+
+    // The file must already exist for edit
+    let canonical = validated.canonicalize().map_err(|_| StatusCode::FORBIDDEN)?;
+
+    // Check write permission
+    let needs_approval = {
+        let mgr = state.read().await;
+        check_path_access(
+            &*mgr.permissions,
+            &auth.plugin_id,
+            &Permission::FilesystemWrite,
+            &canonical,
+            true,
+        )
+    };
+
+    if matches!(needs_approval, PathAccess::NeedsApproval) {
+        let name = plugin_display_name(&state, &auth.plugin_id).await;
+        let decision = request_fs_approval(
+            &bridge,
+            &auth.plugin_id,
+            &name,
+            &Permission::FilesystemWrite,
+            &canonical,
+        )
+        .await;
+
+        match decision {
+            ApprovalDecision::Approve | ApprovalDecision::ApproveOnce => {}
+            ApprovalDecision::Deny => return Err(StatusCode::FORBIDDEN),
+        }
+    }
+
+    if !canonical.is_file() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let metadata = std::fs::metadata(&canonical).map_err(|_| StatusCode::FORBIDDEN)?;
+    if metadata.len() > MAX_READ_BYTES {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let content = std::fs::read_to_string(&canonical).map_err(|_| StatusCode::FORBIDDEN)?;
+
+    if req.old_string == req.new_string {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let new_content = if req.replace_all {
+        let replaced = content.replace(&req.old_string, &req.new_string);
+        if replaced == content {
+            return Err(StatusCode::BAD_REQUEST); // old_string not found
+        }
+        replaced
+    } else {
+        // Ensure old_string is unique
+        let count = content.matches(&req.old_string).count();
+        if count == 0 {
+            return Err(StatusCode::BAD_REQUEST); // not found
+        }
+        if count > 1 {
+            return Err(StatusCode::BAD_REQUEST); // not unique
+        }
+        content.replacen(&req.old_string, &req.new_string, 1)
+    };
+
+    std::fs::write(&canonical, &new_content).map_err(|_| StatusCode::FORBIDDEN)?;
 
     Ok(StatusCode::OK)
 }

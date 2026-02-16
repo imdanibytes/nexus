@@ -59,6 +59,8 @@ notify-rust = "4"
 semver = "1"
 serde_yaml = "0.9"
 regex = "1"
+glob = "0.3"
+walkdir = "2"
 
 [dev-dependencies]
 tempfile = "3"

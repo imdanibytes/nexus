@@ -403,6 +403,11 @@ pub struct McpPluginSettings {
     pub enabled: bool,
     #[serde(default)]
     pub disabled_tools: Vec<String>,
+    /// Tools explicitly enabled by the user (whitelist for default-disabled tools).
+    /// Used for tools that ship with `enabled: false` (e.g., Nexus Code tools).
+    /// A tool with `enabled: false` only appears if it's in this list.
+    #[serde(default)]
+    pub enabled_tools: Vec<String>,
     /// Tools the user has permanently approved (skips `requires_approval` prompts).
     /// Populated when the user clicks "Approve" (vs "Approve Once") in the
     /// runtime approval dialog for an MCP tool.
@@ -414,6 +419,19 @@ pub struct McpPluginSettings {
     /// Prompt names disabled by the user (native MCP prompts).
     #[serde(default)]
     pub disabled_prompts: Vec<String>,
+}
+
+impl Default for McpPluginSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            disabled_tools: vec![],
+            enabled_tools: vec![],
+            approved_tools: vec![],
+            disabled_resources: vec![],
+            disabled_prompts: vec![],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

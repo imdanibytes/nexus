@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use rmcp::model::*;
-use rmcp::service::RequestContext;
+use rmcp::service::{NotificationContext, RequestContext};
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler};
 
 use crate::permissions::Permission;
@@ -68,6 +68,35 @@ impl ServerHandler for NexusMcpServer {
         }
     }
 
+    fn on_initialized(
+        &self,
+        context: NotificationContext<RoleServer>,
+    ) -> impl std::future::Future<Output = ()> + Send + '_ {
+        let peer = context.peer;
+        let state = self.state.clone();
+
+        async move {
+            let mut rx = {
+                let mgr = state.read().await;
+                mgr.tool_version_rx.clone()
+            };
+
+            // Background task: when the tool list version bumps,
+            // send notifications/tools/list_changed to this MCP client.
+            tokio::spawn(async move {
+                loop {
+                    if rx.changed().await.is_err() {
+                        break; // sender dropped — host shutting down
+                    }
+                    if let Err(e) = peer.notify_tool_list_changed().await {
+                        log::debug!("MCP tool_list_changed notification failed: {e}");
+                        break; // client disconnected
+                    }
+                }
+            });
+        }
+    }
+
     // ── Tools ────────────────────────────────────────────────────────
 
     async fn list_tools(
@@ -86,6 +115,8 @@ impl ServerHandler for NexusMcpServer {
             });
         }
 
+        // All tools use whitelist model — only visible if explicitly enabled.
+
         // 1. Legacy mcp.tools (deprecated path)
         for plugin in mgr.storage.list() {
             if plugin.status != PluginStatus::Running {
@@ -96,14 +127,12 @@ impl ServerHandler for NexusMcpServer {
                 None => continue,
             };
 
-            // Skip native MCP plugins for legacy tool enumeration —
-            // their tools come from the McpClientManager cache below.
             if mcp_config.server.is_some() && mcp_config.tools.is_empty() {
                 continue;
             }
 
             let plugin_mcp = mgr.mcp_settings.plugins.get(&plugin.manifest.id);
-            let plugin_enabled = plugin_mcp.map_or(true, |s| s.enabled);
+            let plugin_enabled = plugin_mcp.is_some_and(|s| s.enabled);
             if !plugin_enabled {
                 continue;
             }
@@ -116,9 +145,9 @@ impl ServerHandler for NexusMcpServer {
             }
 
             for tool_def in &mcp_config.tools {
-                let tool_disabled =
-                    plugin_mcp.is_some_and(|s| s.disabled_tools.contains(&tool_def.name));
-                if tool_disabled {
+                let tool_enabled = plugin_mcp
+                    .is_some_and(|s| s.enabled_tools.contains(&tool_def.name));
+                if !tool_enabled {
                     continue;
                 }
 
@@ -144,12 +173,11 @@ impl ServerHandler for NexusMcpServer {
         // 2. Native MCP plugin tools (from McpClientManager cache)
         for (plugin_id, cache) in mgr.mcp_clients.iter() {
             let plugin_mcp = mgr.mcp_settings.plugins.get(plugin_id);
-            let plugin_enabled = plugin_mcp.map_or(true, |s| s.enabled);
+            let plugin_enabled = plugin_mcp.is_some_and(|s| s.enabled);
             if !plugin_enabled {
                 continue;
             }
 
-            // Check plugin-level permissions
             if let Some(plugin) = mgr.storage.get(plugin_id) {
                 let all_perms_granted = plugin.manifest.permissions.iter().all(|perm| {
                     mgr.permissions.has_permission(plugin_id, perm)
@@ -161,9 +189,9 @@ impl ServerHandler for NexusMcpServer {
 
             for tool in &cache.tools {
                 let local_name = tool.name.as_ref();
-                let tool_disabled =
-                    plugin_mcp.is_some_and(|s| s.disabled_tools.contains(&local_name.to_string()));
-                if tool_disabled {
+                let tool_enabled = plugin_mcp
+                    .is_some_and(|s| s.enabled_tools.contains(&local_name.to_string()));
+                if !tool_enabled {
                     continue;
                 }
 
@@ -183,16 +211,16 @@ impl ServerHandler for NexusMcpServer {
 
         // 3. Built-in nexus.* tools
         let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
-        let nexus_enabled = nexus_mcp.map_or(true, |s| s.enabled);
+        let nexus_enabled = nexus_mcp.is_some_and(|s| s.enabled);
         if nexus_enabled {
             for builtin in super::nexus_mcp::builtin_tools() {
                 let local_name = builtin
                     .name
                     .strip_prefix("nexus.")
                     .unwrap_or(&builtin.name);
-                let tool_disabled = nexus_mcp
-                    .is_some_and(|s| s.disabled_tools.contains(&local_name.to_string()));
-                if tool_disabled || !builtin.enabled {
+                let tool_enabled = nexus_mcp
+                    .is_some_and(|s| s.enabled_tools.contains(&local_name.to_string()));
+                if !tool_enabled {
                     continue;
                 }
 
@@ -238,17 +266,11 @@ impl ServerHandler for NexusMcpServer {
 
             let mgr = self.state.read().await;
             let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
-            if nexus_mcp.is_some_and(|s| !s.enabled) {
+            let tool_enabled = nexus_mcp
+                .is_some_and(|s| s.enabled && s.enabled_tools.contains(&local_name.to_string()));
+            if !tool_enabled {
                 return Err(McpError::invalid_request(
-                    "Nexus built-in tools are disabled",
-                    None,
-                ));
-            }
-            if nexus_mcp
-                .is_some_and(|s| s.disabled_tools.contains(&local_name.to_string()))
-            {
-                return Err(McpError::invalid_request(
-                    format!("Tool 'nexus.{}' is disabled", local_name),
+                    format!("Tool 'nexus.{}' is not enabled", local_name),
                     None,
                 ));
             }
@@ -297,17 +319,13 @@ impl ServerHandler for NexusMcpServer {
             ));
         }
 
-        // Check MCP enabled
+        // Check tool is explicitly enabled (whitelist model)
         let plugin_mcp = mgr.mcp_settings.plugins.get(&plugin_id);
-        if plugin_mcp.is_some_and(|s| !s.enabled) {
+        let tool_enabled = plugin_mcp
+            .is_some_and(|s| s.enabled && s.enabled_tools.contains(&local_name));
+        if !tool_enabled {
             return Err(McpError::invalid_request(
-                format!("MCP is disabled for plugin '{}'", plugin_id),
-                None,
-            ));
-        }
-        if plugin_mcp.is_some_and(|s| s.disabled_tools.contains(&local_name)) {
-            return Err(McpError::invalid_request(
-                format!("Tool '{}.{}' is disabled", plugin_id, local_name),
+                format!("Tool '{}.{}' is not enabled", plugin_id, local_name),
                 None,
             ));
         }
@@ -395,13 +413,7 @@ impl ServerHandler for NexusMcpServer {
                         .mcp_settings
                         .plugins
                         .entry(plugin_id.clone())
-                        .or_insert_with(|| crate::plugin_manager::storage::McpPluginSettings {
-                            enabled: true,
-                            disabled_tools: vec![],
-                            approved_tools: vec![],
-                            disabled_resources: vec![],
-                            disabled_prompts: vec![],
-                        });
+                        .or_insert_with(crate::plugin_manager::storage::McpPluginSettings::default);
                     if !plugin_settings.approved_tools.contains(&local_name) {
                         plugin_settings.approved_tools.push(local_name.clone());
                     }

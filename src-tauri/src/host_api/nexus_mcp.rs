@@ -277,6 +277,203 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
             enabled: true,
             requires_approval: true,
         },
+        // -- Nexus Code tools (disabled by default) --
+        McpToolEntry {
+            name: "nexus.read_file".into(),
+            description: "Read the contents of a file from the host filesystem. Returns the file content as text. Files larger than 5 MB are rejected.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to read."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.write_file".into(),
+            description: "Write content to a file on the host filesystem. Creates the file and parent directories if they don't exist. Overwrites existing content.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to write."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The content to write to the file."
+                    }
+                },
+                "required": ["path", "content"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.edit_file".into(),
+            description: "Perform an atomic find-and-replace in a file. The old_string must exist in the file. By default, old_string must be unique (appear exactly once); set replace_all to true to replace all occurrences.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file to edit."
+                    },
+                    "old_string": {
+                        "type": "string",
+                        "description": "The text to find in the file."
+                    },
+                    "new_string": {
+                        "type": "string",
+                        "description": "The text to replace it with."
+                    },
+                    "replace_all": {
+                        "type": "boolean",
+                        "description": "Replace all occurrences (default: false, requires unique match)."
+                    }
+                },
+                "required": ["path", "old_string", "new_string"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.list_directory".into(),
+            description: "List the contents of a directory on the host filesystem. Returns file names, paths, sizes, and whether each entry is a directory.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the directory to list."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.search_files".into(),
+            description: "Search for files matching a glob pattern. Searches recursively from the given base directory. Returns up to 1000 matching file paths.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Glob pattern (e.g. \"**/*.ts\", \"src/**/*.rs\", \"*.json\")."
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the base directory to search from."
+                    }
+                },
+                "required": ["pattern", "path"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.search_content".into(),
+            description: "Search file contents for a regex pattern. Walks the directory tree, skipping hidden dirs, node_modules, target, __pycache__, and dist. Returns matching lines with optional context.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Regex pattern to search for."
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the file or directory to search in."
+                    },
+                    "include": {
+                        "type": "string",
+                        "description": "Optional glob filter for file names (e.g. \"*.ts\", \"*.rs\")."
+                    },
+                    "context_lines": {
+                        "type": "integer",
+                        "description": "Number of context lines around matches (default: 0)."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of matching files to return (default: 50)."
+                    }
+                },
+                "required": ["pattern", "path"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.execute_command".into(),
+            description: "Execute a command on the host system. Returns stdout, stderr, and exit code. Commands have a configurable timeout (default: 30s, max: 10min). Every invocation requires user approval.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The command to execute (e.g. \"git\", \"cargo\", \"ls\")."
+                    },
+                    "args": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Arguments to pass to the command."
+                    },
+                    "working_dir": {
+                        "type": "string",
+                        "description": "Absolute path to the working directory. Defaults to home directory."
+                    },
+                    "timeout_secs": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default: 30, max: 600)."
+                    }
+                },
+                "required": ["command"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: true,
+        },
     ]
 }
 
@@ -302,9 +499,16 @@ pub async fn handle_call(
         "get_settings" => handle_get_settings(state).await,
         "get_mcp_settings" => handle_get_mcp_settings(state).await,
         "docker_status" => handle_docker_status(state).await,
+        // Nexus Code tools
+        "read_file" => handle_read_file(arguments, state).await,
+        "write_file" => handle_write_file(arguments, state).await,
+        "edit_file" => handle_edit_file(arguments, state).await,
+        "list_directory" => handle_list_directory(arguments, state).await,
+        "search_files" => handle_search_files(arguments, state).await,
+        "search_content" => handle_search_content(arguments, state).await,
         // Mutating (require approval)
-        "plugin_start" | "plugin_stop" | "plugin_remove" | "plugin_install"
-        | "extension_enable" | "extension_disable" => {
+        "execute_command" | "plugin_start" | "plugin_stop" | "plugin_remove"
+        | "plugin_install" | "extension_enable" | "extension_disable" => {
             handle_mutating(tool_name, arguments, state, bridge).await
         }
         _ => Err(StatusCode::NOT_FOUND),
@@ -542,13 +746,7 @@ async fn handle_mutating(
                     .mcp_settings
                     .plugins
                     .entry(NEXUS_PLUGIN_ID.to_string())
-                    .or_insert_with(|| McpPluginSettings {
-                        enabled: true,
-                        disabled_tools: vec![],
-                        approved_tools: vec![],
-                        disabled_resources: vec![],
-                        disabled_prompts: vec![],
-                    });
+                    .or_insert_with(McpPluginSettings::default);
                 if !plugin_settings
                     .approved_tools
                     .contains(&tool_name.to_string())
@@ -578,6 +776,7 @@ async fn handle_mutating(
 
     // Dispatch to the actual handler
     match tool_name {
+        "execute_command" => exec_execute_command(arguments, state).await,
         "plugin_start" => exec_plugin_start(arguments, state).await,
         "plugin_stop" => exec_plugin_stop(arguments, state).await,
         "plugin_remove" => exec_plugin_remove(arguments, state).await,
@@ -590,6 +789,7 @@ async fn handle_mutating(
 
 fn describe_mutating_tool(tool_name: &str) -> String {
     match tool_name {
+        "execute_command" => "Execute a command on the host system".into(),
         "plugin_start" => "Start a stopped plugin".into(),
         "plugin_stop" => "Stop a running plugin".into(),
         "plugin_remove" => "Remove an installed plugin".into(),
@@ -703,6 +903,406 @@ async fn exec_extension_disable(
     match mgr.disable_extension(&ext_id) {
         Ok(()) => ok_json(&json!({ "status": "disabled", "ext_id": ext_id })),
         Err(e) => ok_error(format!("Failed to disable '{}': {}", ext_id, e)),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Nexus Code handlers
+// ---------------------------------------------------------------------------
+
+async fn handle_read_file(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let path = require_str(args, "path")?;
+
+    let mgr = state.read().await;
+    let canonical = std::path::PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    if canonical.starts_with(&mgr.data_dir) {
+        return ok_error("Access to Nexus data directory is blocked".into());
+    }
+    drop(mgr);
+
+    if !canonical.is_file() {
+        return ok_error(format!("'{}' is not a file", path));
+    }
+
+    let metadata = std::fs::metadata(&canonical).map_err(|_| StatusCode::NOT_FOUND)?;
+    if metadata.len() > 5 * 1024 * 1024 {
+        return ok_error(format!(
+            "File too large ({} bytes, max 5 MB)",
+            metadata.len()
+        ));
+    }
+
+    match std::fs::read_to_string(&canonical) {
+        Ok(content) => ok_json(&json!({
+            "path": canonical.to_string_lossy(),
+            "content": content,
+            "size": metadata.len(),
+        })),
+        Err(e) => ok_error(format!("Failed to read '{}': {}", path, e)),
+    }
+}
+
+async fn handle_write_file(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let path = require_str(args, "path")?;
+    let content = require_str(args, "content")?;
+
+    let target = std::path::PathBuf::from(&path);
+    if !target.is_absolute() {
+        return ok_error("Path must be absolute".into());
+    }
+
+    let normalized = super::filesystem::normalize_path(&target);
+
+    let mgr = state.read().await;
+    if normalized.starts_with(&mgr.data_dir) {
+        return ok_error("Access to Nexus data directory is blocked".into());
+    }
+    drop(mgr);
+
+    if let Some(parent) = normalized.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            return ok_error(format!("Failed to create parent directories: {}", e));
+        }
+    }
+
+    match std::fs::write(&normalized, &content) {
+        Ok(()) => ok_json(&json!({
+            "path": normalized.to_string_lossy(),
+            "bytes_written": content.len(),
+        })),
+        Err(e) => ok_error(format!("Failed to write '{}': {}", path, e)),
+    }
+}
+
+async fn handle_edit_file(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let path = require_str(args, "path")?;
+    let old_string = require_str(args, "old_string")?;
+    let new_string = require_str(args, "new_string")?;
+    let replace_all = args
+        .get("replace_all")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let canonical = std::path::PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let mgr = state.read().await;
+    if canonical.starts_with(&mgr.data_dir) {
+        return ok_error("Access to Nexus data directory is blocked".into());
+    }
+    drop(mgr);
+
+    if !canonical.is_file() {
+        return ok_error(format!("'{}' is not a file", path));
+    }
+
+    if old_string == new_string {
+        return ok_error("old_string and new_string must be different".into());
+    }
+
+    let content = std::fs::read_to_string(&canonical)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let count = content.matches(&old_string).count();
+    if count == 0 {
+        return ok_error("old_string not found in file".into());
+    }
+
+    let new_content = if replace_all {
+        content.replace(&old_string, &new_string)
+    } else {
+        if count > 1 {
+            return ok_error(format!(
+                "old_string found {} times — must be unique (or set replace_all: true)",
+                count
+            ));
+        }
+        content.replacen(&old_string, &new_string, 1)
+    };
+
+    match std::fs::write(&canonical, &new_content) {
+        Ok(()) => ok_json(&json!({
+            "path": canonical.to_string_lossy(),
+            "replacements": if replace_all { count } else { 1 },
+        })),
+        Err(e) => ok_error(format!("Failed to write '{}': {}", path, e)),
+    }
+}
+
+async fn handle_list_directory(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let path = require_str(args, "path")?;
+
+    let canonical = std::path::PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let mgr = state.read().await;
+    if canonical.starts_with(&mgr.data_dir) {
+        return ok_error("Access to Nexus data directory is blocked".into());
+    }
+    drop(mgr);
+
+    if !canonical.is_dir() {
+        return ok_error(format!("'{}' is not a directory", path));
+    }
+
+    let entries: Vec<serde_json::Value> = match std::fs::read_dir(&canonical) {
+        Ok(rd) => rd
+            .flatten()
+            .map(|entry| {
+                let metadata = entry.metadata().ok();
+                json!({
+                    "name": entry.file_name().to_string_lossy(),
+                    "path": entry.path().to_string_lossy(),
+                    "is_dir": metadata.as_ref().map(|m| m.is_dir()).unwrap_or(false),
+                    "size": metadata.as_ref().map(|m| m.len()).unwrap_or(0),
+                })
+            })
+            .collect(),
+        Err(e) => return ok_error(format!("Failed to read directory: {}", e)),
+    };
+
+    ok_json(&json!({
+        "path": canonical.to_string_lossy(),
+        "entries": entries,
+    }))
+}
+
+async fn handle_search_files(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let pattern = require_str(args, "pattern")?;
+    let path = require_str(args, "path")?;
+
+    let canonical = std::path::PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let mgr = state.read().await;
+    if canonical.starts_with(&mgr.data_dir) {
+        return ok_error("Access to Nexus data directory is blocked".into());
+    }
+    drop(mgr);
+
+    if !canonical.is_dir() {
+        return ok_error(format!("'{}' is not a directory", path));
+    }
+
+    let full_pattern = canonical.join(&pattern).to_string_lossy().to_string();
+    let mut matches = Vec::new();
+
+    match glob::glob(&full_pattern) {
+        Ok(paths) => {
+            for entry in paths {
+                if let Ok(p) = entry {
+                    matches.push(p.to_string_lossy().to_string());
+                }
+                if matches.len() >= 1000 {
+                    break;
+                }
+            }
+        }
+        Err(e) => return ok_error(format!("Invalid glob pattern: {}", e)),
+    }
+
+    ok_json(&json!({
+        "pattern": pattern,
+        "base_path": canonical.to_string_lossy(),
+        "matches": matches,
+        "truncated": matches.len() >= 1000,
+    }))
+}
+
+async fn handle_search_content(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let pattern = require_str(args, "pattern")?;
+    let path = require_str(args, "path")?;
+    let include = args.get("include").and_then(|v| v.as_str()).map(String::from);
+    let context_lines = args
+        .get("context_lines")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+    let max_results = args
+        .get("max_results")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(50) as usize;
+
+    let search_path = std::path::PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let mgr = state.read().await;
+    if search_path.starts_with(&mgr.data_dir) {
+        return ok_error("Access to Nexus data directory is blocked".into());
+    }
+    drop(mgr);
+
+    let re = match regex::Regex::new(&pattern) {
+        Ok(r) => r,
+        Err(e) => return ok_error(format!("Invalid regex: {}", e)),
+    };
+
+    let include_glob = include
+        .as_ref()
+        .and_then(|g| glob::Pattern::new(g).ok());
+
+    let mut file_matches: Vec<serde_json::Value> = Vec::new();
+
+    if search_path.is_file() {
+        if let Some(m) = super::filesystem::grep_single_file(&search_path, &re, context_lines) {
+            file_matches.push(json!({
+                "path": m.path,
+                "lines": m.lines.iter().map(|l| json!({
+                    "line_number": l.line_number,
+                    "content": l.content,
+                    "is_context": l.is_context,
+                })).collect::<Vec<_>>(),
+            }));
+        }
+    } else if search_path.is_dir() {
+        for entry in walkdir::WalkDir::new(&search_path)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                let name = e.file_name().to_string_lossy();
+                !name.starts_with('.')
+                    && name != "node_modules"
+                    && name != "target"
+                    && name != "__pycache__"
+                    && name != "dist"
+            })
+        {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            if !entry.file_type().is_file() {
+                continue;
+            }
+
+            if let Some(ref pat) = include_glob {
+                if !pat.matches(&entry.file_name().to_string_lossy()) {
+                    continue;
+                }
+            }
+
+            if entry.metadata().map(|m| m.len()).unwrap_or(0) > 5 * 1024 * 1024 {
+                continue;
+            }
+
+            if let Some(m) = super::filesystem::grep_single_file(entry.path(), &re, context_lines) {
+                file_matches.push(json!({
+                    "path": m.path,
+                    "lines": m.lines.iter().map(|l| json!({
+                        "line_number": l.line_number,
+                        "content": l.content,
+                        "is_context": l.is_context,
+                    })).collect::<Vec<_>>(),
+                }));
+                if file_matches.len() >= max_results {
+                    break;
+                }
+            }
+        }
+    } else {
+        return ok_error(format!("'{}' is not a file or directory", path));
+    }
+
+    ok_json(&json!({
+        "pattern": pattern,
+        "search_path": search_path.to_string_lossy(),
+        "matches": file_matches,
+        "total_matches": file_matches.len(),
+    }))
+}
+
+async fn exec_execute_command(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let command = require_str(args, "command")?;
+    let cmd_args: Vec<String> = args
+        .get("args")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let working_dir = args.get("working_dir").and_then(|v| v.as_str()).map(String::from);
+    let timeout_secs = args
+        .get("timeout_secs")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(30)
+        .min(600);
+
+    // Validate working directory
+    if let Some(ref dir) = working_dir {
+        let p = std::path::PathBuf::from(dir);
+        if !p.is_absolute() || !p.is_dir() {
+            return ok_error(format!("Invalid working directory: {}", dir));
+        }
+        let mgr = state.read().await;
+        if p.starts_with(&mgr.data_dir) {
+            return ok_error("Working directory cannot be inside Nexus data directory".into());
+        }
+    }
+
+    let mut cmd = tokio::process::Command::new(&command);
+    cmd.args(&cmd_args);
+    if let Some(ref dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+
+    let child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => return ok_error(format!("Failed to spawn '{}': {}", command, e)),
+    };
+
+    let timeout = std::time::Duration::from_secs(timeout_secs);
+    match tokio::time::timeout(timeout, child.wait_with_output()).await {
+        Ok(Ok(output)) => {
+            let max_bytes = 1024 * 1024;
+            let stdout_len = output.stdout.len().min(max_bytes);
+            let stderr_len = output.stderr.len().min(max_bytes);
+
+            ok_json(&json!({
+                "exit_code": output.status.code(),
+                "stdout": String::from_utf8_lossy(&output.stdout[..stdout_len]),
+                "stderr": String::from_utf8_lossy(&output.stderr[..stderr_len]),
+                "timed_out": false,
+            }))
+        }
+        Ok(Err(e)) => ok_error(format!("Command failed: {}", e)),
+        Err(_) => ok_json(&json!({
+            "exit_code": null,
+            "stdout": "",
+            "stderr": format!("Command timed out after {} seconds", timeout_secs),
+            "timed_out": true,
+        })),
     }
 }
 

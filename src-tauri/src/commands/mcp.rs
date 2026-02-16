@@ -40,13 +40,7 @@ pub async fn mcp_set_enabled(
         mgr.mcp_settings
             .plugins
             .entry(plugin_id.to_string())
-            .or_insert_with(|| McpPluginSettings {
-                enabled: true,
-                disabled_tools: vec![],
-                approved_tools: vec![],
-                disabled_resources: vec![],
-                disabled_prompts: vec![],
-            })
+            .or_insert_with(McpPluginSettings::default)
             .enabled = enabled;
     } else if let Some(rest) = scope.strip_prefix("tool:") {
         // Format: "tool:{plugin_id}.{tool_name}"
@@ -69,21 +63,17 @@ pub async fn mcp_set_enabled(
                         .mcp_settings
                         .plugins
                         .entry(pid.clone())
-                        .or_insert_with(|| McpPluginSettings {
-                            enabled: true,
-                            disabled_tools: vec![],
-                            approved_tools: vec![],
-                            disabled_resources: vec![],
-                            disabled_prompts: vec![],
-                        });
+                        .or_insert_with(McpPluginSettings::default);
                     if enabled {
+                        if !plugin_settings.enabled_tools.contains(&tool_name.to_string()) {
+                            plugin_settings
+                                .enabled_tools
+                                .push(tool_name.to_string());
+                        }
+                    } else {
                         plugin_settings
-                            .disabled_tools
+                            .enabled_tools
                             .retain(|t| t != tool_name);
-                    } else if !plugin_settings.disabled_tools.contains(&tool_name.to_string()) {
-                        plugin_settings
-                            .disabled_tools
-                            .push(tool_name.to_string());
                     }
                     found = true;
                     break;
@@ -119,11 +109,11 @@ pub async fn mcp_list_tools(
         let plugin_running =
             plugin.status == crate::plugin_manager::storage::PluginStatus::Running;
         let plugin_mcp = mgr.mcp_settings.plugins.get(&plugin.manifest.id);
-        let plugin_enabled = plugin_mcp.map_or(true, |s| s.enabled);
+        let plugin_enabled = plugin_mcp.is_some_and(|s| s.enabled);
 
         for tool in &mcp_config.tools {
-            let tool_disabled =
-                plugin_mcp.is_some_and(|s| s.disabled_tools.contains(&tool.name));
+            let tool_in_whitelist =
+                plugin_mcp.is_some_and(|s| s.enabled_tools.contains(&tool.name));
 
             let all_perms_granted = tool.permissions.iter().all(|perm_str| {
                 serde_json::from_value::<crate::permissions::Permission>(
@@ -143,7 +133,7 @@ pub async fn mcp_list_tools(
                 plugin_running,
                 mcp_global_enabled: mgr.mcp_settings.enabled,
                 mcp_plugin_enabled: plugin_enabled,
-                tool_enabled: !tool_disabled,
+                tool_enabled: tool_in_whitelist,
                 required_permissions: tool.permissions.clone(),
                 permissions_granted: all_perms_granted,
                 requires_approval: tool.requires_approval,
@@ -153,11 +143,11 @@ pub async fn mcp_list_tools(
 
     // Append built-in Nexus management tools
     let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
-    let nexus_plugin_enabled = nexus_mcp.map_or(true, |s| s.enabled);
+    let nexus_plugin_enabled = nexus_mcp.is_some_and(|s| s.enabled);
     for builtin in crate::host_api::nexus_mcp::builtin_tools() {
         let local_name = builtin.name.strip_prefix("nexus.").unwrap_or(&builtin.name);
-        let tool_disabled =
-            nexus_mcp.is_some_and(|s| s.disabled_tools.contains(&local_name.to_string()));
+        let tool_in_whitelist =
+            nexus_mcp.is_some_and(|s| s.enabled_tools.contains(&local_name.to_string()));
 
         tools.push(McpToolStatus {
             name: builtin.name,
@@ -168,7 +158,7 @@ pub async fn mcp_list_tools(
             plugin_running: true,
             mcp_global_enabled: mgr.mcp_settings.enabled,
             mcp_plugin_enabled: nexus_plugin_enabled,
-            tool_enabled: !tool_disabled,
+            tool_enabled: tool_in_whitelist,
             required_permissions: vec![],
             permissions_granted: true,
             requires_approval: builtin.requires_approval,

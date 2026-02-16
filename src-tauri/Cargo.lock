@@ -2865,6 +2865,7 @@ dependencies = [
  "dirs",
  "ed25519-dalek",
  "futures-util",
+ "glob",
  "jsonschema",
  "log",
  "notify",
@@ -2895,6 +2896,7 @@ dependencies = [
  "tower-http",
  "utoipa",
  "uuid",
+ "walkdir",
 ]
 
 [[package]]

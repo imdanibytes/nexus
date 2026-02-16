@@ -4,6 +4,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 
 const PORT = 80;
 const MCP_SERVER_COMMAND = process.env.MCP_SERVER_COMMAND;
@@ -57,7 +65,7 @@ function createBridgeServer() {
 
   // Dynamic tool listing — forward from child
   server.server.setRequestHandler(
-    { method: "tools/list" },
+    ListToolsRequestSchema,
     async () => {
       if (!childClient) throw new Error("Child MCP client not initialized");
       return childClient.listTools();
@@ -66,7 +74,7 @@ function createBridgeServer() {
 
   // Tool calls — forward to child
   server.server.setRequestHandler(
-    { method: "tools/call" },
+    CallToolRequestSchema,
     async (request) => {
       if (!childClient) throw new Error("Child MCP client not initialized");
       return childClient.callTool(request.params);
@@ -75,7 +83,7 @@ function createBridgeServer() {
 
   // Resource listing — forward from child (best-effort)
   server.server.setRequestHandler(
-    { method: "resources/list" },
+    ListResourcesRequestSchema,
     async () => {
       if (!childClient) throw new Error("Child MCP client not initialized");
       try {
@@ -88,7 +96,7 @@ function createBridgeServer() {
 
   // Resource reading — forward to child
   server.server.setRequestHandler(
-    { method: "resources/read" },
+    ReadResourceRequestSchema,
     async (request) => {
       if (!childClient) throw new Error("Child MCP client not initialized");
       return childClient.readResource(request.params);
@@ -97,7 +105,7 @@ function createBridgeServer() {
 
   // Prompt listing — forward from child (best-effort)
   server.server.setRequestHandler(
-    { method: "prompts/list" },
+    ListPromptsRequestSchema,
     async () => {
       if (!childClient) throw new Error("Child MCP client not initialized");
       try {
@@ -110,7 +118,7 @@ function createBridgeServer() {
 
   // Prompt retrieval — forward to child
   server.server.setRequestHandler(
-    { method: "prompts/get" },
+    GetPromptRequestSchema,
     async (request) => {
       if (!childClient) throw new Error("Child MCP client not initialized");
       return childClient.getPrompt(request.params);

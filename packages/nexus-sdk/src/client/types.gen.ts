@@ -24,10 +24,72 @@ export type DirListing = {
     path: string;
 };
 
+export type EditRequest = {
+    new_string: string;
+    old_string: string;
+    path: string;
+    replace_all?: boolean;
+};
+
+export type ExecRequest = {
+    /**
+     * Arguments to pass to the command
+     */
+    args?: Array<string>;
+    /**
+     * The command to execute (e.g. "git", "cargo", "ls")
+     */
+    command: string;
+    /**
+     * Timeout in seconds (default: 30, max: 600)
+     */
+    timeout_secs?: number | null;
+    /**
+     * Working directory (must be absolute). Defaults to home directory.
+     */
+    working_dir?: string | null;
+};
+
+export type ExecResult = {
+    exit_code?: number | null;
+    stderr: string;
+    stdout: string;
+    /**
+     * Whether the command was killed due to timeout
+     */
+    timed_out: boolean;
+};
+
 export type FileContent = {
     content: string;
     path: string;
     size: number;
+};
+
+export type GlobResult = {
+    base_path: string;
+    matches: Array<string>;
+    pattern: string;
+};
+
+export type GrepFileMatch = {
+    lines: Array<GrepLine>;
+    path: string;
+};
+
+export type GrepLine = {
+    content: string;
+    /**
+     * Whether this line is a context line (vs a direct match)
+     */
+    is_context: boolean;
+    line_number: number;
+};
+
+export type GrepResult = {
+    matches: Array<GrepFileMatch>;
+    pattern: string;
+    search_path: string;
 };
 
 export type ProcessInfo = {
@@ -129,6 +191,119 @@ export type ContainerStatsResponses = {
 };
 
 export type ContainerStatsResponse = ContainerStatsResponses[keyof ContainerStatsResponses];
+
+export type EditFileData = {
+    body: EditRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/fs/edit';
+};
+
+export type EditFileErrors = {
+    /**
+     * old_string not found or not unique
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type EditFileResponses = {
+    /**
+     * File edited
+     */
+    200: unknown;
+};
+
+export type GlobFilesData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Glob pattern (e.g. "***.ts", "src***.rs")
+         */
+        pattern: string;
+        /**
+         * Base directory to search from (must be absolute)
+         */
+        path: string;
+    };
+    url: '/api/v1/fs/glob';
+};
+
+export type GlobFilesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type GlobFilesResponses = {
+    /**
+     * Matching files
+     */
+    200: GlobResult;
+};
+
+export type GlobFilesResponse = GlobFilesResponses[keyof GlobFilesResponses];
+
+export type GrepFilesData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Regex pattern to search for
+         */
+        pattern: string;
+        /**
+         * File or directory to search in (must be absolute)
+         */
+        path: string;
+        /**
+         * Optional glob filter for file names (e.g. "*.ts")
+         */
+        include?: string | null;
+        /**
+         * Number of context lines around matches (default: 0)
+         */
+        context_lines?: number | null;
+        /**
+         * Maximum number of matching files to return (default: 50)
+         */
+        max_results?: number | null;
+    };
+    url: '/api/v1/fs/grep';
+};
+
+export type GrepFilesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type GrepFilesResponses = {
+    /**
+     * Search results
+     */
+    200: GrepResult;
+};
+
+export type GrepFilesResponse = GrepFilesResponses[keyof GrepFilesResponses];
 
 export type ListDirData = {
     body?: never;
@@ -243,6 +418,33 @@ export type ProxyRequestResponses = {
 };
 
 export type ProxyRequestResponse = ProxyRequestResponses[keyof ProxyRequestResponses];
+
+export type ExecCommandData = {
+    body: ExecRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/process/exec';
+};
+
+export type ExecCommandErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ExecCommandResponses = {
+    /**
+     * Command output
+     */
+    200: ExecResult;
+};
+
+export type ExecCommandResponse = ExecCommandResponses[keyof ExecCommandResponses];
 
 export type ListProcessesData = {
     body?: never;

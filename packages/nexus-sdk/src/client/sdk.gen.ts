@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ContainerStatsData, ContainerStatsErrors, ContainerStatsResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListDirData, ListDirErrors, ListDirResponses, ListProcessesData, ListProcessesErrors, ListProcessesResponses, ProxyRequestData, ProxyRequestErrors, ProxyRequestResponses, PutSettingsData, PutSettingsErrors, PutSettingsResponses, ReadFileData, ReadFileErrors, ReadFileResponses, SystemInfoData, SystemInfoErrors, SystemInfoResponses, WriteFileData, WriteFileErrors, WriteFileResponses } from './types.gen';
+import type { ContainerStatsData, ContainerStatsErrors, ContainerStatsResponses, EditFileData, EditFileErrors, EditFileResponses, ExecCommandData, ExecCommandErrors, ExecCommandResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GlobFilesData, GlobFilesErrors, GlobFilesResponses, GrepFilesData, GrepFilesErrors, GrepFilesResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListDirData, ListDirErrors, ListDirResponses, ListProcessesData, ListProcessesErrors, ListProcessesResponses, ProxyRequestData, ProxyRequestErrors, ProxyRequestResponses, PutSettingsData, PutSettingsErrors, PutSettingsResponses, ReadFileData, ReadFileErrors, ReadFileResponses, SystemInfoData, SystemInfoErrors, SystemInfoResponses, WriteFileData, WriteFileErrors, WriteFileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -27,6 +27,28 @@ export const listContainers = <ThrowOnError extends boolean = false>(options?: O
 export const containerStats = <ThrowOnError extends boolean = false>(options: Options<ContainerStatsData, ThrowOnError>) => (options.client ?? client).get<ContainerStatsResponses, ContainerStatsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/docker/stats/{id}',
+    ...options
+});
+
+export const editFile = <ThrowOnError extends boolean = false>(options: Options<EditFileData, ThrowOnError>) => (options.client ?? client).post<EditFileResponses, EditFileErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/fs/edit',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const globFiles = <ThrowOnError extends boolean = false>(options: Options<GlobFilesData, ThrowOnError>) => (options.client ?? client).get<GlobFilesResponses, GlobFilesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/fs/glob',
+    ...options
+});
+
+export const grepFiles = <ThrowOnError extends boolean = false>(options: Options<GrepFilesData, ThrowOnError>) => (options.client ?? client).get<GrepFilesResponses, GrepFilesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/fs/grep',
     ...options
 });
 
@@ -55,6 +77,16 @@ export const writeFile = <ThrowOnError extends boolean = false>(options: Options
 export const proxyRequest = <ThrowOnError extends boolean = false>(options: Options<ProxyRequestData, ThrowOnError>) => (options.client ?? client).post<ProxyRequestResponses, ProxyRequestErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/network/proxy',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const execCommand = <ThrowOnError extends boolean = false>(options: Options<ExecCommandData, ThrowOnError>) => (options.client ?? client).post<ExecCommandResponses, ExecCommandErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/process/exec',
     ...options,
     headers: {
         'Content-Type': 'application/json',

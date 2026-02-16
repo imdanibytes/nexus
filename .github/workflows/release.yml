@@ -21,11 +21,8 @@ jobs:
   build-sdk:
     uses: ./.github/workflows/_build-sdk.yml
 
-  build-ui:
-    uses: ./.github/workflows/_build-ui.yml
-
   publish:
-    needs: [build-app, build-sdk, build-ui]
+    needs: [build-app, build-sdk]
     runs-on: ubuntu-latest
 
     steps:
@@ -177,24 +174,6 @@ jobs:
           npm install
           npm run generate
           npm run build
-          npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Install workspace dependencies
-        run: pnpm install
-
-      - name: Publish Nexus UI to GitHub Packages
-        run: |
-          cd packages/nexus-ui
-          UI_VERSION="${GITHUB_REF_NAME#v}"
-          npm version "$UI_VERSION" --no-git-tag-version --allow-same-version
-          pnpm build
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

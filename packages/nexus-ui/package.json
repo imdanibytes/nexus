@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Nexus-themed React component library for plugins",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "license": "MIT",
   "type": "module",

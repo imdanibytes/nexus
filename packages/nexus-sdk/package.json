@@ -1,6 +1,6 @@
 {
   "name": "@imdanibytes/nexus-sdk",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "TypeScript SDK for Nexus plugins — generated HTTP client + hand-written convenience wrapper",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

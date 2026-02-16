@@ -1,4 +1,5 @@
 use crate::runtime::ContainerFilters;
+use crate::ActiveTheme;
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 
@@ -156,6 +157,18 @@ pub async fn set_language(
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
     mgr.settings.language = language;
+    mgr.settings.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_theme(
+    state: tauri::State<'_, AppState>,
+    active: tauri::State<'_, ActiveTheme>,
+    theme: String,
+) -> Result<(), String> {
+    active.set(theme.clone());
+    let mut mgr = state.write().await;
+    mgr.settings.theme = theme;
     mgr.settings.save().map_err(|e| e.to_string())
 }
 

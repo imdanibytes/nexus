@@ -6,6 +6,7 @@
     "system": "Sistema",
     "plugins": "Plugins",
     "mcp": "MCP",
+    "security": "Seguridad",
     "extensions": "Extensiones",
     "updates": "Actualizaciones",
     "help": "Ayuda"
@@ -26,6 +27,10 @@
   "general.languageHint": "Idioma de la interfaz de Nexus",
   "general.searchLanguage": "Buscar idiomas...",
   "general.noLanguageFound": "No se encontro ningun idioma.",
+  "general.theme": "Tema",
+  "general.themeHint": "Esquema de color de acento de la interfaz",
+  "general.themeDefault": "Predeterminado",
+  "general.themeNebula": "Nebula",
   "system": {
     "containerEngine": "Motor de Contenedores",
     "status": "Estado",
@@ -84,6 +89,16 @@
     "removing": "Eliminando...",
     "permCount_one": "{{count}} perm",
     "permCount_other": "{{count}} perms"
+  },
+  "securityTab": {
+    "connectedClients": "Clientes conectados",
+    "connectedClientsDesc": "Clientes de IA autorizados para acceder a Nexus via OAuth",
+    "noClients": "No hay clientes conectados",
+    "approved": "Aprobado",
+    "requiresConsent": "Requiere consentimiento",
+    "revoke": "Revocar",
+    "revokeConfirm": "Revocar acceso para {{clientName}}?",
+    "revokeDetail": "Todos los tokens seran invalidados. El cliente debera volver a autorizarse."
   },
   "extensionsTab": {
     "hostExtensions": "Extensiones del Host",

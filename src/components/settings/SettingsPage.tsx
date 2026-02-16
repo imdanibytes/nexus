@@ -3,19 +3,21 @@ import { useAppStore } from "../../stores/appStore";
 import { GeneralTab } from "./GeneralTab";
 import { SystemTab } from "./SystemTab";
 import { PluginsTab } from "./PluginsTab";
+import { SecurityTab } from "./SecurityTab";
 import { McpTab } from "./McpTab";
 import { ExtensionsTab } from "./ExtensionsTab";
 import { UpdatesTab } from "./UpdatesTab";
 import { HelpTab } from "./HelpTab";
-import { Settings, Monitor, Puzzle, Cpu, Blocks, ArrowUpCircle, HelpCircle } from "lucide-react";
+import { Settings, Monitor, Puzzle, ShieldCheck, Cpu, Blocks, ArrowUpCircle, HelpCircle } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 
-type SettingsTab = "general" | "system" | "plugins" | "mcp" | "extensions" | "updates" | "help";
+type SettingsTab = "general" | "system" | "plugins" | "security" | "mcp" | "extensions" | "updates" | "help";
 
 const TABS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] = [
   { id: "general", labelKey: "tabs.general", icon: Settings },
   { id: "system", labelKey: "tabs.system", icon: Monitor },
   { id: "plugins", labelKey: "tabs.plugins", icon: Puzzle },
+  { id: "security", labelKey: "tabs.security", icon: ShieldCheck },
   { id: "mcp", labelKey: "tabs.mcp", icon: Cpu },
   { id: "extensions", labelKey: "tabs.extensions", icon: Blocks },
   { id: "updates", labelKey: "tabs.updates", icon: ArrowUpCircle },
@@ -28,7 +30,7 @@ const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
 const TAB_REDIRECTS: Record<string, SettingsTab> = {
   runtime: "system",
   resources: "system",
-  permissions: "plugins",
+  permissions: "security",
   notifications: "general",
 };
 
@@ -76,6 +78,7 @@ export function SettingsPage() {
           {active === "general" && <GeneralTab />}
           {active === "system" && <SystemTab />}
           {active === "plugins" && <PluginsTab />}
+          {active === "security" && <SecurityTab />}
           {active === "mcp" && <McpTab />}
           {active === "extensions" && <ExtensionsTab />}
           {active === "updates" && <UpdatesTab />}

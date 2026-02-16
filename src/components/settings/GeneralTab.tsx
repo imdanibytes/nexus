@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { appVersion, type AppVersionInfo } from "../../lib/tauri";
 import { RegistrySettings } from "./RegistrySettings";
 import { UpdateCheck } from "./UpdateCheck";
-import { Info, Bug, Bell, BellOff, Globe, Check, ChevronsUpDown } from "lucide-react";
+import { Info, Bug, Bell, BellOff, Globe, Check, ChevronsUpDown, Palette } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -21,12 +21,14 @@ import {
 } from "../../hooks/useOsNotification";
 import { LANGUAGES } from "../../i18n";
 import { cn } from "../../lib/utils";
+import { THEMES, getTheme, applyTheme, type ThemeId } from "../../lib/theme";
 
 export function GeneralTab() {
   const { t, i18n } = useTranslation("settings");
   const [version, setVersion] = useState<AppVersionInfo | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(notificationsEnabled);
   const [langOpen, setLangOpen] = useState(false);
+  const [activeTheme, setActiveTheme] = useState<ThemeId>(getTheme);
 
   useEffect(() => {
     appVersion().then(setVersion).catch(() => {});
@@ -179,6 +181,44 @@ export function GeneralTab() {
               </Command>
             </PopoverContent>
           </Popover>
+        </div>
+      </section>
+
+      {/* Theme */}
+      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Palette size={15} strokeWidth={1.5} className="text-nx-text-muted" />
+          <h3 className="text-[14px] font-semibold text-nx-text">
+            {t("general.theme")}
+          </h3>
+        </div>
+        <p className="text-[13px] text-nx-text-muted mb-4">
+          {t("general.themeHint")}
+        </p>
+        <div className="flex gap-3">
+          {THEMES.map((theme) => (
+            <button
+              key={theme.id}
+              onClick={() => {
+                setActiveTheme(theme.id);
+                applyTheme(theme.id);
+              }}
+              className={cn(
+                "flex items-center gap-2.5 px-4 py-2.5 rounded-[var(--radius-button)] border transition-all duration-150",
+                activeTheme === theme.id
+                  ? "border-nx-accent bg-nx-accent-subtle"
+                  : "border-nx-border-subtle bg-nx-deep hover:bg-nx-wash/30"
+              )}
+            >
+              <span
+                className="w-4 h-4 rounded-full flex-shrink-0 ring-1 ring-white/10"
+                style={{ background: theme.accent }}
+              />
+              <span className="text-[12px] font-medium text-nx-text">
+                {t(theme.labelKey)}
+              </span>
+            </button>
+          ))}
         </div>
       </section>
 

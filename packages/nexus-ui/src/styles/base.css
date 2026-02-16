@@ -2,3 +2,67 @@
 @import "tw-animate-css";
 @import "./theme.css";
 @import "./bridge.css";
+
+/* Geist font faces — bundled so plugins render correctly without host CSS */
+
+@font-face {
+  font-family: "Geist";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/Geist-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/Geist-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/Geist-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/Geist-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/GeistMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/GeistMono-Medium.woff2") format("woff2");
+}
+
+/* Theme variants — bundled so plugins switch instantly via data-theme attribute */
+
+[data-theme="nebula"] {
+  --color-nx-accent: #8b8bf5;
+  --color-nx-accent-hover: #7a7aef;
+  --color-nx-accent-muted: oklch(0.67 0.18 285 / 0.15);
+  --color-nx-accent-subtle: oklch(0.67 0.18 285 / 0.08);
+  --color-nx-highlight: #F472B6;
+  --color-nx-highlight-muted: oklch(0.73 0.16 350 / 0.15);
+  --color-nx-border-accent: oklch(0.67 0.18 285 / 0.5);
+  --shadow-focus: 0 0 0 2px oklch(0.67 0.18 285 / 0.3);
+  --shadow-card-hover: 0 0 0 1px oklch(0.67 0.18 285 / 0.15);
+}

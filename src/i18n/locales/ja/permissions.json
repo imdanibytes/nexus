@@ -39,8 +39,8 @@
     "fallbackSubtitle": "{{pluginName}} が {{permission}} を希望しています",
     "requestsPending_one": "+{{count}} 件のリクエストが待機中",
     "requestsPending_other": "+{{count}} 件のリクエストが待機中",
-    "allowOnce": "1回だけ許可",
-    "allowOnceCountdown": "1回だけ許可 ({{seconds}}秒)",
+    "allowOnce": "1時間許可",
+    "allowOnceCountdown": "1時間許可 ({{seconds}}秒)",
     "allow": "許可",
     "allowCountdown": "許可 ({{seconds}}秒)",
     "requestedPath": "要求されたパス",
@@ -54,7 +54,11 @@
     "arguments": "引数",
     "description": "説明",
     "notificationTitle": "Nexus — 承認が必要です",
-    "parameters": "パラメータ"
+    "parameters": "パラメータ",
+    "oauthConnect": "接続リクエスト",
+    "oauthSubtitle": "{{clientName}} が Nexus に接続しようとしています",
+    "oauthClient": "クライアント",
+    "oauthAccess": "アクセスをリクエスト中"
   },
   "list": {
     "noPermissions": "付与された権限はありません",

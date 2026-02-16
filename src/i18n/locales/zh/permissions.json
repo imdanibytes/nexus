@@ -39,8 +39,8 @@
     "fallbackSubtitle": "{{pluginName}} 请求 {{permission}}",
     "requestsPending_one": "还有 {{count}} 个待处理请求",
     "requestsPending_other": "还有 {{count}} 个待处理请求",
-    "allowOnce": "允许一次",
-    "allowOnceCountdown": "允许一次 ({{seconds}}秒)",
+    "allowOnce": "允许1小时",
+    "allowOnceCountdown": "允许1小时 ({{seconds}}秒)",
     "allow": "允许",
     "allowCountdown": "允许 ({{seconds}}秒)",
     "requestedPath": "请求的路径",
@@ -54,7 +54,11 @@
     "arguments": "参数",
     "description": "描述",
     "notificationTitle": "Nexus — 需要审批",
-    "parameters": "参数"
+    "parameters": "参数",
+    "oauthConnect": "连接请求",
+    "oauthSubtitle": "{{clientName}} 想要连接到 Nexus",
+    "oauthClient": "客户端",
+    "oauthAccess": "请求访问"
   },
   "list": {
     "noPermissions": "未授予任何权限",

@@ -6,6 +6,7 @@
     "system": "システム",
     "plugins": "プラグイン",
     "mcp": "MCP",
+    "security": "セキュリティ",
     "extensions": "エクステンション",
     "updates": "アップデート",
     "help": "ヘルプ"
@@ -26,6 +27,10 @@
   "general.languageHint": "Nexus のインターフェース言語",
   "general.searchLanguage": "言語を検索...",
   "general.noLanguageFound": "言語が見つかりません。",
+  "general.theme": "テーマ",
+  "general.themeHint": "インターフェースのアクセントカラー",
+  "general.themeDefault": "デフォルト",
+  "general.themeNebula": "ネビュラ",
   "system": {
     "containerEngine": "コンテナエンジン",
     "status": "状態",
@@ -84,6 +89,16 @@
     "removing": "削除中...",
     "permCount_one": "{{count}} 権限",
     "permCount_other": "{{count}} 権限"
+  },
+  "securityTab": {
+    "connectedClients": "接続中のクライアント",
+    "connectedClientsDesc": "OAuth 経由で Nexus へのアクセスが許可された AI クライアント",
+    "noClients": "接続中のクライアントはありません",
+    "approved": "承認済み",
+    "requiresConsent": "同意が必要",
+    "revoke": "取り消し",
+    "revokeConfirm": "{{clientName}} のアクセスを取り消しますか？",
+    "revokeDetail": "すべてのトークンが無効化されます。クライアントは再認証が必要になります。"
   },
   "extensionsTab": {
     "hostExtensions": "ホストエクステンション",

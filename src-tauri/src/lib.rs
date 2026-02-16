@@ -4,6 +4,7 @@ pub mod extensions;
 pub mod host_api;
 pub mod mcp_wrap;
 mod notification;
+pub mod oauth;
 mod permissions;
 mod plugin_manager;
 pub mod runtime;
@@ -21,6 +22,26 @@ use tauri::Manager;
 use tokio::sync::RwLock;
 
 pub type AppState = Arc<RwLock<PluginManager>>;
+
+/// Shared active theme identifier — readable by the Axum server (e.g. OAuth consent page)
+/// and writable by the Tauri `set_theme` command.
+#[derive(Clone)]
+pub struct ActiveTheme(Arc<std::sync::RwLock<String>>);
+
+impl ActiveTheme {
+    pub fn new(theme: String) -> Self {
+        Self(Arc::new(std::sync::RwLock::new(theme)))
+    }
+
+    pub fn get(&self) -> String {
+        self.0.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    pub fn set(&self, theme: String) {
+        let mut t = self.0.write().unwrap_or_else(|e| e.into_inner());
+        *t = theme;
+    }
+}
 
 /// Show the main window and switch to Regular activation policy (dock icon visible).
 #[cfg(target_os = "macos")]
@@ -111,6 +132,17 @@ pub fn run() {
             PluginManager::wire_extension_ipc(&state);
             app.manage(state.clone());
 
+            // OAuth 2.1 store — shared between Host API (Axum) and Tauri commands
+            let oauth_store = Arc::new(oauth::OAuthStore::load(&data_dir));
+            app.manage(oauth_store.clone());
+
+            // Active theme — shared between Tauri UI and Axum (OAuth consent page)
+            let theme = {
+                let mgr = state.blocking_read();
+                ActiveTheme::new(mgr.settings.theme.clone())
+            };
+            app.manage(theme.clone());
+
             let approval_bridge = Arc::new(ApprovalBridge::new(app_handle.clone()));
             app.manage(approval_bridge.clone());
 
@@ -152,6 +184,8 @@ pub fn run() {
             // Spawn Host API server and Docker network setup
             let state_clone = state.clone();
             let runtime_clone = runtime.clone();
+            let oauth_clone = oauth_store.clone();
+            let theme_clone = theme.clone();
             tauri::async_runtime::spawn(async move {
                 // Ensure nexus-bridge Docker network exists
                 if let Err(e) = runtime_clone.ensure_network("nexus-bridge").await {
@@ -159,7 +193,7 @@ pub fn run() {
                 }
 
                 // Start the Host API server
-                if let Err(e) = host_api::start_server(state_clone, approval_bridge).await {
+                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone).await {
                     log::error!("Host API server failed: {}", e);
                 }
             });
@@ -234,6 +268,7 @@ pub fn run() {
             commands::system::set_update_check_interval,
             commands::system::check_url_reachable,
             commands::system::set_language,
+            commands::system::set_theme,
             commands::permissions::runtime_approval_respond,
             commands::registries::registry_list,
             commands::registries::registry_add,
@@ -262,6 +297,8 @@ pub fn run() {
             commands::mcp_wrap::mcp_discover_tools,
             commands::mcp_wrap::mcp_suggest_metadata,
             commands::mcp_wrap::mcp_generate_and_install,
+            commands::oauth::oauth_list_clients,
+            commands::oauth::oauth_revoke_client,
             notification::send_notification,
         ])
         .build(tauri::generate_context!())

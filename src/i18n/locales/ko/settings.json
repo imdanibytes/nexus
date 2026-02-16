@@ -6,6 +6,7 @@
     "system": "시스템",
     "plugins": "플러그인",
     "mcp": "MCP",
+    "security": "보안",
     "extensions": "확장 기능",
     "updates": "업데이트",
     "help": "도움말"
@@ -26,6 +27,10 @@
   "general.languageHint": "Nexus 인터페이스 언어",
   "general.searchLanguage": "언어 검색...",
   "general.noLanguageFound": "언어를 찾을 수 없어요.",
+  "general.theme": "테마",
+  "general.themeHint": "인터페이스 강조 색상",
+  "general.themeDefault": "기본",
+  "general.themeNebula": "네뷸라",
   "system": {
     "containerEngine": "컨테이너 엔진",
     "status": "상태",
@@ -84,6 +89,16 @@
     "removing": "제거 중...",
     "permCount_one": "{{count}}개 권한",
     "permCount_other": "{{count}}개 권한"
+  },
+  "securityTab": {
+    "connectedClients": "연결된 클라이언트",
+    "connectedClientsDesc": "OAuth를 통해 Nexus에 접근이 허가된 AI 클라이언트",
+    "noClients": "연결된 클라이언트가 없습니다",
+    "approved": "승인됨",
+    "requiresConsent": "동의 필요",
+    "revoke": "취소",
+    "revokeConfirm": "{{clientName}}의 접근을 취소하시겠습니까?",
+    "revokeDetail": "모든 토큰이 무효화됩니다. 클라이언트는 다시 인증해야 합니다."
   },
   "extensionsTab": {
     "hostExtensions": "호스트 확장 기능",

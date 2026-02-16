@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
 
+use crate::oauth::OAuthStore;
 use crate::permissions::Permission;
 use crate::AppState;
 
@@ -178,13 +179,31 @@ pub async fn gateway_auth_middleware(
         }
     }
 
-    // Fall back to Bearer token (plugin path — requires mcp:call permission)
+    // Try Bearer token — first check OAuth tokens, then fall back to plugin sessions
     if let Some(bearer) = req
         .headers()
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
     {
+        // OAuth Bearer token (from AI clients that completed the OAuth flow)
+        if let Some(oauth_store) = req.extensions().get::<Arc<OAuthStore>>().cloned() {
+            if let Some(token_info) = oauth_store.validate_access_token(bearer) {
+                log::info!("MCP authenticated via OAuth: client={}", token_info.client_name);
+                let resp = next.run(req).await;
+                if let Some(session_id) = resp
+                    .headers()
+                    .get("mcp-session-id")
+                    .and_then(|v| v.to_str().ok())
+                {
+                    mcp_sessions.mark_authenticated(session_id);
+                    log::info!("MCP session authenticated (OAuth): {}", session_id);
+                }
+                return Ok(resp);
+            }
+        }
+
+        // Plugin Bearer token (requires mcp:call permission)
         let sessions = req
             .extensions()
             .get::<Arc<SessionStore>>()
@@ -219,5 +238,14 @@ pub async fn gateway_auth_middleware(
         }
     }
 
-    Err(StatusCode::UNAUTHORIZED)
+    // 401 with WWW-Authenticate header — tells MCP clients where to find OAuth metadata
+    let resp = Response::builder()
+        .status(StatusCode::UNAUTHORIZED)
+        .header(
+            "www-authenticate",
+            "Bearer resource_metadata=\"http://127.0.0.1:9600/.well-known/oauth-protected-resource/mcp\"",
+        )
+        .body(Body::empty())
+        .unwrap();
+    Ok(resp)
 }

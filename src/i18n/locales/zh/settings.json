@@ -6,6 +6,7 @@
     "system": "系统",
     "plugins": "插件",
     "mcp": "MCP",
+    "security": "安全",
     "extensions": "扩展",
     "updates": "更新",
     "help": "帮助"
@@ -26,6 +27,10 @@
   "general.languageHint": "Nexus 的界面语言",
   "general.searchLanguage": "搜索语言...",
   "general.noLanguageFound": "未找到语言。",
+  "general.theme": "主题",
+  "general.themeHint": "界面强调色方案",
+  "general.themeDefault": "默认",
+  "general.themeNebula": "星云",
   "system": {
     "containerEngine": "容器引擎",
     "status": "状态",
@@ -84,6 +89,16 @@
     "removing": "移除中...",
     "permCount_one": "{{count}} 项权限",
     "permCount_other": "{{count}} 项权限"
+  },
+  "securityTab": {
+    "connectedClients": "已连接客户端",
+    "connectedClientsDesc": "通过 OAuth 授权访问 Nexus 的 AI 客户端",
+    "noClients": "暂无已连接的客户端",
+    "approved": "已批准",
+    "requiresConsent": "需要授权",
+    "revoke": "撤销",
+    "revokeConfirm": "撤销 {{clientName}} 的访问权限？",
+    "revokeDetail": "所有令牌将被作废。客户端需要重新授权。"
   },
   "extensionsTab": {
     "hostExtensions": "主机扩展",

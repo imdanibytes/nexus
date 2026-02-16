@@ -20,28 +20,63 @@ interface NexusProviderProps {
   toaster?: boolean
 }
 
+function applyThemeAttr(theme?: string) {
+  if (theme && theme !== "default") {
+    document.documentElement.setAttribute("data-theme", theme)
+  } else {
+    document.documentElement.removeAttribute("data-theme")
+  }
+}
+
+/** Read nexus_theme from the iframe URL query string (set by the host). */
+function getInitialTheme(): string | undefined {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    return params.get("nexus_theme") ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function NexusProvider({
   children,
   apiUrl = "http://localhost:9600",
   toaster = true,
 }: NexusProviderProps) {
+  // Apply initial theme synchronously from URL param (fastest, no network)
+  const [themeApplied] = React.useState(() => {
+    const initial = getInitialTheme()
+    if (initial) applyThemeAttr(initial)
+    return !!initial
+  })
+
+  // Fetch the active theme from the host API if URL param wasn't set
   React.useEffect(() => {
-    const id = "nexus-theme-css"
-    if (document.getElementById(id)) return
+    if (themeApplied) return
+    fetch(`${apiUrl}/api/v1/theme`)
+      .then((r) => r.json())
+      .then((data: { theme?: string }) => {
+        applyThemeAttr(data.theme)
+      })
+      .catch(() => {
+        // Host not running — stay on default
+      })
+  }, [apiUrl, themeApplied])
 
-    const link = document.createElement("link")
-    link.id = id
-    link.rel = "stylesheet"
-    link.href = `${apiUrl}/api/v1/theme.css`
-    link.onerror = () => {
-      // Host not running — build-time tokens still provide all values
-    }
-    document.head.appendChild(link)
+  // Listen for host system events (theme, language, etc.)
+  React.useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const msg = e.data
+      if (msg?.type !== "nexus:system") return
 
-    return () => {
-      document.getElementById(id)?.remove()
+      if (msg.event === "theme_changed") {
+        const theme = (msg.data as { theme?: string })?.theme
+        applyThemeAttr(theme)
+      }
     }
-  }, [apiUrl])
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [])
 
   return (
     <NexusContext.Provider value={{ apiUrl }}>

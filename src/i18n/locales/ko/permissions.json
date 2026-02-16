@@ -39,8 +39,8 @@
     "fallbackSubtitle": "{{pluginName}}이(가) {{permission}}을(를) 요청해요",
     "requestsPending_one": "+{{count}}개의 요청이 대기 중",
     "requestsPending_other": "+{{count}}개의 요청이 대기 중",
-    "allowOnce": "한 번 허용",
-    "allowOnceCountdown": "한 번 허용 ({{seconds}}초)",
+    "allowOnce": "1시간 허용",
+    "allowOnceCountdown": "1시간 허용 ({{seconds}}초)",
     "allow": "허용",
     "allowCountdown": "허용 ({{seconds}}초)",
     "requestedPath": "요청된 경로",
@@ -54,7 +54,11 @@
     "arguments": "인수",
     "description": "설명",
     "notificationTitle": "Nexus — 승인 필요",
-    "parameters": "매개변수"
+    "parameters": "매개변수",
+    "oauthConnect": "연결 요청",
+    "oauthSubtitle": "{{clientName}}이(가) Nexus에 연결하려고 해요",
+    "oauthClient": "클라이언트",
+    "oauthAccess": "접근 요청 대상"
   },
   "list": {
     "noPermissions": "부여된 권한이 없어요",

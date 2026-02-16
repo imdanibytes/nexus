@@ -39,8 +39,8 @@
     "fallbackSubtitle": "{{pluginName}} mochte {{permission}}",
     "requestsPending_one": "+{{count}} weitere Anfrage ausstehend",
     "requestsPending_other": "+{{count}} weitere Anfragen ausstehend",
-    "allowOnce": "Einmal erlauben",
-    "allowOnceCountdown": "Einmal erlauben ({{seconds}}s)",
+    "allowOnce": "Für 1 Stunde erlauben",
+    "allowOnceCountdown": "Für 1 Stunde erlauben ({{seconds}}s)",
     "allow": "Erlauben",
     "allowCountdown": "Erlauben ({{seconds}}s)",
     "requestedPath": "Angeforderter Pfad",
@@ -54,7 +54,11 @@
     "arguments": "Argumente",
     "description": "Beschreibung",
     "notificationTitle": "Nexus - Genehmigung erforderlich",
-    "parameters": "Parameter"
+    "parameters": "Parameter",
+    "oauthConnect": "Verbindungsanfrage",
+    "oauthSubtitle": "{{clientName}} mochte sich mit Nexus verbinden",
+    "oauthClient": "Client",
+    "oauthAccess": "Zugriff angefordert auf"
   },
   "list": {
     "noPermissions": "Keine Berechtigungen erteilt",

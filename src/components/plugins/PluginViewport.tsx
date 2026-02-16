@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
 import { useAppStore } from "../../stores/appStore";
 import * as api from "../../lib/tauri";
+import { getTheme } from "../../lib/theme";
 import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand, Wrench, ScrollText, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,10 +48,24 @@ export function PluginViewport({
   const isRunning = plugin.status === "running";
   const isBusy = busyAction !== null;
   const hasUi = plugin.manifest.ui !== null;
+  const theme = getTheme();
   const iframeSrc = hasUi
-    ? `http://localhost:${plugin.assigned_port}${plugin.manifest.ui!.path}`
+    ? `http://localhost:${plugin.assigned_port}${plugin.manifest.ui!.path}${plugin.manifest.ui!.path.includes("?") ? "&" : "?"}nexus_theme=${theme}`
     : null;
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Push current theme to plugin iframe on load so it starts with the right accent
+  const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
+    const theme = getTheme();
+    try {
+      e.currentTarget.contentWindow?.postMessage(
+        { type: "nexus:system", event: "theme_changed", data: { theme } },
+        "*"
+      );
+    } catch {
+      // cross-origin or unmounted — ignore
+    }
+  }, []);
 
   return (
     <div className="flex flex-col h-full relative">
@@ -69,6 +84,7 @@ export function PluginViewport({
             data-nexus-plugin={plugin.manifest.id}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
             allow="clipboard-read; clipboard-write"
+            onLoad={handleIframeLoad}
           />
         ) : isRunning && !isBusy && !hasUi ? (
           <HeadlessPluginStatus plugin={plugin} />

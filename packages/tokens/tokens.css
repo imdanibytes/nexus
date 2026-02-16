@@ -68,3 +68,16 @@
   --font-sans: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
 }
+
+/* --- Nebula Theme: Purple accent variant --- */
+[data-theme="nebula"] {
+  --color-nx-accent: #8b8bf5;
+  --color-nx-accent-hover: #7a7aef;
+  --color-nx-accent-muted: oklch(0.67 0.18 285 / 0.15);
+  --color-nx-accent-subtle: oklch(0.67 0.18 285 / 0.08);
+  --color-nx-highlight: #F472B6;
+  --color-nx-highlight-muted: oklch(0.73 0.16 350 / 0.15);
+  --color-nx-border-accent: oklch(0.67 0.18 285 / 0.5);
+  --shadow-focus: 0 0 0 2px oklch(0.67 0.18 285 / 0.3);
+  --shadow-card-hover: 0 0 0 1px oklch(0.67 0.18 285 / 0.15);
+}

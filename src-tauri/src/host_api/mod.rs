@@ -28,6 +28,8 @@ use tower_http::cors::{Any, CorsLayer};
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
+use crate::oauth;
+use crate::ActiveTheme;
 use crate::AppState;
 use approval::ApprovalBridge;
 use auth::SessionStore;
@@ -102,6 +104,8 @@ pub struct ApiDoc;
 pub async fn start_server(
     state: AppState,
     approvals: Arc<ApprovalBridge>,
+    oauth_store: Arc<oauth::OAuthStore>,
+    active_theme: ActiveTheme,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -205,6 +209,7 @@ pub async fn start_server(
             mcp::gateway_auth_middleware,
         ))
         .layer(Extension(sessions.clone()))
+        .layer(Extension(oauth_store.clone()))
         .layer(Extension(mcp_session_store));
 
     // Token exchange route — public, plugins call this with their secret
@@ -212,15 +217,46 @@ pub async fn start_server(
         .route("/v1/auth/token", routing::post(auth::create_token))
         .layer(Extension(sessions.clone()));
 
-    let app = Router::new()
-        // Public routes (no auth required)
+    // OAuth 2.1 discovery + authorization endpoints (public, no auth required)
+    let pending_auth = oauth::authorize::PendingAuthMap::new();
+    let oauth_routes = Router::new()
+        .route(
+            "/.well-known/oauth-protected-resource",
+            routing::get(oauth::metadata::protected_resource),
+        )
+        .route(
+            "/.well-known/oauth-protected-resource/mcp",
+            routing::get(oauth::metadata::protected_resource),
+        )
+        .route(
+            "/.well-known/oauth-authorization-server",
+            routing::get(oauth::metadata::authorization_server),
+        )
+        .route("/oauth/register", routing::post(oauth::registration::register_client))
+        .route("/oauth/authorize", routing::get(oauth::authorize::authorize))
+        .route("/oauth/authorize/poll/{state}", routing::get(oauth::authorize::authorize_poll))
+        .route("/oauth/token", routing::post(oauth::token::token_exchange))
+        .layer(Extension(oauth_store.clone()))
+        .layer(Extension(approvals.clone()))
+        .layer(Extension(pending_auth))
+        .layer(Extension(active_theme.clone()));
+
+    let theme_routes = Router::new()
         .route("/api/v1/theme.css", routing::get(theme::theme_css))
+        .route("/api/v1/theme", routing::get(theme::theme_active))
         .route(
             "/api/v1/theme/fonts/{filename}",
             routing::get(theme::theme_font),
         )
+        .layer(Extension(active_theme.clone()));
+
+    let app = Router::new()
+        // Public routes (no auth required) — theme CSS, fonts, and active theme query
+        .merge(theme_routes)
         // OpenAPI spec
         .route("/api/openapi.json", routing::get(openapi_spec))
+        // OAuth 2.1 endpoints (public — discovery, registration, authorization, token)
+        .merge(oauth_routes)
         // Token exchange (public — plugins exchange secret for access token)
         .nest("/api", auth_routes)
         // Native MCP endpoint (streamable HTTP — primary connection mode)

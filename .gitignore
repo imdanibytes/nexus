@@ -31,6 +31,9 @@ pnpm-debug.log*
 # Plugin SDK build output (built from openapi.json)
 packages/nexus-sdk/dist/
 
+# Architecture Decision Records (local-only)
+docs/adr/
+
 # Environment
 *.local
 .env

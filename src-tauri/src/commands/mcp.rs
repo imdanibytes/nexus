@@ -170,31 +170,20 @@ pub async fn mcp_list_tools(
 
 #[tauri::command]
 pub async fn mcp_config_snippet(
-    state: tauri::State<'_, AppState>,
+    _state: tauri::State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
-    let mgr = state.read().await;
-
-    let token_path = mgr.data_dir.join("mcp_gateway_token");
-    let token = std::fs::read_to_string(&token_path)
-        .map_err(|e| format!("Failed to read gateway token: {}", e))?;
-
-    let token_trimmed = token.trim();
-
+    // OAuth-based config — no tokens/headers needed.
+    // Clients discover OAuth endpoints via RFC 8414 metadata at the server URL.
     let desktop_config = serde_json::json!({
         "mcpServers": {
             "nexus": {
-                "url": "http://127.0.0.1:9600/mcp",
-                "headers": {
-                    "X-Nexus-Gateway-Token": token_trimmed
-                }
+                "url": "http://127.0.0.1:9600/mcp"
             }
         }
     });
 
-    let claude_code_command = format!(
-        "claude mcp add -t http \\\n  nexus http://127.0.0.1:9600/mcp \\\n  -H \"X-Nexus-Gateway-Token: {}\"",
-        token_trimmed
-    );
+    let claude_code_command =
+        "claude mcp add nexus \\\n  --transport http \\\n  http://127.0.0.1:9600/mcp".to_string();
 
     Ok(serde_json::json!({
         "desktop_config": desktop_config,

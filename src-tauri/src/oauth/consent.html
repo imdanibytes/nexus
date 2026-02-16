@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus — Authorization</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0C0E12;
+    color: #E8ECF2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+  }}
+  .card {{
+    background: #1A1D25;
+    border: 1px solid #2A2E3A;
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+  }}
+  .logo {{
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 20px;
+  }}
+  .logo svg {{
+    width: 100%;
+    height: 100%;
+  }}
+  h1 {{
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }}
+  .client-name {{
+    color: {accent};
+    font-weight: 600;
+  }}
+  .subtitle {{
+    font-size: 13px;
+    color: #848d9f;
+    margin-bottom: 28px;
+    line-height: 1.5;
+  }}
+  .status {{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 20px;
+    background: #12141A;
+    border: 1px solid #2A2E3A;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }}
+  .pulse {{
+    width: 8px;
+    height: 8px;
+    background: {accent};
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }}
+  .status-text {{
+    font-size: 13px;
+    color: #9BA3B2;
+  }}
+  .status.done {{
+    border-color: #2d6b4a;
+    background: #0f2a1d;
+  }}
+  .status.done .pulse {{
+    background: #34D399;
+    animation: none;
+  }}
+  .status.done .status-text {{
+    color: #34D399;
+  }}
+  @keyframes pulse {{
+    0%, 100% {{ opacity: 1; transform: scale(1); }}
+    50% {{ opacity: 0.4; transform: scale(0.8); }}
+  }}
+  .hint {{
+    font-size: 11px;
+    color: #66728a;
+    margin-top: 16px;
+  }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="{accent}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+  </div>
+  <h1>Authorization Request</h1>
+  <p class="subtitle">
+    <span class="client-name">{client_escaped}</span> wants to connect to Nexus
+  </p>
+  <div class="status" id="status">
+    <div class="pulse"></div>
+    <span class="status-text" id="status-text">Waiting for approval in Nexus...</span>
+  </div>
+  <p class="hint">Approve or deny this request in the Nexus app window</p>
+</div>
+<script>
+(function() {{
+  var state = "{state_escaped}";
+  var pollUrl = "/oauth/authorize/poll/" + encodeURIComponent(state);
+  var interval = setInterval(function() {{
+    fetch(pollUrl)
+      .then(function(r) {{ return r.json(); }})
+      .then(function(data) {{
+        if (data.status === "complete" && data.redirect) {{
+          clearInterval(interval);
+          var el = document.getElementById("status");
+          el.className = "status done";
+          document.getElementById("status-text").textContent = "Approved \u2014 redirecting...";
+          setTimeout(function() {{ window.location.href = data.redirect; }}, 400);
+        }} else if (data.status === "expired") {{
+          clearInterval(interval);
+          document.getElementById("status-text").textContent = "Request expired. Close this tab and try again.";
+        }}
+      }})
+      .catch(function() {{}});
+  }}, 1500);
+}})();
+</script>
+</body>
+</html>

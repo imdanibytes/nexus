@@ -6,6 +6,7 @@
     "system": "System",
     "plugins": "Plugins",
     "mcp": "MCP",
+    "security": "Security",
     "extensions": "Extensions",
     "updates": "Updates",
     "help": "Help"
@@ -26,6 +27,10 @@
   "general.languageHint": "Interface language for Nexus",
   "general.searchLanguage": "Search languages...",
   "general.noLanguageFound": "No language found.",
+  "general.theme": "Theme",
+  "general.themeHint": "Accent color scheme for the interface",
+  "general.themeDefault": "Default",
+  "general.themeNebula": "Nebula",
   "system": {
     "containerEngine": "Container Engine",
     "status": "Status",
@@ -84,6 +89,16 @@
     "removing": "Removing...",
     "permCount_one": "{{count}} perm",
     "permCount_other": "{{count}} perms"
+  },
+  "securityTab": {
+    "connectedClients": "Connected Clients",
+    "connectedClientsDesc": "AI clients authorized to access Nexus via OAuth",
+    "noClients": "No clients connected",
+    "approved": "Approved",
+    "requiresConsent": "Requires Consent",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke access for {{clientName}}?",
+    "revokeDetail": "All tokens will be invalidated. The client will need to re-authorize."
   },
   "extensionsTab": {
     "hostExtensions": "Host Extensions",

@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dev Playground - Nexus Plugin</title>
+    <script>
+      // Apply host theme before CSS loads to avoid flash
+      (function() {
+        var t = new URLSearchParams(window.location.search).get("nexus_theme");
+        if (t && t !== "default") document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

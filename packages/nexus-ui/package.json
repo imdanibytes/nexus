@@ -27,6 +27,10 @@
     "dist",
     "src/styles"
   ],
+  "sideEffects": [
+    "**/*.css",
+    "**/*.woff2"
+  ],
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit"

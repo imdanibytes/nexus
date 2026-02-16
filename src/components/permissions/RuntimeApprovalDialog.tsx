@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Puzzle,
   AlertTriangle,
+  Link,
 } from "lucide-react";
 import { runtimeApprovalRespond } from "../../lib/tauri";
 import { useOsNotification } from "../../hooks/useOsNotification";
@@ -70,6 +71,18 @@ function resolveHeader(req: RuntimeApprovalRequest): {
         : t("permissions:runtime.extensionAccessSubtitleShort", { pluginName: req.plugin_name, operation: opName }),
       iconBg: "bg-nx-warning-muted",
       iconColor: "text-nx-warning",
+    };
+  }
+
+  // OAuth authorization — AI client wants to connect
+  if (req.category === "oauth_authorize") {
+    const clientName = ctx.client_name ?? "Unknown client";
+    return {
+      icon: Link,
+      title: t("permissions:runtime.oauthConnect"),
+      subtitle: t("permissions:runtime.oauthSubtitle", { clientName }),
+      iconBg: "bg-nx-accent/10",
+      iconColor: "text-nx-accent",
     };
   }
 
@@ -264,6 +277,8 @@ function RuntimeApprovalContent({
       <div className="px-6 pb-4">
         {isDeferred ? (
           <DeferredPermissionDetail context={current.context} permission={current.permission} />
+        ) : current.category === "oauth_authorize" ? (
+          <OAuthConsentDetail context={current.context} />
         ) : current.category === "filesystem" ? (
           <FilesystemDetail context={current.context} />
         ) : isExtension ? (
@@ -550,6 +565,31 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function OAuthConsentDetail({ context }: { context: Record<string, string> }) {
+  const { t } = useTranslation("permissions");
+  const clientName = context.client_name ?? "Unknown client";
+  const clientId = context.client_id ?? "";
+  const scopes = context.scopes ?? "mcp";
+
+  return (
+    <div className="space-y-2">
+      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.oauthClient")}</p>
+        <p className="text-[13px] text-nx-text font-medium">{clientName}</p>
+        {clientId && (
+          <p className="text-[11px] text-nx-text-ghost font-mono mt-0.5">
+            {clientId.slice(0, 8)}...
+          </p>
+        )}
+      </div>
+      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.oauthAccess")}</p>
+        <p className="text-[12px] text-nx-text">{scopes}</p>
+      </div>
     </div>
   );
 }

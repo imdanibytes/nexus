@@ -4,7 +4,8 @@
   "tabs": {
     "general": "Tab label — general settings",
     "system": "Tab label — system/container engine settings",
-    "plugins": "Tab label — per-plugin settings and permissions",
+    "plugins": "Tab label — per-plugin settings and storage",
+    "security": "Tab label — security, permissions, and OAuth client management",
     "mcp": "Tab label — MCP gateway configuration",
     "extensions": "Tab label — host extension management",
     "updates": "Tab label — update management",
@@ -26,6 +27,10 @@
   "general.languageHint": "Help text — explains what the language setting controls",
   "general.searchLanguage": "Combobox placeholder — search/filter language list",
   "general.noLanguageFound": "Combobox empty state — no matching language",
+  "general.theme": "Setting label — accent theme selector",
+  "general.themeHint": "Help text — explains what the theme setting controls",
+  "general.themeDefault": "Theme name — default teal accent",
+  "general.themeNebula": "Theme name — purple/lavender accent variant",
   "system": {
     "containerEngine": "Section heading — container engine configuration",
     "status": "Detail label — engine status",
@@ -84,6 +89,16 @@
     "removing": "Button label — in-progress state while removing",
     "permCount_one": "Badge — one permission (singular, abbreviated)",
     "permCount_other": "Badge — multiple permissions. {{count}} is number (abbreviated)"
+  },
+  "securityTab": {
+    "connectedClients": "Section heading — OAuth connected clients list",
+    "connectedClientsDesc": "Description text — explains what connected clients are",
+    "noClients": "Empty state — no OAuth clients have registered",
+    "approved": "Badge label — client is fully approved (persistent access)",
+    "requiresConsent": "Badge label — client will prompt for consent on next connection",
+    "revoke": "Button label — revoke a client's access",
+    "revokeConfirm": "Dialog heading — confirm client revocation. {{clientName}} is client display name",
+    "revokeDetail": "Dialog body — explains what revocation does"
   },
   "extensionsTab": {
     "hostExtensions": "Section heading — host extension management",

@@ -39,8 +39,8 @@
     "fallbackSubtitle": "{{pluginName}} desea {{permission}}",
     "requestsPending_one": "+{{count}} solicitud pendiente mas",
     "requestsPending_other": "+{{count}} solicitudes pendientes mas",
-    "allowOnce": "Permitir Una Vez",
-    "allowOnceCountdown": "Permitir Una Vez ({{seconds}}s)",
+    "allowOnce": "Permitir por 1 hora",
+    "allowOnceCountdown": "Permitir por 1 hora ({{seconds}}s)",
     "allow": "Permitir",
     "allowCountdown": "Permitir ({{seconds}}s)",
     "requestedPath": "Ruta solicitada",
@@ -54,7 +54,11 @@
     "arguments": "Argumentos",
     "description": "Descripcion",
     "notificationTitle": "Nexus — Aprobacion Requerida",
-    "parameters": "Parametros"
+    "parameters": "Parametros",
+    "oauthConnect": "Solicitud de Conexion",
+    "oauthSubtitle": "{{clientName}} quiere conectarse a Nexus",
+    "oauthClient": "Cliente",
+    "oauthAccess": "Solicita acceso a"
   },
   "list": {
     "noPermissions": "No se han otorgado permisos",

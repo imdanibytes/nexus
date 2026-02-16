@@ -39,8 +39,8 @@
     "fallbackSubtitle": "Dialog body — generic permission request fallback",
     "requestsPending_one": "Queue indicator — one more request waiting (singular)",
     "requestsPending_other": "Queue indicator — multiple requests waiting. {{count}} is number",
-    "allowOnce": "Button label — grant permission for this single request only",
-    "allowOnceCountdown": "Button label with auto-deny countdown. {{seconds}} is seconds remaining",
+    "allowOnce": "Button label — grant time-limited permission for 1 hour (no refresh token, access expires after 1 hour)",
+    "allowOnceCountdown": "Button label with auto-deny countdown for 1-hour access. {{seconds}} is seconds remaining before auto-deny",
     "allow": "Button label — grant permission permanently",
     "allowCountdown": "Button label with auto-deny countdown. {{seconds}} is seconds remaining",
     "requestedPath": "Detail label — filesystem path being requested",
@@ -54,7 +54,11 @@
     "arguments": "Detail label — tool call arguments",
     "description": "Detail label — permission or tool description",
     "notificationTitle": "OS notification title — shown when Nexus is not focused",
-    "parameters": "Detail label — operation parameters"
+    "parameters": "Detail label — operation parameters",
+    "oauthConnect": "Dialog heading — OAuth client connection request (e.g., Claude Code wants to connect)",
+    "oauthSubtitle": "Dialog body — describes which client wants to connect. {{clientName}} is the OAuth client name (e.g., 'Claude Code')",
+    "oauthClient": "Detail label — OAuth client identifier",
+    "oauthAccess": "Detail label — what the OAuth client is requesting access to"
   },
   "list": {
     "noPermissions": "Empty state — no permissions have been granted",

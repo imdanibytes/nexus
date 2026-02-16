@@ -6,6 +6,7 @@
     "system": "System",
     "plugins": "Plugins",
     "mcp": "MCP",
+    "security": "Sicherheit",
     "extensions": "Erweiterungen",
     "updates": "Updates",
     "help": "Hilfe"
@@ -26,6 +27,10 @@
   "general.languageHint": "Oberflachensprache fur Nexus",
   "general.searchLanguage": "Sprachen suchen...",
   "general.noLanguageFound": "Keine Sprache gefunden.",
+  "general.theme": "Design",
+  "general.themeHint": "Akzentfarbschema der Oberflache",
+  "general.themeDefault": "Standard",
+  "general.themeNebula": "Nebula",
   "system": {
     "containerEngine": "Container-Engine",
     "status": "Status",
@@ -84,6 +89,16 @@
     "removing": "Entfernen...",
     "permCount_one": "{{count}} Ber.",
     "permCount_other": "{{count}} Ber."
+  },
+  "securityTab": {
+    "connectedClients": "Verbundene Clients",
+    "connectedClientsDesc": "KI-Clients mit OAuth-Zugriff auf Nexus",
+    "noClients": "Keine Clients verbunden",
+    "approved": "Genehmigt",
+    "requiresConsent": "Zustimmung erforderlich",
+    "revoke": "Widerrufen",
+    "revokeConfirm": "Zugriff fur {{clientName}} widerrufen?",
+    "revokeDetail": "Alle Token werden ungultig. Der Client muss sich erneut autorisieren."
   },
   "extensionsTab": {
     "hostExtensions": "Host-Erweiterungen",

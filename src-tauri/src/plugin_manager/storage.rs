@@ -494,6 +494,9 @@ pub struct NexusSettings {
     /// UI language code (BCP-47). Injected as NEXUS_LANGUAGE into plugin containers.
     #[serde(default = "default_language")]
     pub language: String,
+    /// UI theme identifier. "default" = teal accent, "nebula" = purple accent.
+    #[serde(default = "default_theme")]
+    pub theme: String,
     #[serde(skip)]
     path: PathBuf,
 }
@@ -504,6 +507,10 @@ fn default_update_interval() -> u32 {
 
 fn default_language() -> String {
     "en".to_string()
+}
+
+fn default_theme() -> String {
+    "default".to_string()
 }
 
 impl NexusSettings {

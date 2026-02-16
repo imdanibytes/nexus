@@ -2,7 +2,10 @@ use axum::{
     extract::Path,
     http::{header, StatusCode},
     response::{IntoResponse, Response},
+    Extension, Json,
 };
+
+use crate::ActiveTheme;
 
 const THEME_CSS: &str = include_str!("nexus-theme.css");
 
@@ -22,6 +25,12 @@ pub async fn theme_css() -> Response {
         THEME_CSS,
     )
         .into_response()
+}
+
+pub async fn theme_active(
+    Extension(active): Extension<ActiveTheme>,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "theme": active.get() }))
 }
 
 pub async fn theme_font(Path(filename): Path<String>) -> Result<Response, StatusCode> {

@@ -2,6 +2,7 @@ pub mod extensions;
 pub mod marketplace;
 pub mod mcp;
 pub mod mcp_wrap;
+pub mod oauth;
 pub mod permissions;
 pub mod plugins;
 pub mod registries;

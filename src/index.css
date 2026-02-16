@@ -58,6 +58,7 @@
    Single source: packages/tokens/
    ============================================ */
 
+@import "@nexus-dashboard/tokens/tokens.css";
 @import "@nexus-dashboard/tokens/theme.css";
 @import "@nexus-dashboard/tokens/bridge.css";
 

@@ -353,6 +353,10 @@ export async function setLanguage(language: string): Promise<void> {
   return invoke("set_language", { language });
 }
 
+export async function setTheme(theme: string): Promise<void> {
+  return invoke("set_theme", { theme });
+}
+
 export async function getUpdateCheckInterval(): Promise<number> {
   return invoke("get_update_check_interval");
 }
@@ -380,6 +384,18 @@ export async function pluginDevModeToggle(
 
 export async function pluginRebuild(pluginId: string): Promise<void> {
   return invoke("plugin_rebuild", { pluginId });
+}
+
+// OAuth
+
+import type { OAuthClientInfo } from "../types/oauth";
+
+export async function oauthListClients(): Promise<OAuthClientInfo[]> {
+  return invoke("oauth_list_clients");
+}
+
+export async function oauthRevokeClient(clientId: string): Promise<void> {
+  return invoke("oauth_revoke_client", { clientId });
 }
 
 // MCP Wrap

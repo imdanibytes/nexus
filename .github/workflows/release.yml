@@ -27,6 +27,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          chmod +x scripts/generate-release-notes.sh
+          scripts/generate-release-notes.sh "$TAG" > /tmp/release-notes.md
+          echo "=== Release Notes ==="
+          cat /tmp/release-notes.md
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -50,15 +60,8 @@ jobs:
           find artifacts -name "*.AppImage" -type f ! -name "*.tar.gz" -exec cp {} release/ \;
           find artifacts -name "*.exe" -type f -exec cp {} release/ \;
 
-          # Load release notes — brief summary (above first ---) for updater UI
-          NOTES_FILE="docs/release-notes/${TAG}.md"
-          if [ -f "$NOTES_FILE" ]; then
-            NOTES=$(sed -n '/^---$/q;p' "$NOTES_FILE" | sed -e 's/\*\*//g' -e '/^$/d')
-            echo "Using release notes from $NOTES_FILE"
-          else
-            NOTES="Release ${TAG}"
-            echo "No release notes file found — using default"
-          fi
+          # Read auto-generated release notes for updater UI
+          NOTES=$(cat /tmp/release-notes.md)
 
           # Build updater platform entries
           PLATFORMS="{}"
@@ -139,23 +142,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          NOTES_FILE="docs/release-notes/${TAG}.md"
 
           # Separate latest.json from platform binaries so the updater
           # only discovers the release after all artifacts are downloadable.
           mv release/latest.json /tmp/latest.json
 
-          if [ -f "$NOTES_FILE" ]; then
-            gh release create "$TAG" \
-              --title "Nexus ${TAG}" \
-              --notes-file "$NOTES_FILE" \
-              release/*
-          else
-            gh release create "$TAG" \
-              --title "Nexus ${TAG}" \
-              --generate-notes \
-              release/*
-          fi
+          gh release create "$TAG" \
+            --title "Nexus ${TAG}" \
+            --notes-file /tmp/release-notes.md \
+            release/*
 
           # Upload latest.json last — this is what the updater polls.
           gh release upload "$TAG" /tmp/latest.json

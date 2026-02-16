@@ -1,5 +1,13 @@
 // Components
 export {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  AvatarBadge,
+  AvatarGroup,
+  AvatarGroupCount,
+} from "./components/avatar"
+export {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -14,6 +22,17 @@ export {
   AlertDialogTrigger,
 } from "./components/alert-dialog"
 export { Button, buttonVariants } from "./components/button"
+export {
+  Command,
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandShortcut,
+  CommandSeparator,
+} from "./components/command"
 export {
   Card,
   CardHeader,
@@ -77,6 +96,12 @@ export {
   MenubarSub,
   MenubarShortcut,
 } from "./components/menubar"
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverAnchor,
+} from "./components/popover"
 export { ScrollArea, ScrollBar } from "./components/scroll-area"
 export {
   Select,
@@ -142,6 +167,7 @@ export {
   TooltipContent,
   TooltipProvider,
 } from "./components/tooltip"
+export { Textarea } from "./components/textarea"
 export { toast, Toaster } from "./components/sonner"
 export { Badge, badgeVariants } from "./components/badge"
 

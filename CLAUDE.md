@@ -182,7 +182,7 @@ nexus-registry publish \
 **Updating an existing entry** (version bumps — the most common operation):
 
 ```bash
-cd ~/workspace/registry
+cd ~/workspace/nexus/registry
 nexus-registry update \
   --id com.nexus.cookie-jar \
   --version 0.6.0 \
@@ -195,14 +195,71 @@ nexus-registry update \
 
 1. Tag the plugin repo: `git tag -a v0.6.0 -m "v0.6.0" && git push origin main v0.6.0`
 2. Wait for CI to build the Docker image — grab the digest from the GitHub Actions summary
-3. `cd ~/workspace/registry && nexus-registry update --id <id> --version <ver> --image <image:tag> --image-digest <sha256:...>`
+3. `cd ~/workspace/nexus/registry && nexus-registry update --id <id> --version <ver> --image <image:tag> --image-digest <sha256:...>`
 4. Commit and push to registry (or use `nexus-registry publish` for new entries)
 
 ## Release Process
 
-Push a `v*` tag to trigger CI:
+Three independent release flows. Each is triggered by a different tag pattern.
+
+### App + SDK (`v*` tags)
+
+Workflow: `release.yml` → builds macOS binaries, creates GitHub Release, publishes SDK to npm.
+
+```bash
+just sync-version 0.11.0                     # Bump all Cargo.toml + package.json + tauri.conf.json
+git add -A && git commit -m "chore: bump version to 0.11.0"
+git tag -a v0.11.0 -m "v0.11.0"
+git push origin main v0.11.0
+```
+
+What happens:
 1. `_build-app.yml` — cross-compile for aarch64 + x86_64 macOS
 2. `_build-sdk.yml` — validate SDK compiles
-3. `release.yml` — create GitHub Release with signed DMGs, publish SDK
+3. `release.yml` — create GitHub Release with signed DMGs + `latest.json` (updater), publish `@imdanibytes/nexus-sdk` to npm (OIDC trusted publishing, provenance)
 
-Pre-release validation: `just release-dry-run v0.7.0`
+Pre-release validation: `just release-dry-run v0.11.0`
+
+### nexus-ui (`ui/v*` tags)
+
+Workflow: `release-ui.yml` → builds and publishes `@imdanibytes/nexus-ui` to npm.
+
+```bash
+git tag -a ui/v0.3.0 -m "nexus-ui v0.3.0"
+git push origin ui/v0.3.0
+```
+
+Version is extracted from the tag automatically — no need to bump `package.json`. Uses OIDC trusted publishing with provenance.
+
+### Plugins (tag in plugin repo)
+
+Each plugin has its own repo with CI that builds a Docker image on GHCR.
+
+```bash
+# 1. Tag and push the plugin repo
+cd ~/workspace/nexus/plugins/cookie-jar
+git tag -a v0.7.0 -m "v0.7.0" && git push origin main v0.7.0
+
+# 2. Wait for CI → Docker image lands on GHCR
+#    Grab the image digest from the GitHub Actions summary
+
+# 3. Update the registry
+cd ~/workspace/nexus/registry
+nexus-registry update \
+  --id com.nexus.cookie-jar \
+  --version 0.7.0 \
+  --image ghcr.io/imdanibytes/nexus-plugin-cookie-jar:0.7.0 \
+  --image-digest "sha256:..."
+git add -A && git commit -m "bump cookie-jar to 0.7.0" && git push
+```
+
+### npm packages
+
+Both npm packages use OIDC trusted publishing (no tokens needed):
+
+| Package | Registry | Workflow | Tag Pattern |
+|---------|----------|----------|-------------|
+| `@imdanibytes/nexus-ui` | npmjs.org | `release-ui.yml` | `ui/v*` |
+| `@imdanibytes/nexus-sdk` | npmjs.org | `release.yml` | `v*` |
+
+Requirements for npm provenance: `package.json` must have a `repository.url` matching the GitHub repo URL. Node 24+ required (npm >= 11.5.1 for trusted publishing).

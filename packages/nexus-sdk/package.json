@@ -3,7 +3,13 @@
   "version": "0.10.1",
   "description": "TypeScript SDK for Nexus plugins — generated HTTP client + hand-written convenience wrapper",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imdanibytes/nexus",
+    "directory": "packages/nexus-sdk"
   },
   "type": "module",
   "main": "./dist/index.js",

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# post-commit: non-blocking outdated dependency report
+# Runs in the background so it never slows down commits.
+
+(
+  REPORT=""
+
+  # --- npm (pnpm) ---
+  if command -v pnpm &>/dev/null; then
+    NPM_OUT=$(pnpm outdated 2>/dev/null)
+    if [ $? -ne 0 ] && [ -n "$NPM_OUT" ]; then
+      REPORT+="\n\033[1;36m[npm]\033[0m outdated packages:\n$NPM_OUT\n"
+    fi
+  fi
+
+  # --- Rust (cargo) ---
+  if [ -f src-tauri/Cargo.toml ] && command -v cargo &>/dev/null; then
+    # Only check direct deps (not transitive) for a clean report
+    CARGO_OUT=$(cd src-tauri && cargo outdated --root-deps-only 2>/dev/null | grep -v "^---" | grep -v "^Name" | grep -v "^$")
+    if [ -n "$CARGO_OUT" ]; then
+      REPORT+="\n\033[1;33m[cargo]\033[0m outdated direct dependencies:\n$CARGO_OUT\n"
+    fi
+  fi
+
+  if [ -n "$REPORT" ]; then
+    echo ""
+    echo -e "\033[1;35m--- dependency report ---\033[0m$REPORT\033[1;35m-------------------------\033[0m"
+    echo ""
+  fi
+) &

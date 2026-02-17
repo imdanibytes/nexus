@@ -64,7 +64,7 @@ export class NexusServer {
       "http://host.docker.internal:9600";
     this.apiUrl =
       options?.apiUrl ||
-      process.env.NEXUS_API_URL ||
+      process.env.NEXUS_HOST_URL ||
       "http://host.docker.internal:9600";
     this.refreshBuffer = options?.refreshBuffer ?? 30_000;
   }

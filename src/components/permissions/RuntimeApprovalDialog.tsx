@@ -189,16 +189,20 @@ export function RuntimeApprovalDialog() {
 
   async function respond(decision: ApprovalDecision) {
     if (!current) return;
-    await runtimeApprovalRespond(
-      current.id,
-      decision,
-      current.plugin_id,
-      current.category,
-      {
-        ...current.context,
-        permission: current.permission,
-      }
-    );
+    try {
+      await runtimeApprovalRespond(
+        current.id,
+        decision,
+        current.plugin_id,
+        current.category,
+        {
+          ...current.context,
+          permission: current.permission,
+        }
+      );
+    } catch (err) {
+      console.error("[RuntimeApproval] respond failed:", err);
+    }
     seenIds.current.delete(current.id);
     setQueue((prev) => prev.slice(1));
   }

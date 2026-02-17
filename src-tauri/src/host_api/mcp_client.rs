@@ -1,6 +1,6 @@
 //! MCP client manager for native plugin MCP servers.
 //!
-//! Manages connections to plugin MCP servers running inside Docker containers.
+//! Manages connections to plugin MCP servers running inside containers.
 //! Each plugin that declares `mcp.server` in its manifest gets a cached entry
 //! here with its tools, resources, and prompts.
 

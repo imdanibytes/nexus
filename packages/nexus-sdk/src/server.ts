@@ -162,9 +162,9 @@ export class NexusServer {
     return this._get("/api/v1/process/list");
   }
 
-  /** GET /api/v1/docker/containers */
+  /** GET /api/v1/containers */
   async listContainers(): Promise<unknown[]> {
-    return this._get("/api/v1/docker/containers");
+    return this._get("/api/v1/containers");
   }
 
   /** POST /api/v1/network/proxy */

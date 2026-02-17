@@ -46,7 +46,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.plugin_logs".into(),
-            description: "Get recent log lines from a plugin's Docker container.".into(),
+            description: "Get recent log lines from a plugin's container.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -136,7 +136,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
             requires_approval: false,
         },
         McpToolEntry {
-            name: "nexus.docker_status".into(),
+            name: "nexus.engine_status".into(),
             description: "Check if the container engine is installed and running.".into(),
             input_schema: json!({
                 "type": "object",
@@ -498,7 +498,7 @@ pub async fn handle_call(
         "search_marketplace" => handle_search_marketplace(tool_name, arguments, state).await,
         "get_settings" => handle_get_settings(state).await,
         "get_mcp_settings" => handle_get_mcp_settings(state).await,
-        "docker_status" => handle_docker_status(state).await,
+        "engine_status" => handle_engine_status(state).await,
         // Nexus Code tools
         "read_file" => handle_read_file(arguments, state).await,
         "write_file" => handle_write_file(arguments, state).await,
@@ -656,7 +656,7 @@ async fn handle_get_mcp_settings(state: &AppState) -> Result<McpCallResponse, St
     ok_json(&mgr.mcp_settings)
 }
 
-async fn handle_docker_status(state: &AppState) -> Result<McpCallResponse, StatusCode> {
+async fn handle_engine_status(state: &AppState) -> Result<McpCallResponse, StatusCode> {
     let runtime = { state.read().await.runtime.clone() };
     let engine_id = runtime.engine_id().to_string();
     let socket = runtime.socket_path();

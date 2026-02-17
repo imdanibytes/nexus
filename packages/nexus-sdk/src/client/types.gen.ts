@@ -4,6 +4,22 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+/**
+ * Request body for POST /v1/extensions/{ext_id}/{operation}
+ */
+export type CallExtensionRequest = {
+    input?: unknown;
+};
+
+/**
+ * Response for POST /v1/extensions/{ext_id}/{operation}
+ */
+export type CallExtensionResponse = {
+    data: unknown;
+    message?: string | null;
+    success: boolean;
+};
+
 export type ContainerInfo = {
     id: string;
     image: string;
@@ -60,6 +76,14 @@ export type ExecResult = {
     timed_out: boolean;
 };
 
+/**
+ * Error response body
+ */
+export type ExtensionErrorResponse = {
+    details?: string | null;
+    error: string;
+};
+
 export type FileContent = {
     content: string;
     path: string;
@@ -90,6 +114,33 @@ export type GrepResult = {
     matches: Array<GrepFileMatch>;
     pattern: string;
     search_path: string;
+};
+
+/**
+ * Response for GET /v1/extensions
+ */
+export type ListExtensionsResponse = {
+    extensions: Array<PluginExtensionView>;
+};
+
+/**
+ * A plugin's view of an extension it declared as a dependency.
+ */
+export type PluginExtensionView = {
+    available: boolean;
+    description?: string | null;
+    display_name?: string | null;
+    id: string;
+    operations: Array<PluginOperationView>;
+};
+
+/**
+ * A plugin's view of an operation on a declared extension.
+ */
+export type PluginOperationView = {
+    available: boolean;
+    name: string;
+    permitted: boolean;
 };
 
 export type ProcessInfo = {
@@ -191,6 +242,65 @@ export type ContainerStatsResponses = {
 };
 
 export type ContainerStatsResponse = ContainerStatsResponses[keyof ContainerStatsResponses];
+
+export type ListExtensionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/extensions';
+};
+
+export type ListExtensionsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type ListExtensionsResponses = {
+    /**
+     * Extensions declared by this plugin
+     */
+    200: ListExtensionsResponse;
+};
+
+export type ListExtensionsResponse2 = ListExtensionsResponses[keyof ListExtensionsResponses];
+
+export type CallExtensionData = {
+    body: CallExtensionRequest;
+    path: {
+        /**
+         * Extension ID
+         */
+        ext_id: string;
+        /**
+         * Operation name
+         */
+        operation: string;
+    };
+    query?: never;
+    url: '/api/v1/extensions/{ext_id}/{operation}';
+};
+
+export type CallExtensionErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — extension not found, missing permission, or scope denied
+     */
+    403: unknown;
+};
+
+export type CallExtensionResponses = {
+    /**
+     * Operation result
+     */
+    200: CallExtensionResponse;
+};
+
+export type CallExtensionResponse2 = CallExtensionResponses[keyof CallExtensionResponses];
 
 export type EditFileData = {
     body: EditRequest;

@@ -4,7 +4,7 @@
  * TypeScript SDK for Nexus plugins. Generated HTTP client from the Host API
  * OpenAPI spec, with a hand-written convenience wrapper.
  *
- * Usage inside a plugin:
+ * Usage inside a plugin UI (browser):
  *
  * ```ts
  * import { NexusPlugin } from "@imdanibytes/nexus-sdk";
@@ -12,7 +12,11 @@
  * const nexus = await NexusPlugin.init();
  * const info = await nexus.systemInfo();
  * const settings = await nexus.getSettings();
+ * const result = await nexus.callExtension("my-ext", "my-op", { key: "val" });
  * ```
+ *
+ * Auth is fully transparent — the SDK handles token acquisition, refresh,
+ * and retry automatically. Plugins never touch credentials.
  */
 
 import { client } from "./client/client.gen";
@@ -27,6 +31,8 @@ import {
   proxyRequest as _proxyRequest,
   getSettings as _getSettings,
   putSettings as _putSettings,
+  listExtensions as _listExtensions,
+  callExtension as _callExtension,
 } from "./client/sdk.gen";
 
 export type {
@@ -39,6 +45,11 @@ export type {
   ProxyRequest,
   ProxyResponse,
   WriteRequest,
+  CallExtensionRequest,
+  CallExtensionResponse,
+  ListExtensionsResponse,
+  PluginExtensionView,
+  PluginOperationView,
 } from "./client/types.gen";
 
 /** Payload shape for host → plugin system events via postMessage. */
@@ -55,39 +66,33 @@ export type NexusEventHandler = (event: string, data: unknown) => void;
 export * as sdk from "./client/sdk.gen";
 export { client } from "./client/client.gen";
 
-interface PluginConfig {
+/** Opaque config from the plugin server. Auth details are internal. */
+interface ClientConfig {
   token: string;
   apiUrl: string;
-  /** OAuth refresh token (enables direct token refresh without re-auth). */
-  refreshToken?: string;
-  /** OAuth client ID (required for refresh_token grant). */
-  clientId?: string;
 }
 
 /**
- * Convenience wrapper that fetches an OAuth access token from the
- * plugin's `/api/config` endpoint and configures the HTTP client.
+ * Browser-side SDK for Nexus plugin UIs.
  *
- * The plugin server authenticates via OAuth 2.1 client_credentials grant.
- * The browser only ever sees the access token and optional refresh token.
- *
- * On 401 (token expired), call `refreshToken()` which will use the
- * OAuth refresh_token grant if available, otherwise re-fetch from
- * the plugin server.
+ * Auth is fully transparent: the plugin server handles credential management,
+ * and this class automatically retries on 401 by re-fetching config.
+ * Plugins never see tokens, secrets, or auth protocol details.
  */
 export class NexusPlugin {
   private configUrl: string;
+  private token: string;
+  private apiUrl: string;
 
-  private constructor(
-    public config: PluginConfig,
-    configUrl: string,
-  ) {
+  private constructor(config: ClientConfig, configUrl: string) {
+    this.token = config.token;
+    this.apiUrl = config.apiUrl;
     this.configUrl = configUrl;
   }
 
   /**
-   * Initialize the SDK. Fetches plugin config from the local server and
-   * configures the HTTP client with the correct base URL and access token.
+   * Initialize the SDK. Fetches config from the plugin server and
+   * configures the HTTP client. Auth is handled automatically.
    *
    * @param configUrl - Override the config endpoint (defaults to `/api/config`)
    */
@@ -99,7 +104,7 @@ export class NexusPlugin {
       );
     }
 
-    const config: PluginConfig = await res.json();
+    const config: ClientConfig = await res.json();
 
     client.setConfig({
       baseUrl: config.apiUrl,
@@ -117,120 +122,120 @@ export class NexusPlugin {
     return new NexusPlugin({ token, apiUrl }, "");
   }
 
-  /**
-   * Refresh the access token. Tries OAuth refresh_token grant first
-   * (if refresh token and client ID are available), then falls back
-   * to re-fetching from the plugin server's `/api/config` endpoint.
-   */
-  async refreshToken(): Promise<string> {
-    // Try OAuth refresh_token grant directly
-    if (this.config.refreshToken && this.config.clientId) {
-      const origin = this.config.apiUrl.replace(/\/api\/?$/, "");
-      const res = await fetch(`${origin}/oauth/token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          client_id: this.config.clientId,
-          refresh_token: this.config.refreshToken,
-        }),
-      });
+  // ── Internal: transparent auth retry ──────────────────────
 
-      if (res.ok) {
-        const data = await res.json();
-        this.config.token = data.access_token;
-        if (data.refresh_token) {
-          this.config.refreshToken = data.refresh_token;
-        }
-        client.setConfig({
-          baseUrl: this.config.apiUrl,
-          auth: this.config.token,
-        });
-        return this.config.token;
-      }
-    }
-
-    // Fall back to plugin server config endpoint
+  /** Re-fetch config from the plugin server (which handles credential refresh). */
+  private async _refreshConfig(): Promise<void> {
     if (!this.configUrl) {
-      throw new Error("Cannot refresh token in manual configuration mode");
+      throw new Error("Cannot refresh in manual configuration mode");
     }
 
     const res = await fetch(this.configUrl);
     if (!res.ok) {
-      throw new Error(`Failed to refresh token: ${res.status}`);
+      throw new Error(`Failed to refresh config: ${res.status}`);
     }
 
-    const config: PluginConfig = await res.json();
-    this.config = config;
+    const config: ClientConfig = await res.json();
+    this.token = config.token;
+    this.apiUrl = config.apiUrl;
 
     client.setConfig({
       baseUrl: config.apiUrl,
       auth: config.token,
     });
+  }
 
-    return config.token;
+  /** Execute a generated SDK call with automatic 401 retry. */
+  private async _withRetry<T>(
+    fn: () => Promise<{ data?: T; error?: unknown; response: Response }>
+  ): Promise<T> {
+    let result = await fn();
+
+    if (result.response.status === 401) {
+      await this._refreshConfig();
+      result = await fn();
+    }
+
+    if (result.data === undefined) {
+      throw new Error(`Request failed: ${result.response.status}`);
+    }
+
+    return result.data;
   }
 
   // ── System ──────────────────────────────────────────────
 
   async systemInfo() {
-    const { data } = await _systemInfo();
-    return data!;
+    return this._withRetry(() => _systemInfo());
   }
 
   // ── Filesystem ──────────────────────────────────────────
 
   async readFile(path: string) {
-    const { data } = await _readFile({ query: { path } });
-    return data!;
+    return this._withRetry(() => _readFile({ query: { path } }));
   }
 
   async listDir(path: string) {
-    const { data } = await _listDir({ query: { path } });
-    return data!;
+    return this._withRetry(() => _listDir({ query: { path } }));
   }
 
   async writeFile(path: string, content: string) {
-    await _writeFile({ body: { path, content } });
+    return this._withRetry(() => _writeFile({ body: { path, content } }));
   }
 
   // ── Process ─────────────────────────────────────────────
 
   async listProcesses() {
-    const { data } = await _listProcesses();
-    return data!;
+    return this._withRetry(() => _listProcesses());
   }
 
   // ── Docker ──────────────────────────────────────────────
 
   async listContainers() {
-    const { data } = await _listContainers();
-    return data!;
+    return this._withRetry(() => _listContainers());
   }
 
   async containerStats(id: string) {
-    const { data } = await _containerStats({ path: { id } });
-    return data!;
+    return this._withRetry(() => _containerStats({ path: { id } }));
   }
 
   // ── Network ─────────────────────────────────────────────
 
   async proxyRequest(url: string, method: string, options?: { headers?: Record<string, string>; body?: string }) {
-    const { data } = await _proxyRequest({
+    return this._withRetry(() => _proxyRequest({
       body: { url, method, headers: options?.headers ?? {}, body: options?.body },
-    });
-    return data!;
+    }));
   }
 
   // ── Settings ────────────────────────────────────────────
 
   async getSettings() {
-    const { data } = await _getSettings();
-    return data!;
+    return this._withRetry(() => _getSettings());
   }
 
   async saveSettings(values: Record<string, unknown>) {
-    await _putSettings({ body: values });
+    return this._withRetry(() => _putSettings({ body: values }));
+  }
+
+  // ── Extensions ──────────────────────────────────────────
+
+  /**
+   * Call an extension operation.
+   *
+   * ```ts
+   * const result = await nexus.callExtension("my-ext", "my-op", { key: "val" });
+   * ```
+   */
+  async callExtension(extensionId: string, operation: string, input: Record<string, unknown> = {}) {
+    return this._withRetry(() => _callExtension({
+      path: { ext_id: extensionId, operation },
+      body: { input },
+    }));
+  }
+
+  /** List extensions available to this plugin. */
+  async listExtensions() {
+    return this._withRetry(() => _listExtensions());
   }
 
   // ── Host Events ──────────────────────────────────────────

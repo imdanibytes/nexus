@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ContainerStatsData, ContainerStatsErrors, ContainerStatsResponses, EditFileData, EditFileErrors, EditFileResponses, ExecCommandData, ExecCommandErrors, ExecCommandResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GlobFilesData, GlobFilesErrors, GlobFilesResponses, GrepFilesData, GrepFilesErrors, GrepFilesResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListDirData, ListDirErrors, ListDirResponses, ListProcessesData, ListProcessesErrors, ListProcessesResponses, ProxyRequestData, ProxyRequestErrors, ProxyRequestResponses, PutSettingsData, PutSettingsErrors, PutSettingsResponses, ReadFileData, ReadFileErrors, ReadFileResponses, SystemInfoData, SystemInfoErrors, SystemInfoResponses, WriteFileData, WriteFileErrors, WriteFileResponses } from './types.gen';
+import type { CallExtensionData, CallExtensionErrors, CallExtensionResponses, ContainerStatsData, ContainerStatsErrors, ContainerStatsResponses, EditFileData, EditFileErrors, EditFileResponses, ExecCommandData, ExecCommandErrors, ExecCommandResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GlobFilesData, GlobFilesErrors, GlobFilesResponses, GrepFilesData, GrepFilesErrors, GrepFilesResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListDirData, ListDirErrors, ListDirResponses, ListExtensionsData, ListExtensionsErrors, ListExtensionsResponses, ListProcessesData, ListProcessesErrors, ListProcessesResponses, ProxyRequestData, ProxyRequestErrors, ProxyRequestResponses, PutSettingsData, PutSettingsErrors, PutSettingsResponses, ReadFileData, ReadFileErrors, ReadFileResponses, SystemInfoData, SystemInfoErrors, SystemInfoResponses, WriteFileData, WriteFileErrors, WriteFileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -28,6 +28,37 @@ export const containerStats = <ThrowOnError extends boolean = false>(options: Op
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/docker/stats/{id}',
     ...options
+});
+
+/**
+ * List extensions declared by the calling plugin.
+ *
+ * Only returns extensions the plugin declared in its manifest `"extensions"` field.
+ * Includes availability status (is it installed and running?) and per-operation
+ * permission status. Plugins cannot see extensions they didn't declare.
+ */
+export const listExtensions = <ThrowOnError extends boolean = false>(options?: Options<ListExtensionsData, ThrowOnError>) => (options?.client ?? client).get<ListExtensionsResponses, ListExtensionsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/extensions',
+    ...options
+});
+
+/**
+ * Execute an extension operation.
+ *
+ * Three-layer security model:
+ * 1. PERMISSION: Does this plugin have `ext:{ext_id}:{operation}`?
+ * 2. SCOPE: If the operation declares `scope_key`, is the scope value approved?
+ * 3. RISK: If risk_level is high, per-invocation runtime approval.
+ */
+export const callExtension = <ThrowOnError extends boolean = false>(options: Options<CallExtensionData, ThrowOnError>) => (options.client ?? client).post<CallExtensionResponses, CallExtensionErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/extensions/{ext_id}/{operation}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 export const editFile = <ThrowOnError extends boolean = false>(options: Options<EditFileData, ThrowOnError>) => (options.client ?? client).post<EditFileResponses, EditFileErrors, ThrowOnError>({

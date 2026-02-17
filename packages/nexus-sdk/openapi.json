@@ -88,6 +88,99 @@
         ]
       }
     },
+    "/api/v1/extensions": {
+      "get": {
+        "tags": [
+          "extensions"
+        ],
+        "summary": "List extensions declared by the calling plugin.",
+        "description": "Only returns extensions the plugin declared in its manifest `\"extensions\"` field.\nIncludes availability status (is it installed and running?) and per-operation\npermission status. Plugins cannot see extensions they didn't declare.",
+        "operationId": "list_extensions",
+        "responses": {
+          "200": {
+            "description": "Extensions declared by this plugin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListExtensionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/extensions/{ext_id}/{operation}": {
+      "post": {
+        "tags": [
+          "extensions"
+        ],
+        "summary": "Execute an extension operation.",
+        "description": "Three-layer security model:\n1. PERMISSION: Does this plugin have `ext:{ext_id}:{operation}`?\n2. SCOPE: If the operation declares `scope_key`, is the scope value approved?\n3. RISK: If risk_level is high, per-invocation runtime approval.",
+        "operationId": "call_extension",
+        "parameters": [
+          {
+            "name": "ext_id",
+            "in": "path",
+            "description": "Extension ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "operation",
+            "in": "path",
+            "description": "Operation name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Operation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallExtensionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — extension not found, missing permission, or scope denied"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/fs/edit": {
       "post": {
         "tags": [
@@ -603,6 +696,33 @@
   },
   "components": {
     "schemas": {
+      "CallExtensionRequest": {
+        "type": "object",
+        "description": "Request body for POST /v1/extensions/{ext_id}/{operation}",
+        "properties": {
+          "input": {}
+        }
+      },
+      "CallExtensionResponse": {
+        "type": "object",
+        "description": "Response for POST /v1/extensions/{ext_id}/{operation}",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "data": {},
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ContainerInfo": {
         "type": "object",
         "required": [
@@ -760,6 +880,24 @@
           }
         }
       },
+      "ExtensionErrorResponse": {
+        "type": "object",
+        "description": "Error response body",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
       "FileContent": {
         "type": "object",
         "required": [
@@ -861,6 +999,76 @@
           },
           "search_path": {
             "type": "string"
+          }
+        }
+      },
+      "ListExtensionsResponse": {
+        "type": "object",
+        "description": "Response for GET /v1/extensions",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginExtensionView"
+            }
+          }
+        }
+      },
+      "PluginExtensionView": {
+        "type": "object",
+        "description": "A plugin's view of an extension it declared as a dependency.",
+        "required": [
+          "id",
+          "available",
+          "operations"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginOperationView"
+            }
+          }
+        }
+      },
+      "PluginOperationView": {
+        "type": "object",
+        "description": "A plugin's view of an operation on a declared extension.",
+        "required": [
+          "name",
+          "permitted",
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permitted": {
+            "type": "boolean"
           }
         }
       },
@@ -1036,6 +1244,10 @@
     {
       "name": "settings",
       "description": "Per-plugin settings (scoped to authenticated plugin)"
+    },
+    {
+      "name": "extensions",
+      "description": "Host extension operations"
     }
   ]
 }

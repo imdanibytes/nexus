@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use utoipa::ToSchema;
 
 use crate::extensions::validation::validate_input;
 use crate::extensions::RiskLevel;
@@ -17,7 +18,7 @@ use super::approval::ApprovalBridge;
 use super::middleware::AuthenticatedPlugin;
 
 /// A plugin's view of an extension it declared as a dependency.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct PluginExtensionView {
     pub id: String,
     pub display_name: Option<String>,
@@ -27,7 +28,7 @@ pub struct PluginExtensionView {
 }
 
 /// A plugin's view of an operation on a declared extension.
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct PluginOperationView {
     pub name: String,
     pub permitted: bool,
@@ -35,13 +36,13 @@ pub struct PluginOperationView {
 }
 
 /// Response for GET /v1/extensions
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ListExtensionsResponse {
     pub extensions: Vec<PluginExtensionView>,
 }
 
 /// Request body for POST /v1/extensions/{ext_id}/{operation}
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 pub struct CallExtensionRequest {
     #[serde(default = "default_input")]
     pub input: Value,
@@ -52,7 +53,7 @@ fn default_input() -> Value {
 }
 
 /// Response for POST /v1/extensions/{ext_id}/{operation}
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct CallExtensionResponse {
     pub success: bool,
     pub data: Value,
@@ -61,7 +62,7 @@ pub struct CallExtensionResponse {
 }
 
 /// Error response body
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ExtensionErrorResponse {
     pub error: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -78,11 +79,21 @@ fn error_response(status: StatusCode, error: &str, details: Option<String>) -> (
     )
 }
 
-/// GET /v1/extensions — list extensions declared by the calling plugin.
+/// List extensions declared by the calling plugin.
 ///
 /// Only returns extensions the plugin declared in its manifest `"extensions"` field.
 /// Includes availability status (is it installed and running?) and per-operation
 /// permission status. Plugins cannot see extensions they didn't declare.
+#[utoipa::path(
+    get,
+    path = "/api/v1/extensions",
+    tag = "extensions",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Extensions declared by this plugin", body = ListExtensionsResponse),
+        (status = 401, description = "Unauthorized"),
+    )
+)]
 pub async fn list_extensions(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthenticatedPlugin>,
@@ -134,12 +145,28 @@ pub async fn list_extensions(
     Json(ListExtensionsResponse { extensions: views })
 }
 
-/// POST /v1/extensions/{ext_id}/{operation} — execute an extension operation.
+/// Execute an extension operation.
 ///
 /// Three-layer security model:
 /// 1. PERMISSION: Does this plugin have `ext:{ext_id}:{operation}`?
 /// 2. SCOPE: If the operation declares `scope_key`, is the scope value approved?
 /// 3. RISK: If risk_level is high, per-invocation runtime approval.
+#[utoipa::path(
+    post,
+    path = "/api/v1/extensions/{ext_id}/{operation}",
+    tag = "extensions",
+    security(("bearer_auth" = [])),
+    params(
+        ("ext_id" = String, Path, description = "Extension ID"),
+        ("operation" = String, Path, description = "Operation name"),
+    ),
+    request_body = CallExtensionRequest,
+    responses(
+        (status = 200, description = "Operation result", body = CallExtensionResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden — extension not found, missing permission, or scope denied"),
+    )
+)]
 pub async fn call_extension(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthenticatedPlugin>,
@@ -149,11 +176,11 @@ pub async fn call_extension(
 ) -> Result<Json<CallExtensionResponse>, (StatusCode, Json<ExtensionErrorResponse>)> {
     let mgr = state.read().await;
 
-    // 1. Look up extension
+    // 1. Look up extension (403 instead of 404 to avoid leaking extension existence)
     let ext = mgr.extensions.get(&ext_id).ok_or_else(|| {
         error_response(
-            StatusCode::NOT_FOUND,
-            "Extension not found",
+            StatusCode::FORBIDDEN,
+            "Forbidden",
             Some(format!("No extension with ID '{}'", ext_id)),
         )
     })?;
@@ -165,8 +192,8 @@ pub async fn call_extension(
         .find(|op| op.name == operation)
         .ok_or_else(|| {
             error_response(
-                StatusCode::NOT_FOUND,
-                "Operation not found",
+                StatusCode::FORBIDDEN,
+                "Forbidden",
                 Some(format!(
                     "Extension '{}' has no operation '{}'",
                     ext_id, operation

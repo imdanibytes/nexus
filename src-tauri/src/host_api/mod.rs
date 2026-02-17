@@ -67,6 +67,8 @@ impl Modify for SecurityAddon {
         network::proxy_request,
         settings::get_settings,
         settings::put_settings,
+        extensions::list_extensions,
+        extensions::call_extension,
     ),
     components(schemas(
         system::SystemInfo,
@@ -85,6 +87,12 @@ impl Modify for SecurityAddon {
         docker::ContainerInfo,
         network::ProxyRequest,
         network::ProxyResponse,
+        extensions::PluginExtensionView,
+        extensions::PluginOperationView,
+        extensions::ListExtensionsResponse,
+        extensions::CallExtensionRequest,
+        extensions::CallExtensionResponse,
+        extensions::ExtensionErrorResponse,
     )),
     modifiers(&SecurityAddon),
     tags(
@@ -93,7 +101,8 @@ impl Modify for SecurityAddon {
         (name = "process", description = "List host processes"),
         (name = "docker", description = "Docker container inspection"),
         (name = "network", description = "Network proxy for external requests"),
-        (name = "settings", description = "Per-plugin settings (scoped to authenticated plugin)")
+        (name = "settings", description = "Per-plugin settings (scoped to authenticated plugin)"),
+        (name = "extensions", description = "Host extension operations")
     )
 )]
 pub struct ApiDoc;

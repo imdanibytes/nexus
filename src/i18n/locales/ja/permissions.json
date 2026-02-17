@@ -18,6 +18,7 @@
     "mcpToolsDesc_one": "このプラグインは Model Context Protocol 経由で AI アシスタントに {{count}} 個のツールを公開します:",
     "mcpToolsDesc_other": "このプラグインは Model Context Protocol 経由で AI アシスタントに {{count}} 個のツールを公開します:",
     "mcpToolsCanToggle": "MCP ツールはインストール後、設定で個別に有効・無効を切り替えられます。",
+    "mcpAccess": "MCP アクセス",
     "approvedClickToDefer": "承認済み — クリックして保留に変更",
     "deferredClickToApprove": "保留中 — クリックして承認"
   },
@@ -90,6 +91,8 @@
     "network_local": "LAN への HTTP リクエスト",
     "network_internet": "インターネットへの HTTP リクエスト",
     "extensionPerm": "エクステンション {{extId}}: {{operation}}",
+    "mcp_call": "すべてのプラグインの MCP ツールを呼び出す",
+    "mcpAccess": "{{target}} の MCP ツールにアクセス",
     "unknown": "不明な権限"
   }
 }

@@ -18,6 +18,7 @@
     "mcpToolsDesc_one": "Este plugin expone {{count}} herramienta a asistentes de IA a traves del Model Context Protocol:",
     "mcpToolsDesc_other": "Este plugin expone {{count}} herramientas a asistentes de IA a traves del Model Context Protocol:",
     "mcpToolsCanToggle": "Las herramientas MCP se pueden activar o desactivar individualmente despues de la instalacion en Configuracion.",
+    "mcpAccess": "Acceso MCP",
     "approvedClickToDefer": "Aprobado — clic para diferir",
     "deferredClickToApprove": "Diferido — clic para aprobar"
   },
@@ -90,6 +91,8 @@
     "network_local": "Solicitudes HTTP a red local",
     "network_internet": "Solicitudes HTTP a internet",
     "extensionPerm": "Extension {{extId}}: {{operation}}",
+    "mcp_call": "Llamar a cualquier herramienta MCP de cualquier plugin",
+    "mcpAccess": "Acceder a herramientas MCP de {{target}}",
     "unknown": "Permiso desconocido"
   }
 }

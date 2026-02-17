@@ -18,6 +18,7 @@
     "mcpToolsDesc_one": "此插件通过 Model Context Protocol 向 AI 助手公开 {{count}} 个工具：",
     "mcpToolsDesc_other": "此插件通过 Model Context Protocol 向 AI 助手公开 {{count}} 个工具：",
     "mcpToolsCanToggle": "安装后可在设置中单独启用或禁用各 MCP 工具。",
+    "mcpAccess": "MCP 访问",
     "approvedClickToDefer": "已批准——点击延迟",
     "deferredClickToApprove": "已延迟——点击批准"
   },
@@ -90,6 +91,8 @@
     "network_local": "向局域网发送 HTTP 请求",
     "network_internet": "向互联网发送 HTTP 请求",
     "extensionPerm": "扩展 {{extId}}：{{operation}}",
+    "mcp_call": "调用任何插件的 MCP 工具",
+    "mcpAccess": "访问 {{target}} 的 MCP 工具",
     "unknown": "未知权限"
   }
 }

@@ -18,6 +18,7 @@
     "mcpToolsDesc_one": "This plugin exposes {{count}} tool to AI assistants via the Model Context Protocol:",
     "mcpToolsDesc_other": "This plugin exposes {{count}} tools to AI assistants via the Model Context Protocol:",
     "mcpToolsCanToggle": "MCP tools can be individually enabled or disabled after installation in Settings.",
+    "mcpAccess": "MCP Access",
     "approvedClickToDefer": "Approved — click to defer",
     "deferredClickToApprove": "Deferred — click to approve"
   },
@@ -90,6 +91,8 @@
     "network_local": "HTTP requests to LAN",
     "network_internet": "HTTP requests to internet",
     "extensionPerm": "Extension {{extId}}: {{operation}}",
+    "mcp_call": "Call any MCP tool from any plugin",
+    "mcpAccess": "Access MCP tools from {{target}}",
     "unknown": "Unknown permission"
   }
 }

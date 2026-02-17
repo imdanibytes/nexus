@@ -44,7 +44,7 @@ export interface PermissionMeta {
   risk: "low" | "medium" | "high";
 }
 
-/** Look up permission metadata. Supports both built-in and ext:* permissions. */
+/** Look up permission metadata. Supports built-in, ext:*, mcp:call, and mcp:* permissions. */
 export function getPermissionInfo(perm: string): PermissionMeta {
   const risk = PERMISSION_RISK[perm as BuiltinPermission];
   if (risk) {
@@ -64,20 +64,69 @@ export function getPermissionInfo(perm: string): PermissionMeta {
       risk: "medium",
     };
   }
+  // MCP blanket access
+  if (perm === "mcp:call") {
+    return {
+      description: i18n.t("permissions:meta.mcp_call", { defaultValue: "Call any MCP tool from any plugin" }),
+      risk: "high",
+    };
+  }
+  // Per-plugin MCP access: mcp:{target_plugin_id}
+  if (perm.startsWith("mcp:")) {
+    const target = perm.slice(4);
+    return {
+      description: i18n.t("permissions:meta.mcpAccess", { target, defaultValue: `Access MCP tools from ${target}` }),
+      risk: "medium",
+    };
+  }
   return { description: perm, risk: "medium" };
 }
 
 /** Compute the full permission list from a manifest (mirrors Rust all_permissions). */
-export function allPermissions(manifest: { permissions: string[]; extensions?: Record<string, string[]> }): string[] {
+export function allPermissions(manifest: {
+  permissions: string[];
+  extensions?: Record<string, string[] | Record<string, { scopes?: string[] }>>;
+  mcp_access?: string[];
+}): string[] {
   const perms = [...manifest.permissions];
   if (manifest.extensions) {
-    for (const [extId, operations] of Object.entries(manifest.extensions)) {
-      for (const op of operations) {
-        perms.push(`ext:${extId}:${op}`);
+    for (const [extId, deps] of Object.entries(manifest.extensions)) {
+      if (Array.isArray(deps)) {
+        // Flat format: ["op1", "op2"]
+        for (const op of deps) {
+          perms.push(`ext:${extId}:${op}`);
+        }
+      } else {
+        // Rich format: { "op1": { scopes: [...] }, "op2": {} }
+        for (const op of Object.keys(deps)) {
+          perms.push(`ext:${extId}:${op}`);
+        }
       }
     }
   }
+  if (manifest.mcp_access) {
+    for (const target of manifest.mcp_access) {
+      perms.push(`mcp:${target}`);
+    }
+  }
   return perms;
+}
+
+/** Extract pre-declared scopes for an extension permission from a rich manifest declaration. */
+export function getManifestScopes(
+  manifest: { extensions?: Record<string, string[] | Record<string, { scopes?: string[] }>> },
+  perm: string,
+): string[] | null {
+  if (!perm.startsWith("ext:") || !manifest.extensions) return null;
+  const parts = perm.slice(4).split(":");
+  const extId = parts[0];
+  const op = parts[1];
+  if (!extId || !op) return null;
+  const deps = manifest.extensions[extId];
+  if (!deps || Array.isArray(deps)) return null;
+  const decl = deps[op];
+  if (!decl?.scopes?.length) return null;
+  return decl.scopes;
 }
 
 /** Risk levels for built-in permissions. Descriptions come from i18n. */
@@ -90,4 +139,5 @@ const PERMISSION_RISK: Record<string, "low" | "medium" | "high"> = {
   "docker:manage": "high",
   "network:local": "medium",
   "network:internet": "medium",
+  "mcp:call": "high",
 };

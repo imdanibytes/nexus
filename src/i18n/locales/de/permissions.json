@@ -18,6 +18,7 @@
     "mcpToolsDesc_one": "Dieses Plugin stellt {{count}} Tool fur KI-Assistenten uber das Model Context Protocol bereit:",
     "mcpToolsDesc_other": "Dieses Plugin stellt {{count}} Tools fur KI-Assistenten uber das Model Context Protocol bereit:",
     "mcpToolsCanToggle": "MCP-Tools konnen nach der Installation in den Einstellungen einzeln aktiviert oder deaktiviert werden.",
+    "mcpAccess": "MCP-Zugriff",
     "approvedClickToDefer": "Genehmigt - klicken, um aufzuschieben",
     "deferredClickToApprove": "Aufgeschoben - klicken, um zu genehmigen"
   },
@@ -90,6 +91,8 @@
     "network_local": "HTTP-Anfragen im LAN",
     "network_internet": "HTTP-Anfragen ins Internet",
     "extensionPerm": "Erweiterung {{extId}}: {{operation}}",
+    "mcp_call": "Beliebiges MCP-Tool von beliebigem Plugin aufrufen",
+    "mcpAccess": "Zugriff auf MCP-Tools von {{target}}",
     "unknown": "Unbekannte Berechtigung"
   }
 }

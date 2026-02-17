@@ -18,6 +18,7 @@
     "mcpToolsDesc_one": "Description — plugin exposes one MCP tool (singular). {{count}} is 1",
     "mcpToolsDesc_other": "Description — plugin exposes multiple MCP tools. {{count}} is tool count",
     "mcpToolsCanToggle": "Help text — tools can be toggled after installation",
+    "mcpAccess": "Section heading — MCP access permissions group in install dialog",
     "approvedClickToDefer": "Toggle tooltip — permission is approved, click to defer it",
     "deferredClickToApprove": "Toggle tooltip — permission is deferred, click to approve it"
   },
@@ -90,6 +91,8 @@
     "network_local": "Permission description — can make HTTP requests to local network",
     "network_internet": "Permission description — can make HTTP requests to internet",
     "extensionPerm": "Permission description — extension operation. {{extId}} is extension ID, {{operation}} is operation name",
+    "mcp_call": "Permission description — blanket MCP access to all tools from all plugins (high risk)",
+    "mcpAccess": "Permission description — per-plugin MCP access. {{target}} is target plugin ID",
     "unknown": "Fallback permission description — permission type not recognized"
   }
 }

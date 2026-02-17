@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Permission } from "../../types/permissions";
 import type { PluginManifest } from "../../types/plugin";
-import { getPermissionInfo, allPermissions } from "../../types/permissions";
+import { getPermissionInfo, allPermissions, getManifestScopes } from "../../types/permissions";
 import { useAppStore } from "../../stores/appStore";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -19,6 +19,7 @@ import {
   Puzzle,
   AlertTriangle,
   Check,
+  Link,
 } from "lucide-react";
 
 const riskColors = {
@@ -211,10 +212,11 @@ function InfoStep({
   );
 }
 
-/** Group permissions into built-in and extension groups. */
+/** Group permissions into built-in, extension, and MCP access groups. */
 function groupPermissions(permissions: Permission[]) {
   const builtIn: Permission[] = [];
   const extGroups: Record<string, Permission[]> = {};
+  const mcpAccess: Permission[] = [];
 
   for (const perm of permissions) {
     if (typeof perm === "string" && perm.startsWith("ext:")) {
@@ -222,12 +224,14 @@ function groupPermissions(permissions: Permission[]) {
       const extId = parts[0] ?? "unknown";
       if (!extGroups[extId]) extGroups[extId] = [];
       extGroups[extId].push(perm);
+    } else if (typeof perm === "string" && perm.startsWith("mcp:") && perm !== "mcp:call") {
+      mcpAccess.push(perm);
     } else {
       builtIn.push(perm);
     }
   }
 
-  return { builtIn, extGroups };
+  return { builtIn, extGroups, mcpAccess };
 }
 
 function PermissionsStep({
@@ -263,7 +267,7 @@ function PermissionsStep({
   const installedExtensions = new Set(storeExtensions.map((e) => e.id));
   const extensionsLoaded = true;
 
-  const { builtIn, extGroups } = groupPermissions(permissions);
+  const { builtIn, extGroups, mcpAccess } = groupPermissions(permissions);
   const declaredExtensions = Object.keys(manifest.extensions ?? {});
 
   const listRef = useCallback((el: HTMLDivElement | null) => {
@@ -352,17 +356,41 @@ function PermissionsStep({
                   </span>
                 ) : null}
               </div>
-              {extPerms.map((perm) => (
-                <PermissionToggleRow
-                  key={perm}
-                  perm={perm}
-                  enabled={toggles[perm]}
-                  onToggle={() => togglePerm(perm)}
-                />
-              ))}
+              {extPerms.map((perm) => {
+                const scopes = getManifestScopes(manifest, perm);
+                return (
+                  <PermissionToggleRow
+                    key={perm}
+                    perm={perm}
+                    enabled={toggles[perm]}
+                    onToggle={() => togglePerm(perm)}
+                    scopes={scopes}
+                  />
+                );
+              })}
             </div>
           );
         })}
+
+        {/* MCP access permissions */}
+        {mcpAccess.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 pt-2 pb-1">
+              <Link size={12} strokeWidth={1.5} className="text-nx-text-muted" />
+              <span className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider">
+                {t("dialog.mcpAccess")}
+              </span>
+            </div>
+            {mcpAccess.map((perm) => (
+              <PermissionToggleRow
+                key={perm}
+                perm={perm}
+                enabled={toggles[perm]}
+                onToggle={() => togglePerm(perm)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Missing extension warnings */}
@@ -424,10 +452,12 @@ function PermissionToggleRow({
   perm,
   enabled,
   onToggle,
+  scopes,
 }: {
   perm: string;
   enabled: boolean;
   onToggle: () => void;
+  scopes?: string[] | null;
 }) {
   const { t } = useTranslation("permissions");
   const info = getPermissionInfo(perm);
@@ -454,6 +484,18 @@ function PermissionToggleRow({
         <p className="text-[11px] text-nx-text-muted mt-0.5">
           {info.description}
         </p>
+        {scopes && scopes.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {scopes.map((scope) => (
+              <span
+                key={scope}
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary"
+              >
+                {scope}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <Switch
         checked={enabled}

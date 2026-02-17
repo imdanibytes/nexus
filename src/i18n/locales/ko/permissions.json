@@ -18,6 +18,7 @@
     "mcpToolsDesc_one": "이 플러그인은 Model Context Protocol을 통해 AI 어시스턴트에 {{count}}개의 도구를 노출해요:",
     "mcpToolsDesc_other": "이 플러그인은 Model Context Protocol을 통해 AI 어시스턴트에 {{count}}개의 도구를 노출해요:",
     "mcpToolsCanToggle": "MCP 도구는 설치 후 설정에서 개별적으로 활성화하거나 비활성화할 수 있어요.",
+    "mcpAccess": "MCP 접근",
     "approvedClickToDefer": "승인됨 — 클릭하여 보류로 변경",
     "deferredClickToApprove": "보류됨 — 클릭하여 승인"
   },
@@ -90,6 +91,8 @@
     "network_local": "LAN에 HTTP 요청",
     "network_internet": "인터넷에 HTTP 요청",
     "extensionPerm": "확장 기능 {{extId}}: {{operation}}",
+    "mcp_call": "모든 플러그인의 MCP 도구 호출",
+    "mcpAccess": "{{target}}의 MCP 도구에 접근",
     "unknown": "알 수 없는 권한"
   }
 }

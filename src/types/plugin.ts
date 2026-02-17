@@ -39,7 +39,8 @@ export interface PluginManifest {
   min_nexus_version?: string;
   settings?: SettingDef[];
   mcp?: McpConfig;
-  extensions?: Record<string, string[]>;
+  extensions?: Record<string, string[] | Record<string, { scopes?: string[] }>>;
+  mcp_access?: string[];
 }
 
 export interface InstalledPlugin {

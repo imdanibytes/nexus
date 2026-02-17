@@ -52,7 +52,7 @@ impl ExtensionStorage {
     pub fn save(&self) -> Result<(), ExtensionError> {
         let data = serde_json::to_string_pretty(self)
             .map_err(|e| ExtensionError::Other(format!("Failed to serialize extension storage: {}", e)))?;
-        std::fs::write(&self.path, data)?;
+        crate::util::atomic_write(&self.path, data.as_bytes())?;
         Ok(())
     }
 

@@ -125,7 +125,7 @@ pub async fn put_value(
     }
 
     std::fs::create_dir_all(&dir).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    std::fs::write(&path, serialized).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    crate::util::atomic_write(&path, serialized.as_bytes()).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
 }

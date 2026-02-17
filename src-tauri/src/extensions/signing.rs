@@ -36,7 +36,7 @@ impl TrustedKeyStore {
     pub fn save(&self) -> Result<(), ExtensionError> {
         let data = serde_json::to_string_pretty(self)
             .map_err(|e| ExtensionError::Other(format!("Failed to serialize trusted keys: {}", e)))?;
-        std::fs::write(&self.path, data)?;
+        crate::util::atomic_write(&self.path, data.as_bytes())?;
         Ok(())
     }
 

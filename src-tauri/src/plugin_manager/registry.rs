@@ -104,7 +104,7 @@ impl RegistryStore {
 
     pub fn save(&self) -> NexusResult<()> {
         let data = serde_json::to_string_pretty(self)?;
-        std::fs::write(&self.path, data)?;
+        crate::util::atomic_write(&self.path, data.as_bytes())?;
         Ok(())
     }
 

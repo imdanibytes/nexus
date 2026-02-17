@@ -12,7 +12,7 @@
     "searchPlaceholder": "搜索插件...",
     "published": "发布于 {{time}}",
     "repository": "代码仓库",
-    "dockerImage": "Docker 镜像",
+    "containerImage": "容器镜像",
     "builtFromSource": "（从源码构建）",
     "imageDigest": "镜像摘要",
     "categories": "分类",
@@ -55,7 +55,9 @@
     "autoRebuild": "文件变更时自动重建",
     "enableDevMode": "启用开发模式",
     "disableDevMode": "禁用开发模式",
-    "manageExtensions": "管理扩展"
+    "manageExtensions": "管理扩展",
+    "update": "更新",
+    "updating": "更新中..."
   },
   "about": {
     "version": "版本",
@@ -103,7 +105,7 @@
     "deferredCount_other": "{{count}} 项权限已延迟——将在首次使用时提示",
     "noPermissionsRequired": "无需权限。",
     "generating": "正在生成插件...",
-    "buildingDocker": "正在构建 Docker 镜像...",
+    "buildingContainer": "正在构建容器镜像...",
     "done": "完成！",
     "firstBuildNote": "首次构建可能需要一分钟...",
     "buildFailed": "构建失败",

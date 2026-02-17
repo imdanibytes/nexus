@@ -12,7 +12,7 @@
     "searchPlaceholder": "Buscar plugins...",
     "published": "Publicado {{time}}",
     "repository": "Repositorio",
-    "dockerImage": "Imagen Docker",
+    "containerImage": "Imagen de Contenedor",
     "builtFromSource": "(compilado desde fuente)",
     "imageDigest": "Digest de Imagen",
     "categories": "Categorias",
@@ -55,7 +55,9 @@
     "autoRebuild": "Reconstruccion automatica al cambiar",
     "enableDevMode": "Activar Modo Desarrollo",
     "disableDevMode": "Desactivar Modo Desarrollo",
-    "manageExtensions": "Administrar Extensiones"
+    "manageExtensions": "Administrar Extensiones",
+    "update": "Actualizar",
+    "updating": "Actualizando..."
   },
   "about": {
     "version": "Version",
@@ -103,7 +105,7 @@
     "deferredCount_other": "{{count}} permisos diferidos — se solicitaran en el primer uso",
     "noPermissionsRequired": "No se requieren permisos.",
     "generating": "Generando plugin...",
-    "buildingDocker": "Compilando imagen Docker...",
+    "buildingContainer": "Compilando imagen de contenedor...",
     "done": "Listo!",
     "firstBuildNote": "La primera compilacion puede tomar un minuto...",
     "buildFailed": "Error en la Compilacion",

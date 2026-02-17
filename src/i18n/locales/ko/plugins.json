@@ -12,7 +12,7 @@
     "searchPlaceholder": "플러그인 검색...",
     "published": "{{time}} 게시됨",
     "repository": "저장소",
-    "dockerImage": "Docker 이미지",
+    "containerImage": "컨테이너 이미지",
     "builtFromSource": "(소스에서 빌드됨)",
     "imageDigest": "이미지 다이제스트",
     "categories": "카테고리",
@@ -55,7 +55,9 @@
     "autoRebuild": "변경 시 자동 빌드",
     "enableDevMode": "개발 모드 활성화",
     "disableDevMode": "개발 모드 비활성화",
-    "manageExtensions": "확장 기능 관리"
+    "manageExtensions": "확장 기능 관리",
+    "update": "업데이트",
+    "updating": "업데이트 중..."
   },
   "about": {
     "version": "버전",
@@ -103,7 +105,7 @@
     "deferredCount_other": "{{count}}개의 권한이 보류됨 — 처음 사용 시 승인을 요청해요",
     "noPermissionsRequired": "필요한 권한이 없어요.",
     "generating": "플러그인 생성 중...",
-    "buildingDocker": "Docker 이미지 빌드 중...",
+    "buildingContainer": "컨테이너 이미지 빌드 중...",
     "done": "완료!",
     "firstBuildNote": "첫 빌드는 1분 정도 걸릴 수 있어요...",
     "buildFailed": "빌드 실패",

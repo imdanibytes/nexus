@@ -27,8 +27,8 @@ pub enum Permission {
     FilesystemRead,
     FilesystemWrite,
     ProcessList,
-    DockerRead,
-    DockerManage,
+    ContainerRead,
+    ContainerManage,
     NetworkLocal,
     NetworkInternet,
     McpCall,
@@ -48,8 +48,8 @@ const KNOWN_PERMISSIONS: &[&str] = &[
     "filesystem:write",
     "process:list",
     "process:exec",
-    "docker:read",
-    "docker:manage",
+    "container:read",
+    "container:manage",
     "network:local",
     "network:internet",
     "mcp:call",
@@ -63,8 +63,8 @@ impl Permission {
             Permission::FilesystemRead => "filesystem:read",
             Permission::FilesystemWrite => "filesystem:write",
             Permission::ProcessList => "process:list",
-            Permission::DockerRead => "docker:read",
-            Permission::DockerManage => "docker:manage",
+            Permission::ContainerRead => "container:read",
+            Permission::ContainerManage => "container:manage",
             Permission::NetworkLocal => "network:local",
             Permission::NetworkInternet => "network:internet",
             Permission::McpCall => "mcp:call",
@@ -80,8 +80,9 @@ impl Permission {
             Permission::FilesystemRead => "medium",
             Permission::FilesystemWrite => "high",
             Permission::ProcessList => "medium",
-            Permission::DockerRead => "medium",
-            Permission::DockerManage => "high",
+            Permission::ContainerRead => "medium",
+            Permission::ContainerManage => "high",
+
             Permission::NetworkLocal => "medium",
             Permission::NetworkInternet => "medium",
             Permission::McpCall => "medium",
@@ -98,8 +99,8 @@ impl Permission {
             Permission::FilesystemRead => "Read files on approved paths",
             Permission::FilesystemWrite => "Write files to approved paths",
             Permission::ProcessList => "List running processes",
-            Permission::DockerRead => "List containers, read stats",
-            Permission::DockerManage => "Start/stop/create containers",
+            Permission::ContainerRead => "List containers, images, volumes, read stats",
+            Permission::ContainerManage => "Start/stop/remove containers, images, volumes, networks",
             Permission::NetworkLocal => "HTTP requests to LAN",
             Permission::NetworkInternet => "HTTP requests to internet",
             Permission::McpCall => "Call MCP tools from other plugins",
@@ -130,8 +131,8 @@ impl<'de> Deserialize<'de> for Permission {
             "filesystem:read" => Ok(Permission::FilesystemRead),
             "filesystem:write" => Ok(Permission::FilesystemWrite),
             "process:list" => Ok(Permission::ProcessList),
-            "docker:read" => Ok(Permission::DockerRead),
-            "docker:manage" => Ok(Permission::DockerManage),
+            "container:read" | "docker:read" => Ok(Permission::ContainerRead),
+            "container:manage" | "docker:manage" => Ok(Permission::ContainerManage),
             "network:local" => Ok(Permission::NetworkLocal),
             "network:internet" => Ok(Permission::NetworkInternet),
             "mcp:call" => Ok(Permission::McpCall),
@@ -160,8 +161,8 @@ mod tests {
             Permission::FilesystemRead,
             Permission::FilesystemWrite,
             Permission::ProcessList,
-            Permission::DockerRead,
-            Permission::DockerManage,
+            Permission::ContainerRead,
+            Permission::ContainerManage,
             Permission::NetworkLocal,
             Permission::NetworkInternet,
             Permission::McpCall,
@@ -239,8 +240,8 @@ mod tests {
             Permission::FilesystemWrite,
             Permission::ProcessList,
             Permission::ProcessExec,
-            Permission::DockerRead,
-            Permission::DockerManage,
+            Permission::ContainerRead,
+            Permission::ContainerManage,
             Permission::NetworkLocal,
             Permission::NetworkInternet,
             Permission::Extension("ext:test:op".into()),
@@ -265,8 +266,8 @@ mod tests {
             Permission::FilesystemRead,
             Permission::FilesystemWrite,
             Permission::ProcessList,
-            Permission::DockerRead,
-            Permission::DockerManage,
+            Permission::ContainerRead,
+            Permission::ContainerManage,
             Permission::NetworkLocal,
             Permission::NetworkInternet,
             Permission::ProcessExec,
@@ -281,6 +282,24 @@ mod tests {
     fn display_matches_as_str() {
         let perm = Permission::FilesystemRead;
         assert_eq!(format!("{}", perm), perm.as_str());
+    }
+
+    #[test]
+    fn docker_aliases_deserialize_to_container() {
+        let read: Permission = serde_json::from_value(serde_json::json!("docker:read")).unwrap();
+        assert_eq!(read, Permission::ContainerRead);
+
+        let manage: Permission = serde_json::from_value(serde_json::json!("docker:manage")).unwrap();
+        assert_eq!(manage, Permission::ContainerManage);
+    }
+
+    #[test]
+    fn container_permissions_serialize_as_container() {
+        let json = serde_json::to_value(&Permission::ContainerRead).unwrap();
+        assert_eq!(json, serde_json::json!("container:read"));
+
+        let json = serde_json::to_value(&Permission::ContainerManage).unwrap();
+        assert_eq!(json, serde_json::json!("container:manage"));
     }
 }
 

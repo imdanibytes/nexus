@@ -12,7 +12,7 @@
     "searchPlaceholder": "Input placeholder — search/filter plugins",
     "published": "Detail label — when the plugin was published. {{time}} is relative time string",
     "repository": "Detail label — source code repository link",
-    "dockerImage": "Detail label — Docker image reference",
+    "containerImage": "Detail label — container image reference",
     "builtFromSource": "Parenthetical note — image was built locally, not pulled from registry",
     "imageDigest": "Detail label — Docker image content hash",
     "categories": "Detail label — plugin category tags",
@@ -55,7 +55,9 @@
     "autoRebuild": "Menu item — toggle auto-rebuild on file changes",
     "enableDevMode": "Menu item — turn on dev mode",
     "disableDevMode": "Menu item — turn off dev mode",
-    "manageExtensions": "Menu item — navigate to extension management"
+    "manageExtensions": "Menu item — navigate to extension management",
+    "update": "Menu item — update plugin/extension to latest version from registry",
+    "updating": "Menu item label shown while update is in progress (spinner visible)"
   },
   "about": {
     "version": "Detail label — plugin version number",
@@ -103,7 +105,7 @@
     "deferredCount_other": "Info text — multiple permissions deferred. {{count}} is number",
     "noPermissionsRequired": "Info text — plugin needs no permissions",
     "generating": "Progress text — generating plugin files",
-    "buildingDocker": "Progress text — building Docker image",
+    "buildingContainer": "Progress text — building container image",
     "done": "Progress text — build complete",
     "firstBuildNote": "Help text — first build may be slow",
     "buildFailed": "Error heading — Docker build failed",

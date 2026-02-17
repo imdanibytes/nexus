@@ -12,15 +12,15 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/api/v1/docker/containers": {
+    "/api/v1/containers": {
       "get": {
         "tags": [
-          "docker"
+          "containers"
         ],
-        "operationId": "list_containers",
+        "operationId": "list_all_containers",
         "responses": {
           "200": {
-            "description": "Docker containers",
+            "description": "All containers",
             "content": {
               "application/json": {
                 "schema": {
@@ -46,17 +46,70 @@
         ]
       }
     },
-    "/api/v1/docker/stats/{id}": {
+    "/api/v1/containers/engine": {
       "get": {
         "tags": [
-          "docker"
+          "containers"
         ],
-        "operationId": "container_stats",
+        "operationId": "engine_info",
+        "responses": {
+          "200": {
+            "description": "Container engine info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInfo"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/images": {
+      "get": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "list_images",
+        "responses": {
+          "200": {
+            "description": "All images",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImageInfo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/images/{id}": {
+      "get": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "inspect_image",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Container ID",
+            "description": "Image ID or name:tag",
             "required": true,
             "schema": {
               "type": "string"
@@ -65,7 +118,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Container stats (Docker inspect)",
+            "description": "Image inspect",
             "content": {
               "application/json": {
                 "schema": {
@@ -74,11 +127,479 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
+          "404": {
+            "description": "Image not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "remove_image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Image ID or name:tag",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           },
-          "403": {
-            "description": "Forbidden"
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Force remove (default: false)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Image not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/networks": {
+      "get": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "list_networks",
+        "responses": {
+          "200": {
+            "description": "All networks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NetworkInfo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/networks/{id}": {
+      "delete": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "remove_network",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Network ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Network removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Network not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/volumes": {
+      "get": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "list_volumes",
+        "responses": {
+          "200": {
+            "description": "All volumes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VolumeInfo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/volumes/{name}": {
+      "delete": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "remove_volume",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Volume name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Volume removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Volume not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/{id}": {
+      "get": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "inspect_container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID or name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Container inspect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Container not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "remove_container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID or name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Force remove (default: false)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Container removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Container not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/logs": {
+      "get": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "container_logs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID or name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tail",
+            "in": "query",
+            "description": "Number of lines to return (default: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Container logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContainerLogs"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Container not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/restart": {
+      "post": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "restart_container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID or name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Container restarted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Container not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/start": {
+      "post": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "start_container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID or name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Container started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Container not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/stats": {
+      "get": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "container_stats",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID or name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One-shot container stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Container not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/stop": {
+      "post": {
+        "tags": [
+          "containers"
+        ],
+        "operationId": "stop_container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Container ID or name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Container stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Container not found"
           }
         },
         "security": [
@@ -753,6 +1274,20 @@
           }
         }
       },
+      "ContainerLogs": {
+        "type": "object",
+        "required": [
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "DirEntry": {
         "type": "object",
         "required": [
@@ -815,6 +1350,49 @@
           },
           "replace_all": {
             "type": "boolean"
+          }
+        }
+      },
+      "EngineInfo": {
+        "type": "object",
+        "required": [
+          "engine_id"
+        ],
+        "properties": {
+          "arch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cpus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "engine_id": {
+            "type": "string"
+          },
+          "memory_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "os": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1002,6 +1580,34 @@
           }
         }
       },
+      "ImageInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "repo_tags",
+          "size",
+          "created"
+        ],
+        "properties": {
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "repo_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ListExtensionsResponse": {
         "type": "object",
         "description": "Response for GET /v1/extensions",
@@ -1014,6 +1620,29 @@
             "items": {
               "$ref": "#/components/schemas/PluginExtensionView"
             }
+          }
+        }
+      },
+      "NetworkInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "driver",
+          "scope"
+        ],
+        "properties": {
+          "driver": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
           }
         }
       },
@@ -1157,6 +1786,17 @@
           }
         }
       },
+      "StatusMessage": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "SystemInfo": {
         "type": "object",
         "required": [
@@ -1197,6 +1837,31 @@
           }
         }
       },
+      "VolumeInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "driver",
+          "mountpoint"
+        ],
+        "properties": {
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "driver": {
+            "type": "string"
+          },
+          "mountpoint": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "WriteRequest": {
         "type": "object",
         "required": [
@@ -1234,8 +1899,8 @@
       "description": "List host processes"
     },
     {
-      "name": "docker",
-      "description": "Docker container inspection"
+      "name": "containers",
+      "description": "Container, image, volume, and network management"
     },
     {
       "name": "network",

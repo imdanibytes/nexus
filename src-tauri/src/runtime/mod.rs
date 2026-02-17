@@ -105,6 +105,44 @@ pub struct ResourceUsage {
     pub memory_mb: f64,
 }
 
+/// Lightweight image info returned by list operations.
+#[derive(Debug, Clone, Serialize)]
+pub struct ImageInfo {
+    pub id: String,
+    pub repo_tags: Vec<String>,
+    pub size: i64,
+    pub created: i64,
+}
+
+/// Lightweight volume info returned by list operations.
+#[derive(Debug, Clone, Serialize)]
+pub struct VolumeInfo {
+    pub name: String,
+    pub driver: String,
+    pub mountpoint: String,
+    pub created_at: Option<String>,
+}
+
+/// Lightweight network info returned by list operations.
+#[derive(Debug, Clone, Serialize)]
+pub struct NetworkInfo {
+    pub id: String,
+    pub name: String,
+    pub driver: String,
+    pub scope: String,
+}
+
+/// Container engine system-level info.
+#[derive(Debug, Clone, Serialize)]
+pub struct EngineInfo {
+    pub engine_id: String,
+    pub version: Option<String>,
+    pub os: Option<String>,
+    pub arch: Option<String>,
+    pub cpus: Option<i64>,
+    pub memory_bytes: Option<i64>,
+}
+
 // ---------------------------------------------------------------------------
 // Trait
 // ---------------------------------------------------------------------------
@@ -130,11 +168,14 @@ pub trait ContainerRuntime: Send + Sync {
     async fn build_image(&self, context_dir: &Path, tag: &str) -> Result<(), RuntimeError>;
     async fn get_image_digest(&self, image: &str) -> Result<Option<String>, RuntimeError>;
     async fn remove_image(&self, image: &str) -> Result<(), RuntimeError>;
+    async fn list_images(&self) -> Result<Vec<ImageInfo>, RuntimeError>;
+    async fn inspect_image_raw(&self, id: &str) -> Result<serde_json::Value, RuntimeError>;
 
     // Containers
     async fn create_container(&self, config: ContainerConfig) -> Result<String, RuntimeError>;
     async fn start_container(&self, id: &str) -> Result<(), RuntimeError>;
     async fn stop_container(&self, id: &str) -> Result<(), RuntimeError>;
+    async fn restart_container(&self, id: &str) -> Result<(), RuntimeError>;
     async fn remove_container(&self, id: &str) -> Result<(), RuntimeError>;
     async fn container_state(&self, id: &str) -> Result<ContainerState, RuntimeError>;
     async fn list_containers(
@@ -154,7 +195,15 @@ pub trait ContainerRuntime: Send + Sync {
     ) -> Result<ResourceUsage, RuntimeError>;
 
     // Volumes
+    async fn list_volumes(&self) -> Result<Vec<VolumeInfo>, RuntimeError>;
     async fn remove_volume(&self, name: &str) -> Result<(), RuntimeError>;
+
+    // Networks
+    async fn list_networks(&self) -> Result<Vec<NetworkInfo>, RuntimeError>;
+    async fn remove_network(&self, id: &str) -> Result<(), RuntimeError>;
+
+    // Engine
+    async fn engine_info(&self) -> Result<EngineInfo, RuntimeError>;
 
     // Readiness
     /// Poll a container's HTTP endpoint until it responds or the timeout expires.

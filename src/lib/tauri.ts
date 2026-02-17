@@ -172,7 +172,7 @@ export interface EngineStatus {
 }
 
 export async function checkEngine(): Promise<EngineStatus> {
-  return invoke("check_docker");
+  return invoke("check_engine");
 }
 
 // Resources

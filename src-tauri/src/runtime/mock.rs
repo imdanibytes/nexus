@@ -10,7 +10,7 @@ use std::sync::Mutex;
 
 use super::{
     ContainerConfig, ContainerFilters, ContainerInfo, ContainerRuntime, ContainerState,
-    ResourceUsage, RuntimeError,
+    EngineInfo, ImageInfo, NetworkInfo, ResourceUsage, RuntimeError, VolumeInfo,
 };
 
 // ---------------------------------------------------------------------------
@@ -26,17 +26,24 @@ pub enum RuntimeCall {
     PullImage(String),
     BuildImage { context_dir: String, tag: String },
     GetImageDigest(String),
+    ListImages,
+    InspectImageRaw(String),
     RemoveImage(String),
     CreateContainer(String),  // name
     StartContainer(String),   // id
     StopContainer(String),    // id
+    RestartContainer(String), // id
     RemoveContainer(String),  // id or name
     ContainerState(String),   // id
     ListContainers,
     GetLogs { id: String, tail: u32 },
     InspectContainerRaw(String),
     AggregateStats,
+    ListVolumes,
     RemoveVolume(String),
+    ListNetworks,
+    RemoveNetwork(String),
+    EngineInfo,
     WaitForReady { port: u16, path: String },
 }
 
@@ -233,6 +240,33 @@ impl ContainerRuntime for MockRuntime {
         Ok(inner.images.get(image).and_then(|d| d.clone()))
     }
 
+    async fn list_images(&self) -> Result<Vec<ImageInfo>, RuntimeError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.calls.push(RuntimeCall::ListImages);
+        Ok(inner
+            .images
+            .iter()
+            .map(|(name, _digest)| ImageInfo {
+                id: format!("sha256:mock-{}", name),
+                repo_tags: vec![name.clone()],
+                size: 100_000_000,
+                created: 1700000000,
+            })
+            .collect())
+    }
+
+    async fn inspect_image_raw(&self, id: &str) -> Result<serde_json::Value, RuntimeError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner
+            .calls
+            .push(RuntimeCall::InspectImageRaw(id.to_string()));
+        if inner.images.contains_key(id) {
+            Ok(serde_json::json!({ "Id": id }))
+        } else {
+            Err(RuntimeError::NotFound(id.to_string()))
+        }
+    }
+
     async fn remove_image(&self, image: &str) -> Result<(), RuntimeError> {
         let mut inner = self.inner.lock().unwrap();
         inner
@@ -299,9 +333,21 @@ impl ContainerRuntime for MockRuntime {
         if let Some(c) = inner.containers.get_mut(id) {
             c.running = false;
         }
-        // Don't error if container doesn't exist — matches Docker behavior
-        // where stop on a missing container is a no-op in our usage
         Ok(())
+    }
+
+    async fn restart_container(&self, id: &str) -> Result<(), RuntimeError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner
+            .calls
+            .push(RuntimeCall::RestartContainer(id.to_string()));
+
+        if let Some(c) = inner.containers.get_mut(id) {
+            c.running = true;
+            Ok(())
+        } else {
+            Err(RuntimeError::NotFound(id.to_string()))
+        }
     }
 
     async fn remove_container(&self, id_or_name: &str) -> Result<(), RuntimeError> {
@@ -410,6 +456,21 @@ impl ContainerRuntime for MockRuntime {
         })
     }
 
+    async fn list_volumes(&self) -> Result<Vec<VolumeInfo>, RuntimeError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.calls.push(RuntimeCall::ListVolumes);
+        Ok(inner
+            .volumes
+            .keys()
+            .map(|name| VolumeInfo {
+                name: name.clone(),
+                driver: "local".to_string(),
+                mountpoint: format!("/var/lib/docker/volumes/{}", name),
+                created_at: None,
+            })
+            .collect())
+    }
+
     async fn remove_volume(&self, name: &str) -> Result<(), RuntimeError> {
         let mut inner = self.inner.lock().unwrap();
         inner
@@ -417,6 +478,38 @@ impl ContainerRuntime for MockRuntime {
             .push(RuntimeCall::RemoveVolume(name.to_string()));
         inner.volumes.remove(name);
         Ok(())
+    }
+
+    async fn list_networks(&self) -> Result<Vec<NetworkInfo>, RuntimeError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.calls.push(RuntimeCall::ListNetworks);
+        Ok(vec![NetworkInfo {
+            id: "mock-network-1".to_string(),
+            name: "bridge".to_string(),
+            driver: "bridge".to_string(),
+            scope: "local".to_string(),
+        }])
+    }
+
+    async fn remove_network(&self, id: &str) -> Result<(), RuntimeError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner
+            .calls
+            .push(RuntimeCall::RemoveNetwork(id.to_string()));
+        Ok(())
+    }
+
+    async fn engine_info(&self) -> Result<EngineInfo, RuntimeError> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.calls.push(RuntimeCall::EngineInfo);
+        Ok(EngineInfo {
+            engine_id: "mock".to_string(),
+            version: Some("mock-1.0.0".to_string()),
+            os: Some("linux".to_string()),
+            arch: Some("amd64".to_string()),
+            cpus: Some(4),
+            memory_bytes: Some(8_000_000_000),
+        })
     }
 
     async fn wait_for_ready(

@@ -41,8 +41,8 @@ fn permission_to_type_action(perm: &Permission) -> (&'static str, &'static str) 
         Permission::FilesystemWrite => ("nexus:fs", "write"),
         Permission::ProcessList => ("nexus:process", "list"),
         Permission::ProcessExec => ("nexus:process", "exec"),
-        Permission::DockerRead => ("nexus:docker", "read"),
-        Permission::DockerManage => ("nexus:docker", "manage"),
+        Permission::ContainerRead => ("nexus:container", "read"),
+        Permission::ContainerManage => ("nexus:container", "manage"),
         Permission::NetworkLocal => ("nexus:network", "local"),
         Permission::NetworkInternet => ("nexus:network", "internet"),
         Permission::McpCall => ("nexus:mcp", "call"),
@@ -169,7 +169,7 @@ pub const SUPPORTED_DETAIL_TYPES: &[&str] = &[
     "nexus:system",
     "nexus:fs",
     "nexus:process",
-    "nexus:docker",
+    "nexus:container",
     "nexus:network",
     "nexus:mcp",
     "nexus:extension",
@@ -259,8 +259,8 @@ mod tests {
             grant(Permission::FilesystemWrite, PermissionState::Active, Some(vec!["/tmp".into()])),
             grant(Permission::ProcessList, PermissionState::Active, None),
             grant(Permission::ProcessExec, PermissionState::Active, None),
-            grant(Permission::DockerRead, PermissionState::Active, None),
-            grant(Permission::DockerManage, PermissionState::Active, None),
+            grant(Permission::ContainerRead, PermissionState::Active, None),
+            grant(Permission::ContainerManage, PermissionState::Active, None),
             grant(Permission::NetworkLocal, PermissionState::Active, None),
             grant(Permission::NetworkInternet, PermissionState::Active, None),
             grant(Permission::McpCall, PermissionState::Active, None),
@@ -285,10 +285,10 @@ mod tests {
         assert_eq!(details[4].detail_type, "nexus:process");
         assert_eq!(details[4].actions, vec!["exec"]);
 
-        assert_eq!(details[5].detail_type, "nexus:docker");
+        assert_eq!(details[5].detail_type, "nexus:container");
         assert_eq!(details[5].actions, vec!["read"]);
 
-        assert_eq!(details[6].detail_type, "nexus:docker");
+        assert_eq!(details[6].detail_type, "nexus:container");
         assert_eq!(details[6].actions, vec!["manage"]);
 
         assert_eq!(details[7].detail_type, "nexus:network");
@@ -322,7 +322,7 @@ mod tests {
         let grants = vec![
             grant(Permission::SystemInfo, PermissionState::Active, None),
             grant(Permission::FilesystemRead, PermissionState::Deferred, None),
-            grant(Permission::DockerRead, PermissionState::Revoked, None),
+            grant(Permission::ContainerRead, PermissionState::Revoked, None),
         ];
 
         let details = build_authorization_details(&grants);
@@ -423,7 +423,7 @@ mod tests {
 
         assert!(details_satisfy(&details, &Permission::SystemInfo));
         assert!(details_satisfy(&details, &Permission::FilesystemRead));
-        assert!(!details_satisfy(&details, &Permission::DockerRead));
+        assert!(!details_satisfy(&details, &Permission::ContainerRead));
     }
 
     #[test]
@@ -498,8 +498,8 @@ mod tests {
             grant(Permission::FilesystemWrite, PermissionState::Active, None),
             grant(Permission::ProcessList, PermissionState::Active, None),
             grant(Permission::ProcessExec, PermissionState::Active, None),
-            grant(Permission::DockerRead, PermissionState::Active, None),
-            grant(Permission::DockerManage, PermissionState::Active, None),
+            grant(Permission::ContainerRead, PermissionState::Active, None),
+            grant(Permission::ContainerManage, PermissionState::Active, None),
             grant(Permission::NetworkLocal, PermissionState::Active, None),
             grant(Permission::NetworkInternet, PermissionState::Active, None),
             grant(Permission::McpCall, PermissionState::Active, None),
@@ -511,8 +511,8 @@ mod tests {
         assert!(details_satisfy(&details, &Permission::FilesystemWrite));
         assert!(details_satisfy(&details, &Permission::ProcessList));
         assert!(details_satisfy(&details, &Permission::ProcessExec));
-        assert!(details_satisfy(&details, &Permission::DockerRead));
-        assert!(details_satisfy(&details, &Permission::DockerManage));
+        assert!(details_satisfy(&details, &Permission::ContainerRead));
+        assert!(details_satisfy(&details, &Permission::ContainerManage));
         assert!(details_satisfy(&details, &Permission::NetworkLocal));
         assert!(details_satisfy(&details, &Permission::NetworkInternet));
         assert!(details_satisfy(&details, &Permission::McpCall));

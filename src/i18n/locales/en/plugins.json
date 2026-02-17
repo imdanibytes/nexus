@@ -12,7 +12,7 @@
     "searchPlaceholder": "Search plugins...",
     "published": "Published {{time}}",
     "repository": "Repository",
-    "dockerImage": "Docker Image",
+    "containerImage": "Container Image",
     "builtFromSource": "(built from source)",
     "imageDigest": "Image Digest",
     "categories": "Categories",
@@ -55,7 +55,9 @@
     "autoRebuild": "Auto-rebuild on changes",
     "enableDevMode": "Enable Dev Mode",
     "disableDevMode": "Disable Dev Mode",
-    "manageExtensions": "Manage Extensions"
+    "manageExtensions": "Manage Extensions",
+    "update": "Update",
+    "updating": "Updating..."
   },
   "about": {
     "version": "Version",
@@ -103,7 +105,7 @@
     "deferredCount_other": "{{count}} permissions deferred — will prompt on first use",
     "noPermissionsRequired": "No permissions required.",
     "generating": "Generating plugin...",
-    "buildingDocker": "Building Docker image...",
+    "buildingContainer": "Building container image...",
     "done": "Done!",
     "firstBuildNote": "This may take a minute for the first build...",
     "buildFailed": "Build Failed",

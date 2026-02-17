@@ -1,5 +1,5 @@
 pub mod approval;
-pub mod docker;
+pub mod containers;
 pub mod extensions;
 pub mod filesystem;
 pub mod mcp;
@@ -62,8 +62,22 @@ impl Modify for SecurityAddon {
         filesystem::edit_file,
         process::list_processes,
         process::exec_command,
-        docker::list_containers,
-        docker::container_stats,
+        containers::list_all_containers,
+        containers::inspect_container,
+        containers::container_logs,
+        containers::container_stats,
+        containers::start_container,
+        containers::stop_container,
+        containers::restart_container,
+        containers::remove_container,
+        containers::list_images,
+        containers::inspect_image,
+        containers::remove_image,
+        containers::list_volumes,
+        containers::remove_volume,
+        containers::list_networks,
+        containers::remove_network,
+        containers::engine_info,
         network::proxy_request,
         settings::get_settings,
         settings::put_settings,
@@ -84,7 +98,13 @@ impl Modify for SecurityAddon {
         process::ProcessInfo,
         process::ExecRequest,
         process::ExecResult,
-        docker::ContainerInfo,
+        containers::ContainerInfo,
+        containers::ImageInfo,
+        containers::VolumeInfo,
+        containers::NetworkInfo,
+        containers::EngineInfo,
+        containers::ContainerLogs,
+        containers::StatusMessage,
         network::ProxyRequest,
         network::ProxyResponse,
         extensions::PluginExtensionView,
@@ -99,7 +119,7 @@ impl Modify for SecurityAddon {
         (name = "system", description = "Host system information"),
         (name = "filesystem", description = "Read and write files on the host"),
         (name = "process", description = "List host processes"),
-        (name = "docker", description = "Docker container inspection"),
+        (name = "containers", description = "Container, image, volume, and network management"),
         (name = "network", description = "Network proxy for external requests"),
         (name = "settings", description = "Per-plugin settings (scoped to authenticated plugin)"),
         (name = "extensions", description = "Host extension operations")
@@ -139,14 +159,64 @@ pub async fn start_server(
         // Process
         .route("/v1/process/list", routing::get(process::list_processes))
         .route("/v1/process/exec", routing::post(process::exec_command))
-        // Docker
+        // Containers
         .route(
-            "/v1/docker/containers",
-            routing::get(docker::list_containers),
+            "/v1/containers",
+            routing::get(containers::list_all_containers),
         )
         .route(
-            "/v1/docker/stats/{id}",
-            routing::get(docker::container_stats),
+            "/v1/containers/images",
+            routing::get(containers::list_images),
+        )
+        .route(
+            "/v1/containers/images/{id}",
+            routing::get(containers::inspect_image)
+                .delete(containers::remove_image),
+        )
+        .route(
+            "/v1/containers/volumes",
+            routing::get(containers::list_volumes),
+        )
+        .route(
+            "/v1/containers/volumes/{name}",
+            routing::delete(containers::remove_volume),
+        )
+        .route(
+            "/v1/containers/networks",
+            routing::get(containers::list_networks),
+        )
+        .route(
+            "/v1/containers/networks/{id}",
+            routing::delete(containers::remove_network),
+        )
+        .route(
+            "/v1/containers/engine",
+            routing::get(containers::engine_info),
+        )
+        .route(
+            "/v1/containers/{id}",
+            routing::get(containers::inspect_container)
+                .delete(containers::remove_container),
+        )
+        .route(
+            "/v1/containers/{id}/logs",
+            routing::get(containers::container_logs),
+        )
+        .route(
+            "/v1/containers/{id}/stats",
+            routing::get(containers::container_stats),
+        )
+        .route(
+            "/v1/containers/{id}/start",
+            routing::post(containers::start_container),
+        )
+        .route(
+            "/v1/containers/{id}/stop",
+            routing::post(containers::stop_container),
+        )
+        .route(
+            "/v1/containers/{id}/restart",
+            routing::post(containers::restart_container),
         )
         // Network
         .route("/v1/network/proxy", routing::post(network::proxy_request))

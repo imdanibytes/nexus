@@ -196,6 +196,30 @@ impl ContainerRuntime for DockerRuntime {
         Ok(None)
     }
 
+    async fn list_images(&self) -> Result<Vec<super::ImageInfo>, RuntimeError> {
+        let images = self
+            .docker
+            .list_images(None::<bollard::query_parameters::ListImagesOptions>)
+            .await
+            .map_err(to_err)?;
+
+        Ok(images
+            .into_iter()
+            .map(|img| super::ImageInfo {
+                id: img.id,
+                repo_tags: img.repo_tags,
+                size: img.size,
+                created: img.created,
+            })
+            .collect())
+    }
+
+    async fn inspect_image_raw(&self, id: &str) -> Result<serde_json::Value, RuntimeError> {
+        let info = self.docker.inspect_image(id).await.map_err(to_err)?;
+        serde_json::to_value(info)
+            .map_err(|e| RuntimeError::Other(format!("JSON serialization failed: {e}")))
+    }
+
     async fn remove_image(&self, image: &str) -> Result<(), RuntimeError> {
         self.docker
             .remove_image(
@@ -286,6 +310,17 @@ impl ContainerRuntime for DockerRuntime {
     async fn stop_container(&self, id: &str) -> Result<(), RuntimeError> {
         self.docker
             .stop_container(id, Some(StopContainerOptions { t: Some(10), signal: None }))
+            .await
+            .map_err(to_err)?;
+        Ok(())
+    }
+
+    async fn restart_container(&self, id: &str) -> Result<(), RuntimeError> {
+        self.docker
+            .restart_container(
+                id,
+                Some(bollard::query_parameters::RestartContainerOptions { t: Some(10), signal: None }),
+            )
             .await
             .map_err(to_err)?;
         Ok(())
@@ -452,6 +487,25 @@ impl ContainerRuntime for DockerRuntime {
         })
     }
 
+    async fn list_volumes(&self) -> Result<Vec<super::VolumeInfo>, RuntimeError> {
+        let response = self
+            .docker
+            .list_volumes(None::<bollard::query_parameters::ListVolumesOptions>)
+            .await
+            .map_err(to_err)?;
+
+        let volumes = response.volumes.unwrap_or_default();
+        Ok(volumes
+            .into_iter()
+            .map(|v| super::VolumeInfo {
+                name: v.name,
+                driver: v.driver,
+                mountpoint: v.mountpoint,
+                created_at: v.created_at,
+            })
+            .collect())
+    }
+
     async fn remove_volume(&self, name: &str) -> Result<(), RuntimeError> {
         self.docker
             .remove_volume(name, None::<bollard::query_parameters::RemoveVolumeOptions>)
@@ -459,6 +513,44 @@ impl ContainerRuntime for DockerRuntime {
             .map_err(to_err)?;
         log::info!("Removed Docker volume: {}", name);
         Ok(())
+    }
+
+    async fn list_networks(&self) -> Result<Vec<super::NetworkInfo>, RuntimeError> {
+        let networks = self
+            .docker
+            .list_networks(None::<ListNetworksOptions>)
+            .await
+            .map_err(to_err)?;
+
+        Ok(networks
+            .into_iter()
+            .map(|n| super::NetworkInfo {
+                id: n.id.unwrap_or_default(),
+                name: n.name.unwrap_or_default(),
+                driver: n.driver.unwrap_or_default(),
+                scope: n.scope.unwrap_or_default(),
+            })
+            .collect())
+    }
+
+    async fn remove_network(&self, id: &str) -> Result<(), RuntimeError> {
+        self.docker.remove_network(id).await.map_err(to_err)?;
+        log::info!("Removed Docker network: {}", id);
+        Ok(())
+    }
+
+    async fn engine_info(&self) -> Result<super::EngineInfo, RuntimeError> {
+        let info = self.docker.info().await.map_err(to_err)?;
+        let version = self.docker.version().await.map_err(to_err)?;
+
+        Ok(super::EngineInfo {
+            engine_id: "docker".to_string(),
+            version: version.version,
+            os: info.operating_system,
+            arch: info.architecture,
+            cpus: info.ncpu,
+            memory_bytes: info.mem_total,
+        })
     }
 
     async fn wait_for_ready(

@@ -12,7 +12,7 @@
     "searchPlaceholder": "プラグインを検索...",
     "published": "{{time}} に公開",
     "repository": "リポジトリ",
-    "dockerImage": "Docker イメージ",
+    "containerImage": "コンテナイメージ",
     "builtFromSource": "（ソースからビルド）",
     "imageDigest": "イメージダイジェスト",
     "categories": "カテゴリ",
@@ -55,7 +55,9 @@
     "autoRebuild": "変更時に自動再ビルド",
     "enableDevMode": "開発モードを有効にする",
     "disableDevMode": "開発モードを無効にする",
-    "manageExtensions": "エクステンションを管理"
+    "manageExtensions": "エクステンションを管理",
+    "update": "アップデート",
+    "updating": "アップデート中..."
   },
   "about": {
     "version": "バージョン",
@@ -103,7 +105,7 @@
     "deferredCount_other": "{{count}} 件の権限が保留 — 初回使用時に確認されます",
     "noPermissionsRequired": "権限は不要です。",
     "generating": "プラグインを生成中...",
-    "buildingDocker": "Docker イメージをビルド中...",
+    "buildingContainer": "コンテナイメージをビルド中...",
     "done": "完了！",
     "firstBuildNote": "初回ビルドには少し時間がかかる場合があります...",
     "buildFailed": "ビルド失敗",

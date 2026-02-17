@@ -172,7 +172,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
         <div className="space-y-4">
           <div>
             <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
-              {t("marketplace.dockerImage")}
+              {t("marketplace.containerImage")}
             </h4>
             <code className="text-[12px] bg-nx-deep text-nx-text-secondary px-2.5 py-1 rounded-[var(--radius-tag)] font-mono">
               {entry.image}

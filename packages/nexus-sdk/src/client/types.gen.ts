@@ -28,6 +28,10 @@ export type ContainerInfo = {
     status: string;
 };
 
+export type ContainerLogs = {
+    lines: Array<string>;
+};
+
 export type DirEntry = {
     is_dir: boolean;
     name: string;
@@ -45,6 +49,15 @@ export type EditRequest = {
     old_string: string;
     path: string;
     replace_all?: boolean;
+};
+
+export type EngineInfo = {
+    arch?: string | null;
+    cpus?: number | null;
+    engine_id: string;
+    memory_bytes?: number | null;
+    os?: string | null;
+    version?: string | null;
 };
 
 export type ExecRequest = {
@@ -116,11 +129,25 @@ export type GrepResult = {
     search_path: string;
 };
 
+export type ImageInfo = {
+    created: number;
+    id: string;
+    repo_tags: Array<string>;
+    size: number;
+};
+
 /**
  * Response for GET /v1/extensions
  */
 export type ListExtensionsResponse = {
     extensions: Array<PluginExtensionView>;
+};
+
+export type NetworkInfo = {
+    driver: string;
+    id: string;
+    name: string;
+    scope: string;
 };
 
 /**
@@ -167,6 +194,10 @@ export type ProxyResponse = {
     status: number;
 };
 
+export type StatusMessage = {
+    status: string;
+};
+
 export type SystemInfo = {
     cpu_count: number;
     hostname: string;
@@ -177,19 +208,26 @@ export type SystemInfo = {
     uptime: number;
 };
 
+export type VolumeInfo = {
+    created_at?: string | null;
+    driver: string;
+    mountpoint: string;
+    name: string;
+};
+
 export type WriteRequest = {
     content: string;
     path: string;
 };
 
-export type ListContainersData = {
+export type ListAllContainersData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/api/v1/docker/containers';
+    url: '/api/v1/containers';
 };
 
-export type ListContainersErrors = {
+export type ListAllContainersErrors = {
     /**
      * Unauthorized
      */
@@ -200,41 +238,372 @@ export type ListContainersErrors = {
     403: unknown;
 };
 
-export type ListContainersResponses = {
+export type ListAllContainersResponses = {
     /**
-     * Docker containers
+     * All containers
      */
     200: Array<ContainerInfo>;
 };
 
-export type ListContainersResponse = ListContainersResponses[keyof ListContainersResponses];
+export type ListAllContainersResponse = ListAllContainersResponses[keyof ListAllContainersResponses];
+
+export type EngineInfoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/containers/engine';
+};
+
+export type EngineInfoResponses = {
+    /**
+     * Container engine info
+     */
+    200: EngineInfo;
+};
+
+export type EngineInfoResponse = EngineInfoResponses[keyof EngineInfoResponses];
+
+export type ListImagesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/containers/images';
+};
+
+export type ListImagesResponses = {
+    /**
+     * All images
+     */
+    200: Array<ImageInfo>;
+};
+
+export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
+
+export type RemoveImageData = {
+    body?: never;
+    path: {
+        /**
+         * Image ID or name:tag
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Force remove (default: false)
+         */
+        force?: boolean;
+    };
+    url: '/api/v1/containers/images/{id}';
+};
+
+export type RemoveImageErrors = {
+    /**
+     * Image not found
+     */
+    404: unknown;
+};
+
+export type RemoveImageResponses = {
+    /**
+     * Image removed
+     */
+    200: StatusMessage;
+};
+
+export type RemoveImageResponse = RemoveImageResponses[keyof RemoveImageResponses];
+
+export type InspectImageData = {
+    body?: never;
+    path: {
+        /**
+         * Image ID or name:tag
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/containers/images/{id}';
+};
+
+export type InspectImageErrors = {
+    /**
+     * Image not found
+     */
+    404: unknown;
+};
+
+export type InspectImageResponses = {
+    /**
+     * Image inspect
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type InspectImageResponse = InspectImageResponses[keyof InspectImageResponses];
+
+export type ListNetworksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/containers/networks';
+};
+
+export type ListNetworksResponses = {
+    /**
+     * All networks
+     */
+    200: Array<NetworkInfo>;
+};
+
+export type ListNetworksResponse = ListNetworksResponses[keyof ListNetworksResponses];
+
+export type RemoveNetworkData = {
+    body?: never;
+    path: {
+        /**
+         * Network ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/containers/networks/{id}';
+};
+
+export type RemoveNetworkErrors = {
+    /**
+     * Network not found
+     */
+    404: unknown;
+};
+
+export type RemoveNetworkResponses = {
+    /**
+     * Network removed
+     */
+    200: StatusMessage;
+};
+
+export type RemoveNetworkResponse = RemoveNetworkResponses[keyof RemoveNetworkResponses];
+
+export type ListVolumesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/containers/volumes';
+};
+
+export type ListVolumesResponses = {
+    /**
+     * All volumes
+     */
+    200: Array<VolumeInfo>;
+};
+
+export type ListVolumesResponse = ListVolumesResponses[keyof ListVolumesResponses];
+
+export type RemoveVolumeData = {
+    body?: never;
+    path: {
+        /**
+         * Volume name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/containers/volumes/{name}';
+};
+
+export type RemoveVolumeErrors = {
+    /**
+     * Volume not found
+     */
+    404: unknown;
+};
+
+export type RemoveVolumeResponses = {
+    /**
+     * Volume removed
+     */
+    200: StatusMessage;
+};
+
+export type RemoveVolumeResponse = RemoveVolumeResponses[keyof RemoveVolumeResponses];
+
+export type RemoveContainerData = {
+    body?: never;
+    path: {
+        /**
+         * Container ID or name
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Force remove (default: false)
+         */
+        force?: boolean;
+    };
+    url: '/api/v1/containers/{id}';
+};
+
+export type RemoveContainerErrors = {
+    /**
+     * Container not found
+     */
+    404: unknown;
+};
+
+export type RemoveContainerResponses = {
+    /**
+     * Container removed
+     */
+    200: StatusMessage;
+};
+
+export type RemoveContainerResponse = RemoveContainerResponses[keyof RemoveContainerResponses];
+
+export type InspectContainerData = {
+    body?: never;
+    path: {
+        /**
+         * Container ID or name
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/containers/{id}';
+};
+
+export type InspectContainerErrors = {
+    /**
+     * Container not found
+     */
+    404: unknown;
+};
+
+export type InspectContainerResponses = {
+    /**
+     * Container inspect
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type InspectContainerResponse = InspectContainerResponses[keyof InspectContainerResponses];
+
+export type ContainerLogsData = {
+    body?: never;
+    path: {
+        /**
+         * Container ID or name
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Number of lines to return (default: 100)
+         */
+        tail?: number;
+    };
+    url: '/api/v1/containers/{id}/logs';
+};
+
+export type ContainerLogsErrors = {
+    /**
+     * Container not found
+     */
+    404: unknown;
+};
+
+export type ContainerLogsResponses = {
+    /**
+     * Container logs
+     */
+    200: ContainerLogs;
+};
+
+export type ContainerLogsResponse = ContainerLogsResponses[keyof ContainerLogsResponses];
+
+export type RestartContainerData = {
+    body?: never;
+    path: {
+        /**
+         * Container ID or name
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/containers/{id}/restart';
+};
+
+export type RestartContainerErrors = {
+    /**
+     * Container not found
+     */
+    404: unknown;
+};
+
+export type RestartContainerResponses = {
+    /**
+     * Container restarted
+     */
+    200: StatusMessage;
+};
+
+export type RestartContainerResponse = RestartContainerResponses[keyof RestartContainerResponses];
+
+export type StartContainerData = {
+    body?: never;
+    path: {
+        /**
+         * Container ID or name
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/containers/{id}/start';
+};
+
+export type StartContainerErrors = {
+    /**
+     * Container not found
+     */
+    404: unknown;
+};
+
+export type StartContainerResponses = {
+    /**
+     * Container started
+     */
+    200: StatusMessage;
+};
+
+export type StartContainerResponse = StartContainerResponses[keyof StartContainerResponses];
 
 export type ContainerStatsData = {
     body?: never;
     path: {
         /**
-         * Container ID
+         * Container ID or name
          */
         id: string;
     };
     query?: never;
-    url: '/api/v1/docker/stats/{id}';
+    url: '/api/v1/containers/{id}/stats';
 };
 
 export type ContainerStatsErrors = {
     /**
-     * Unauthorized
+     * Container not found
      */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
+    404: unknown;
 };
 
 export type ContainerStatsResponses = {
     /**
-     * Container stats (Docker inspect)
+     * One-shot container stats
      */
     200: {
         [key: string]: unknown;
@@ -242,6 +611,34 @@ export type ContainerStatsResponses = {
 };
 
 export type ContainerStatsResponse = ContainerStatsResponses[keyof ContainerStatsResponses];
+
+export type StopContainerData = {
+    body?: never;
+    path: {
+        /**
+         * Container ID or name
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/containers/{id}/stop';
+};
+
+export type StopContainerErrors = {
+    /**
+     * Container not found
+     */
+    404: unknown;
+};
+
+export type StopContainerResponses = {
+    /**
+     * Container stopped
+     */
+    200: StatusMessage;
+};
+
+export type StopContainerResponse = StopContainerResponses[keyof StopContainerResponses];
 
 export type ListExtensionsData = {
     body?: never;

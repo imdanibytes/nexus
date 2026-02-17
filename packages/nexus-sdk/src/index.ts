@@ -26,7 +26,7 @@ import {
   listDir as _listDir,
   writeFile as _writeFile,
   listProcesses as _listProcesses,
-  listContainers as _listContainers,
+  listAllContainers as _listAllContainers,
   containerStats as _containerStats,
   proxyRequest as _proxyRequest,
   getSettings as _getSettings,
@@ -189,10 +189,10 @@ export class NexusPlugin {
     return this._withRetry(() => _listProcesses());
   }
 
-  // ── Docker ──────────────────────────────────────────────
+  // ── Containers ────────────────────────────────────────────
 
   async listContainers() {
-    return this._withRetry(() => _listContainers());
+    return this._withRetry(() => _listAllContainers());
   }
 
   async containerStats(id: string) {

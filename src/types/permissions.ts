@@ -6,8 +6,8 @@ export type BuiltinPermission =
   | "filesystem:read"
   | "filesystem:write"
   | "process:list"
-  | "docker:read"
-  | "docker:manage"
+  | "container:read"
+  | "container:manage"
   | "network:local"
   | "network:internet";
 
@@ -135,8 +135,8 @@ const PERMISSION_RISK: Record<string, "low" | "medium" | "high"> = {
   "filesystem:read": "medium",
   "filesystem:write": "high",
   "process:list": "medium",
-  "docker:read": "medium",
-  "docker:manage": "high",
+  "container:read": "medium",
+  "container:manage": "high",
   "network:local": "medium",
   "network:internet": "medium",
   "mcp:call": "high",

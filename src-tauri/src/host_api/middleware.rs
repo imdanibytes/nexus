@@ -59,7 +59,7 @@ pub async fn auth_middleware(
     let method = req.method().clone();
 
     // Check permission for this endpoint: token fast path → PermissionStore fallback
-    if let Some(required_perm) = required_permission_for_endpoint(&path) {
+    if let Some(required_perm) = required_permission_for_endpoint(&path, &method) {
         // Fast path: check authorization_details on the token (zero store lookups)
         if !rar::details_satisfy(&access_token.authorization_details, &required_perm) {
             // Fallback: check PermissionStore (handles stale tokens, Deferred, etc.)

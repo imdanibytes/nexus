@@ -124,7 +124,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
       // Small delay so the user sees the phase text
       await new Promise((r) => setTimeout(r, 100));
 
-      setBuildPhase(t("mcpWrap.buildingDocker"));
+      setBuildPhase(t("mcpWrap.buildingContainer"));
       await mcpGenerateAndInstall(
         command,
         selectedTools,

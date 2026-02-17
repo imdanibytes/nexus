@@ -12,7 +12,7 @@
     "searchPlaceholder": "Plugins suchen...",
     "published": "Veroffentlicht {{time}}",
     "repository": "Repository",
-    "dockerImage": "Docker-Image",
+    "containerImage": "Container-Image",
     "builtFromSource": "(aus Quellcode erstellt)",
     "imageDigest": "Image-Digest",
     "categories": "Kategorien",
@@ -55,7 +55,9 @@
     "autoRebuild": "Automatisch bei Anderungen neu erstellen",
     "enableDevMode": "Entwicklermodus aktivieren",
     "disableDevMode": "Entwicklermodus deaktivieren",
-    "manageExtensions": "Erweiterungen verwalten"
+    "manageExtensions": "Erweiterungen verwalten",
+    "update": "Aktualisieren",
+    "updating": "Wird aktualisiert..."
   },
   "about": {
     "version": "Version",
@@ -103,7 +105,7 @@
     "deferredCount_other": "{{count}} Berechtigungen aufgeschoben - werden bei erster Verwendung abgefragt",
     "noPermissionsRequired": "Keine Berechtigungen erforderlich.",
     "generating": "Plugin wird generiert...",
-    "buildingDocker": "Docker-Image wird erstellt...",
+    "buildingContainer": "Container-Image wird erstellt...",
     "done": "Fertig!",
     "firstBuildNote": "Der erste Build kann eine Minute dauern...",
     "buildFailed": "Build fehlgeschlagen",

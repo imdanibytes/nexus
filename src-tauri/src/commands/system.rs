@@ -40,7 +40,7 @@ fn socket_exists(socket: &str) -> bool {
 }
 
 #[tauri::command]
-pub async fn check_docker(state: tauri::State<'_, AppState>) -> Result<EngineStatus, String> {
+pub async fn check_engine(state: tauri::State<'_, AppState>) -> Result<EngineStatus, String> {
     let runtime = { state.read().await.runtime.clone() };
     let engine_id = runtime.engine_id().to_string();
     let socket = runtime.socket_path();

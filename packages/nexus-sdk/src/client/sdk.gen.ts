@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CallExtensionData, CallExtensionErrors, CallExtensionResponses, ContainerStatsData, ContainerStatsErrors, ContainerStatsResponses, EditFileData, EditFileErrors, EditFileResponses, ExecCommandData, ExecCommandErrors, ExecCommandResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GlobFilesData, GlobFilesErrors, GlobFilesResponses, GrepFilesData, GrepFilesErrors, GrepFilesResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListDirData, ListDirErrors, ListDirResponses, ListExtensionsData, ListExtensionsErrors, ListExtensionsResponses, ListProcessesData, ListProcessesErrors, ListProcessesResponses, ProxyRequestData, ProxyRequestErrors, ProxyRequestResponses, PutSettingsData, PutSettingsErrors, PutSettingsResponses, ReadFileData, ReadFileErrors, ReadFileResponses, SystemInfoData, SystemInfoErrors, SystemInfoResponses, WriteFileData, WriteFileErrors, WriteFileResponses } from './types.gen';
+import type { CallExtensionData, CallExtensionErrors, CallExtensionResponses, ContainerLogsData, ContainerLogsErrors, ContainerLogsResponses, ContainerStatsData, ContainerStatsErrors, ContainerStatsResponses, EditFileData, EditFileErrors, EditFileResponses, EngineInfoData, EngineInfoResponses, ExecCommandData, ExecCommandErrors, ExecCommandResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GlobFilesData, GlobFilesErrors, GlobFilesResponses, GrepFilesData, GrepFilesErrors, GrepFilesResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, InspectImageData, InspectImageErrors, InspectImageResponses, ListAllContainersData, ListAllContainersErrors, ListAllContainersResponses, ListDirData, ListDirErrors, ListDirResponses, ListExtensionsData, ListExtensionsErrors, ListExtensionsResponses, ListImagesData, ListImagesResponses, ListNetworksData, ListNetworksResponses, ListProcessesData, ListProcessesErrors, ListProcessesResponses, ListVolumesData, ListVolumesResponses, ProxyRequestData, ProxyRequestErrors, ProxyRequestResponses, PutSettingsData, PutSettingsErrors, PutSettingsResponses, ReadFileData, ReadFileErrors, ReadFileResponses, RemoveContainerData, RemoveContainerErrors, RemoveContainerResponses, RemoveImageData, RemoveImageErrors, RemoveImageResponses, RemoveNetworkData, RemoveNetworkErrors, RemoveNetworkResponses, RemoveVolumeData, RemoveVolumeErrors, RemoveVolumeResponses, RestartContainerData, RestartContainerErrors, RestartContainerResponses, StartContainerData, StartContainerErrors, StartContainerResponses, StopContainerData, StopContainerErrors, StopContainerResponses, SystemInfoData, SystemInfoErrors, SystemInfoResponses, WriteFileData, WriteFileErrors, WriteFileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -18,15 +18,99 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
     meta?: Record<string, unknown>;
 };
 
-export const listContainers = <ThrowOnError extends boolean = false>(options?: Options<ListContainersData, ThrowOnError>) => (options?.client ?? client).get<ListContainersResponses, ListContainersErrors, ThrowOnError>({
+export const listAllContainers = <ThrowOnError extends boolean = false>(options?: Options<ListAllContainersData, ThrowOnError>) => (options?.client ?? client).get<ListAllContainersResponses, ListAllContainersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/v1/docker/containers',
+    url: '/api/v1/containers',
+    ...options
+});
+
+export const engineInfo = <ThrowOnError extends boolean = false>(options?: Options<EngineInfoData, ThrowOnError>) => (options?.client ?? client).get<EngineInfoResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/engine',
+    ...options
+});
+
+export const listImages = <ThrowOnError extends boolean = false>(options?: Options<ListImagesData, ThrowOnError>) => (options?.client ?? client).get<ListImagesResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/images',
+    ...options
+});
+
+export const removeImage = <ThrowOnError extends boolean = false>(options: Options<RemoveImageData, ThrowOnError>) => (options.client ?? client).delete<RemoveImageResponses, RemoveImageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/images/{id}',
+    ...options
+});
+
+export const inspectImage = <ThrowOnError extends boolean = false>(options: Options<InspectImageData, ThrowOnError>) => (options.client ?? client).get<InspectImageResponses, InspectImageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/images/{id}',
+    ...options
+});
+
+export const listNetworks = <ThrowOnError extends boolean = false>(options?: Options<ListNetworksData, ThrowOnError>) => (options?.client ?? client).get<ListNetworksResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/networks',
+    ...options
+});
+
+export const removeNetwork = <ThrowOnError extends boolean = false>(options: Options<RemoveNetworkData, ThrowOnError>) => (options.client ?? client).delete<RemoveNetworkResponses, RemoveNetworkErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/networks/{id}',
+    ...options
+});
+
+export const listVolumes = <ThrowOnError extends boolean = false>(options?: Options<ListVolumesData, ThrowOnError>) => (options?.client ?? client).get<ListVolumesResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/volumes',
+    ...options
+});
+
+export const removeVolume = <ThrowOnError extends boolean = false>(options: Options<RemoveVolumeData, ThrowOnError>) => (options.client ?? client).delete<RemoveVolumeResponses, RemoveVolumeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/volumes/{name}',
+    ...options
+});
+
+export const removeContainer = <ThrowOnError extends boolean = false>(options: Options<RemoveContainerData, ThrowOnError>) => (options.client ?? client).delete<RemoveContainerResponses, RemoveContainerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/{id}',
+    ...options
+});
+
+export const inspectContainer = <ThrowOnError extends boolean = false>(options: Options<InspectContainerData, ThrowOnError>) => (options.client ?? client).get<InspectContainerResponses, InspectContainerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/{id}',
+    ...options
+});
+
+export const containerLogs = <ThrowOnError extends boolean = false>(options: Options<ContainerLogsData, ThrowOnError>) => (options.client ?? client).get<ContainerLogsResponses, ContainerLogsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/{id}/logs',
+    ...options
+});
+
+export const restartContainer = <ThrowOnError extends boolean = false>(options: Options<RestartContainerData, ThrowOnError>) => (options.client ?? client).post<RestartContainerResponses, RestartContainerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/{id}/restart',
+    ...options
+});
+
+export const startContainer = <ThrowOnError extends boolean = false>(options: Options<StartContainerData, ThrowOnError>) => (options.client ?? client).post<StartContainerResponses, StartContainerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/{id}/start',
     ...options
 });
 
 export const containerStats = <ThrowOnError extends boolean = false>(options: Options<ContainerStatsData, ThrowOnError>) => (options.client ?? client).get<ContainerStatsResponses, ContainerStatsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/v1/docker/stats/{id}',
+    url: '/api/v1/containers/{id}/stats',
+    ...options
+});
+
+export const stopContainer = <ThrowOnError extends boolean = false>(options: Options<StopContainerData, ThrowOnError>) => (options.client ?? client).post<StopContainerResponses, StopContainerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers/{id}/stop',
     ...options
 });
 

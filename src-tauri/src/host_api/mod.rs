@@ -1,5 +1,4 @@
 pub mod approval;
-pub mod auth;
 pub mod docker;
 pub mod extensions;
 pub mod filesystem;
@@ -17,14 +16,13 @@ pub mod system;
 mod theme;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use axum::{extract::DefaultBodyLimit, middleware as axum_middleware, routing, Extension, Json, Router};
 use rmcp::transport::streamable_http_server::tower::{
     StreamableHttpServerConfig, StreamableHttpService,
 };
 use tokio_util::sync::CancellationToken;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
@@ -32,7 +30,6 @@ use crate::oauth;
 use crate::ActiveTheme;
 use crate::AppState;
 use approval::ApprovalBridge;
-use auth::SessionStore;
 
 struct SecurityAddon;
 
@@ -51,7 +48,7 @@ impl Modify for SecurityAddon {
 #[openapi(
     info(
         title = "Nexus Host API",
-        description = "API available to Nexus plugins for interacting with the host system. Plugins exchange their secret (NEXUS_PLUGIN_SECRET) for a short-lived access token via POST /v1/auth/token, then use it as a Bearer token.",
+        description = "API available to Nexus plugins for interacting with the host system. Plugins authenticate via OAuth 2.1 client_credentials grant (POST /oauth/token) and use the access token as a Bearer token.",
         version = "0.1.0",
         license(name = "MIT")
     ),
@@ -108,15 +105,17 @@ pub async fn start_server(
     active_theme: ActiveTheme,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(AllowOrigin::predicate(|origin, _| {
+            let o = origin.as_bytes();
+            o.starts_with(b"http://127.0.0.1")
+                || o.starts_with(b"http://localhost")
+                || o.starts_with(b"tauri://")
+        }))
         .allow_methods(Any)
         .allow_headers(Any);
 
     // 100 requests per second per plugin — generous for normal use, blocks abuse
     let limiter = rate_limit::RateLimiter::new(100, std::time::Duration::from_secs(1));
-
-    // Session store for short-lived access tokens (15 minute TTL)
-    let sessions = Arc::new(SessionStore::new(Duration::from_secs(15 * 60)));
 
     let authenticated_routes = Router::new()
         // System
@@ -171,7 +170,7 @@ pub async fn start_server(
             state.clone(),
             middleware::auth_middleware,
         ))
-        .layer(Extension(sessions.clone()))
+        .layer(Extension(oauth_store.clone()))
         .layer(Extension(approvals.clone()))
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
@@ -208,16 +207,12 @@ pub async fn start_server(
             state.clone(),
             mcp::gateway_auth_middleware,
         ))
-        .layer(Extension(sessions.clone()))
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(mcp_session_store));
 
-    // Token exchange route — public, plugins call this with their secret
-    let auth_routes = Router::new()
-        .route("/v1/auth/token", routing::post(auth::create_token))
-        .layer(Extension(sessions.clone()));
-
     // OAuth 2.1 discovery + authorization endpoints (public, no auth required)
+    // Global rate limit: 10 requests per 10 seconds across all callers
+    let global_limiter = rate_limit::GlobalRateLimiter::new(10, std::time::Duration::from_secs(10));
     let pending_auth = oauth::authorize::PendingAuthMap::new();
     let oauth_routes = Router::new()
         .route(
@@ -236,6 +231,8 @@ pub async fn start_server(
         .route("/oauth/authorize", routing::get(oauth::authorize::authorize))
         .route("/oauth/authorize/poll/{state}", routing::get(oauth::authorize::authorize_poll))
         .route("/oauth/token", routing::post(oauth::token::token_exchange))
+        .layer(axum_middleware::from_fn(rate_limit::global_rate_limit_middleware))
+        .layer(Extension(global_limiter))
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(approvals.clone()))
         .layer(Extension(pending_auth))
@@ -257,11 +254,9 @@ pub async fn start_server(
         .route("/api/openapi.json", routing::get(openapi_spec))
         // OAuth 2.1 endpoints (public — discovery, registration, authorization, token)
         .merge(oauth_routes)
-        // Token exchange (public — plugins exchange secret for access token)
-        .nest("/api", auth_routes)
         // Native MCP endpoint (streamable HTTP — primary connection mode)
         .merge(mcp_native_routes)
-        // Authenticated routes (plugin Bearer token auth via session store)
+        // Authenticated routes (plugin Bearer token via OAuth 2.1)
         .nest("/api", authenticated_routes)
         .layer(cors)
         .layer(axum_middleware::from_fn(mcp::http_request_logging))

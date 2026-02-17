@@ -58,17 +58,22 @@ export { client } from "./client/client.gen";
 interface PluginConfig {
   token: string;
   apiUrl: string;
+  /** OAuth refresh token (enables direct token refresh without re-auth). */
+  refreshToken?: string;
+  /** OAuth client ID (required for refresh_token grant). */
+  clientId?: string;
 }
 
 /**
- * Convenience wrapper that fetches a short-lived access token from the
+ * Convenience wrapper that fetches an OAuth access token from the
  * plugin's `/api/config` endpoint and configures the HTTP client.
  *
- * The plugin server handles the secret-to-token exchange. The browser
- * only ever sees the short-lived access token.
+ * The plugin server authenticates via OAuth 2.1 client_credentials grant.
+ * The browser only ever sees the access token and optional refresh token.
  *
- * On 401 (token expired), call `refreshToken()` to re-fetch from
- * the plugin server, which will exchange the secret for a new token.
+ * On 401 (token expired), call `refreshToken()` which will use the
+ * OAuth refresh_token grant if available, otherwise re-fetch from
+ * the plugin server.
  */
 export class NexusPlugin {
   private configUrl: string;
@@ -113,10 +118,39 @@ export class NexusPlugin {
   }
 
   /**
-   * Re-fetch the access token from the plugin server. Call this on 401
-   * responses — the server will exchange the secret for a fresh token.
+   * Refresh the access token. Tries OAuth refresh_token grant first
+   * (if refresh token and client ID are available), then falls back
+   * to re-fetching from the plugin server's `/api/config` endpoint.
    */
   async refreshToken(): Promise<string> {
+    // Try OAuth refresh_token grant directly
+    if (this.config.refreshToken && this.config.clientId) {
+      const origin = this.config.apiUrl.replace(/\/api\/?$/, "");
+      const res = await fetch(`${origin}/oauth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: this.config.clientId,
+          refresh_token: this.config.refreshToken,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        this.config.token = data.access_token;
+        if (data.refresh_token) {
+          this.config.refreshToken = data.refresh_token;
+        }
+        client.setConfig({
+          baseUrl: this.config.apiUrl,
+          auth: this.config.token,
+        });
+        return this.config.token;
+      }
+    }
+
+    // Fall back to plugin server config endpoint
     if (!this.configUrl) {
       throw new Error("Cannot refresh token in manual configuration mode");
     }

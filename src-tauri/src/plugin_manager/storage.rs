@@ -41,7 +41,8 @@ pub struct InstalledPlugin {
     pub container_id: Option<String>,
     pub status: PluginStatus,
     pub assigned_port: u16,
-    pub auth_token: String,
+    #[serde(alias = "auth_token")]
+    pub oauth_client_id: String,
     pub installed_at: chrono::DateTime<chrono::Utc>,
     /// Hostname of the manifest URL at install time (domain pinning).
     /// If a registry entry later points to a different host, flagged as suspicious.
@@ -74,20 +75,6 @@ impl PluginStorage {
                 storage.next_port = 9700;
             }
 
-            // Migrate any raw (unhashed) tokens to SHA-256 hashes.
-            // Raw UUID tokens are 36 chars; SHA-256 hex digests are 64 chars.
-            let mut migrated = false;
-            for plugin in storage.plugins.values_mut() {
-                if plugin.auth_token.len() != 64 {
-                    plugin.auth_token = hash_token(&plugin.auth_token);
-                    migrated = true;
-                }
-            }
-            if migrated {
-                storage.save()?;
-                log::info!("Migrated plugin auth tokens to SHA-256 hashes");
-            }
-
             Ok(storage)
         } else {
             Ok(PluginStorage {
@@ -100,7 +87,7 @@ impl PluginStorage {
 
     pub fn save(&self) -> NexusResult<()> {
         let data = serde_json::to_string_pretty(self)?;
-        std::fs::write(&self.path, data)?;
+        crate::util::atomic_write(&self.path, data.as_bytes())?;
         Ok(())
     }
 
@@ -133,12 +120,6 @@ impl PluginStorage {
         port
     }
 
-    /// Look up a plugin by its raw bearer token.
-    /// The stored value is a SHA-256 hash, so the input is hashed before comparison.
-    pub fn find_by_token(&self, raw_token: &str) -> Option<&InstalledPlugin> {
-        let hashed = hash_token(raw_token);
-        self.plugins.values().find(|p| p.auth_token == hashed)
-    }
 }
 
 #[cfg(test)]
@@ -167,106 +148,11 @@ mod tests {
     }
 
     #[test]
-    fn find_by_token_matches_hashed() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut storage = PluginStorage::load(dir.path()).unwrap();
-
-        let raw_token = "my-secret-token";
-        let manifest = crate::plugin_manager::manifest::PluginManifest {
-            id: "test-plugin".into(),
-            name: "Test".into(),
-            version: "1.0.0".into(),
-            description: "Test plugin".into(),
-            author: "Test".into(),
-            license: None,
-            homepage: None,
-            icon: None,
-            image: "test:latest".into(),
-            image_digest: None,
-            ui: Some(crate::plugin_manager::manifest::UiConfig {
-                port: 80,
-                path: "/".into(),
-            }),
-            permissions: vec![],
-            health: None,
-            env: HashMap::new(),
-            min_nexus_version: None,
-            settings: vec![],
-            mcp: None,
-            extensions: HashMap::new(),
-        };
-
-        let plugin = InstalledPlugin {
-            manifest,
-            container_id: None,
-            status: PluginStatus::Stopped,
-            assigned_port: 9700,
-            auth_token: hash_token(raw_token),
-            installed_at: chrono::Utc::now(),
-            manifest_url_origin: None,
-            dev_mode: false,
-            local_manifest_path: None,
-        };
-        storage.add(plugin).unwrap();
-
-        assert!(storage.find_by_token(raw_token).is_some());
-        assert_eq!(
-            storage.find_by_token(raw_token).unwrap().manifest.id,
-            "test-plugin"
-        );
-    }
-
-    #[test]
-    fn find_by_token_rejects_wrong_token() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut storage = PluginStorage::load(dir.path()).unwrap();
-
-        let manifest = crate::plugin_manager::manifest::PluginManifest {
-            id: "test-plugin".into(),
-            name: "Test".into(),
-            version: "1.0.0".into(),
-            description: "Test plugin".into(),
-            author: "Test".into(),
-            license: None,
-            homepage: None,
-            icon: None,
-            image: "test:latest".into(),
-            image_digest: None,
-            ui: Some(crate::plugin_manager::manifest::UiConfig {
-                port: 80,
-                path: "/".into(),
-            }),
-            permissions: vec![],
-            health: None,
-            env: HashMap::new(),
-            min_nexus_version: None,
-            settings: vec![],
-            mcp: None,
-            extensions: HashMap::new(),
-        };
-
-        let plugin = InstalledPlugin {
-            manifest,
-            container_id: None,
-            status: PluginStatus::Stopped,
-            assigned_port: 9700,
-            auth_token: hash_token("correct-token"),
-            installed_at: chrono::Utc::now(),
-            manifest_url_origin: None,
-            dev_mode: false,
-            local_manifest_path: None,
-        };
-        storage.add(plugin).unwrap();
-
-        assert!(storage.find_by_token("wrong-token").is_none());
-    }
-
-    #[test]
-    fn token_migration_converts_raw_to_hash() {
+    fn legacy_auth_token_alias_deserializes() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("plugins.json");
 
-        // Write a storage file with a raw UUID token (36 chars, not 64)
+        // Old-format storage with "auth_token" should deserialize into oauth_client_id
         let raw_json = serde_json::json!({
             "plugins": {
                 "test-plugin": {
@@ -282,7 +168,7 @@ mod tests {
                     "container_id": null,
                     "status": "stopped",
                     "assigned_port": 9700,
-                    "auth_token": "550e8400-e29b-41d4-a716-446655440000",
+                    "auth_token": "old-hash-value",
                     "installed_at": "2026-01-01T00:00:00Z"
                 }
             },
@@ -290,18 +176,9 @@ mod tests {
         });
         std::fs::write(&path, serde_json::to_string_pretty(&raw_json).unwrap()).unwrap();
 
-        // Load — should trigger migration
         let storage = PluginStorage::load(dir.path()).unwrap();
         let plugin = storage.get("test-plugin").unwrap();
-
-        // Token should now be a 64-char SHA-256 hash
-        assert_eq!(plugin.auth_token.len(), 64);
-
-        // And it should match the hash of the original raw token
-        assert_eq!(
-            plugin.auth_token,
-            hash_token("550e8400-e29b-41d4-a716-446655440000")
-        );
+        assert_eq!(plugin.oauth_client_id, "old-hash-value");
     }
 
     #[test]
@@ -371,7 +248,7 @@ impl PluginSettingsStore {
 
     pub fn save(&self) -> NexusResult<()> {
         let data = serde_json::to_string_pretty(self)?;
-        std::fs::write(&self.path, data)?;
+        crate::util::atomic_write(&self.path, data.as_bytes())?;
         Ok(())
     }
 
@@ -472,7 +349,7 @@ impl McpSettings {
 
     pub fn save(&self) -> NexusResult<()> {
         let data = serde_json::to_string_pretty(self)?;
-        std::fs::write(&self.path, data)?;
+        crate::util::atomic_write(&self.path, data.as_bytes())?;
         Ok(())
     }
 }
@@ -531,7 +408,7 @@ impl NexusSettings {
 
     pub fn save(&self) -> NexusResult<()> {
         let data = serde_json::to_string_pretty(self)?;
-        std::fs::write(&self.path, data)?;
+        crate::util::atomic_write(&self.path, data.as_bytes())?;
         Ok(())
     }
 }

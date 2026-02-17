@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Nexus Host API",
-    "description": "API available to Nexus plugins for interacting with the host system. Plugins exchange their secret (NEXUS_PLUGIN_SECRET) for a short-lived access token via POST /v1/auth/token, then use it as a Bearer token.",
+    "description": "API available to Nexus plugins for interacting with the host system. Plugins authenticate via OAuth 2.1 client_credentials grant (POST /oauth/token) and use the access token as a Bearer token.",
     "contact": {
       "name": "danibytes"
     },

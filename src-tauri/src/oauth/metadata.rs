@@ -26,9 +26,10 @@ pub async fn authorization_server() -> Json<Value> {
         "token_endpoint": "http://127.0.0.1:9600/oauth/token",
         "registration_endpoint": "http://127.0.0.1:9600/oauth/register",
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
         "code_challenge_methods_supported": ["S256"],
-        "token_endpoint_auth_methods_supported": ["none"],
-        "scopes_supported": ["mcp"]
+        "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
+        "scopes_supported": ["mcp"],
+        "authorization_details_types_supported": crate::permissions::rar::SUPPORTED_DETAIL_TYPES
     }))
 }

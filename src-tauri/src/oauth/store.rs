@@ -7,8 +7,10 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 
 use super::types::*;
+use crate::permissions::rar::AuthorizationDetail;
 
 const AUTH_CODE_TTL: Duration = Duration::from_secs(10 * 60); // 10 minutes
 const ACCESS_TOKEN_TTL: Duration = Duration::from_secs(60 * 60); // 1 hour
@@ -24,6 +26,9 @@ pub struct OAuthStore {
     auth_codes: Mutex<HashMap<String, AuthorizationCode>>,
     access_tokens: Mutex<HashMap<String, AccessToken>>,
     refresh_tokens: Mutex<HashMap<String, RefreshToken>>,
+    /// Pre-computed RFC 9396 authorization_details for plugin clients.
+    /// Keyed by client_id. Updated by PluginManager on lifecycle events.
+    plugin_auth_details: Mutex<HashMap<String, Vec<AuthorizationDetail>>>,
 }
 
 impl OAuthStore {
@@ -62,6 +67,7 @@ impl OAuthStore {
             auth_codes: Mutex::new(HashMap::new()),
             access_tokens: Mutex::new(HashMap::new()),
             refresh_tokens: Mutex::new(refresh_tokens),
+            plugin_auth_details: Mutex::new(HashMap::new()),
         }
     }
 
@@ -72,12 +78,19 @@ impl OAuthStore {
     pub fn register_client(&self, req: RegistrationRequest) -> OAuthClient {
         let mut clients = self.clients.lock().unwrap_or_else(|e| e.into_inner());
 
-        // Idempotent: return existing client with same name, updating redirect URIs
+        // Idempotent: return existing client with same name.
+        // Pre-consent clients: allow URI update (port may change between reconnections).
+        // Approved clients: URIs are frozen to prevent redirect URI takeover via name collision.
         if let Some(existing) = clients.values_mut().find(|c| c.client_name == req.client_name) {
-            existing.redirect_uris = req.redirect_uris.into_iter().map(normalize_redirect_uri).collect();
+            if !existing.approved {
+                existing.redirect_uris = req.redirect_uris.into_iter().map(normalize_redirect_uri).collect();
+            }
             let result = existing.clone();
+            let needs_save = !result.approved;
             drop(clients);
-            self.save_clients();
+            if needs_save {
+                self.save_clients();
+            }
             return result;
         }
 
@@ -89,6 +102,8 @@ impl OAuthStore {
             token_endpoint_auth_method: req.token_endpoint_auth_method,
             registered_at: Utc::now(),
             approved: false,
+            client_secret_hash: None,
+            plugin_id: None,
         };
 
         clients.insert(client.client_id.clone(), client.clone());
@@ -219,21 +234,21 @@ impl OAuthStore {
 
         let scopes = auth_code.scopes.clone();
         let resource = auth_code.resource.clone();
-        let client_name = {
+        let (client_name, plugin_id) = {
             let clients = self.clients.lock().unwrap_or_else(|e| e.into_inner());
-            clients
-                .get(client_id)
-                .map(|c| c.client_name.clone())
-                .unwrap_or_default()
+            match clients.get(client_id) {
+                Some(c) => (c.client_name.clone(), c.plugin_id.clone()),
+                None => (String::new(), None),
+            }
         };
 
         drop(codes);
 
-        let access = self.create_access_token(client_id.to_string(), client_name, scopes.clone(), resource.clone());
+        let access = self.create_access_token(client_id.to_string(), client_name, scopes.clone(), resource.clone(), plugin_id.clone(), vec![]);
         let refresh = if no_refresh {
             None
         } else {
-            Some(self.create_refresh_token(client_id.to_string(), scopes, resource))
+            Some(self.create_refresh_token(client_id.to_string(), scopes, resource, plugin_id, vec![]))
         };
 
         Ok((access, refresh))
@@ -247,6 +262,8 @@ impl OAuthStore {
         client_name: String,
         scopes: Vec<String>,
         resource: String,
+        plugin_id: Option<String>,
+        authorization_details: Vec<AuthorizationDetail>,
     ) -> AccessToken {
         let token = AccessToken {
             token: uuid::Uuid::new_v4().to_string(),
@@ -255,6 +272,8 @@ impl OAuthStore {
             scopes,
             resource,
             expires_at: Instant::now() + ACCESS_TOKEN_TTL,
+            plugin_id,
+            authorization_details,
         };
         let mut tokens = self.access_tokens.lock().unwrap_or_else(|e| e.into_inner());
         // Lazy cleanup
@@ -283,6 +302,8 @@ impl OAuthStore {
         client_id: String,
         scopes: Vec<String>,
         resource: String,
+        plugin_id: Option<String>,
+        authorization_details: Vec<AuthorizationDetail>,
     ) -> RefreshToken {
         let token = RefreshToken {
             token: uuid::Uuid::new_v4().to_string(),
@@ -290,6 +311,8 @@ impl OAuthStore {
             scopes,
             resource,
             expires_at: Utc::now() + chrono::Duration::days(REFRESH_TOKEN_DAYS),
+            plugin_id,
+            authorization_details,
         };
         let mut tokens = self.refresh_tokens.lock().unwrap_or_else(|e| e.into_inner());
         tokens.insert(token.token.clone(), token.clone());
@@ -316,6 +339,8 @@ impl OAuthStore {
 
         let scopes = old.scopes;
         let resource = old.resource;
+        let plugin_id = old.plugin_id;
+        let auth_details = old.authorization_details;
         drop(tokens);
 
         let client_name = {
@@ -326,8 +351,8 @@ impl OAuthStore {
                 .unwrap_or_default()
         };
 
-        let access = self.create_access_token(client_id.to_string(), client_name, scopes.clone(), resource.clone());
-        let refresh = self.create_refresh_token(client_id.to_string(), scopes, resource);
+        let access = self.create_access_token(client_id.to_string(), client_name, scopes.clone(), resource.clone(), plugin_id.clone(), auth_details.clone());
+        let refresh = self.create_refresh_token(client_id.to_string(), scopes, resource, plugin_id, auth_details);
 
         self.save_refresh_tokens();
         Ok((access, refresh))
@@ -358,6 +383,144 @@ impl OAuthStore {
         self.save_refresh_tokens();
     }
 
+    // ── Plugin Client Management ──────────────────────────────────
+
+    /// Register a plugin as an OAuth confidential client.
+    /// Returns `(client, plaintext_secret)`. Idempotent by `plugin_id`.
+    pub fn register_plugin_client(
+        &self,
+        plugin_id: &str,
+        plugin_name: &str,
+    ) -> (OAuthClient, String) {
+        let mut clients = self.clients.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Idempotent: if client already exists for this plugin, rotate secret
+        if let Some(existing) = clients.values_mut().find(|c| c.plugin_id.as_deref() == Some(plugin_id)) {
+            let secret = uuid::Uuid::new_v4().to_string();
+            existing.client_secret_hash = Some(hash_client_secret(&secret));
+            let result = existing.clone();
+            drop(clients);
+            self.save_clients();
+            return (result, secret);
+        }
+
+        let secret = uuid::Uuid::new_v4().to_string();
+        let client = OAuthClient {
+            client_id: uuid::Uuid::new_v4().to_string(),
+            client_name: plugin_name.to_string(),
+            redirect_uris: vec![],
+            grant_types: vec!["client_credentials".into(), "refresh_token".into()],
+            token_endpoint_auth_method: "client_secret_post".into(),
+            registered_at: Utc::now(),
+            approved: true,
+            client_secret_hash: Some(hash_client_secret(&secret)),
+            plugin_id: Some(plugin_id.to_string()),
+        };
+
+        clients.insert(client.client_id.clone(), client.clone());
+        drop(clients);
+        self.save_clients();
+        (client, secret)
+    }
+
+    /// Rotate the client secret for a plugin. Returns the new plaintext secret.
+    pub fn rotate_plugin_secret(&self, client_id: &str) -> Option<String> {
+        let mut clients = self.clients.lock().unwrap_or_else(|e| e.into_inner());
+        let client = clients.get_mut(client_id)?;
+
+        let secret = uuid::Uuid::new_v4().to_string();
+        client.client_secret_hash = Some(hash_client_secret(&secret));
+        drop(clients);
+        self.save_clients();
+        Some(secret)
+    }
+
+    /// Issue tokens via `client_credentials` grant.
+    /// Validates `client_id` + `client_secret`, returns access + refresh tokens.
+    ///
+    /// `authorization_details` from the request is used as a fallback — if the
+    /// server has pre-computed details (via `set_plugin_auth_details`), those
+    /// take precedence since the server is authoritative on plugin permissions.
+    pub fn issue_client_credentials(
+        &self,
+        client_id: &str,
+        client_secret: &str,
+        resource: String,
+        authorization_details: Vec<AuthorizationDetail>,
+    ) -> Result<(AccessToken, RefreshToken), &'static str> {
+        let clients = self.clients.lock().unwrap_or_else(|e| e.into_inner());
+        let client = clients.get(client_id).ok_or("invalid_client")?;
+
+        let expected_hash = client.client_secret_hash.as_deref().ok_or("invalid_client")?;
+        let computed = hash_client_secret(client_secret);
+        if computed.as_bytes().ct_eq(expected_hash.as_bytes()).unwrap_u8() != 1 {
+            return Err("invalid_client");
+        }
+
+        let client_name = client.client_name.clone();
+        let plugin_id = client.plugin_id.clone();
+        let scopes = vec!["plugin".into()];
+        drop(clients);
+
+        // Server-side details take precedence over request-supplied details
+        let details = {
+            let stored = self.get_plugin_auth_details(client_id);
+            if stored.is_empty() { authorization_details } else { stored }
+        };
+
+        let access = self.create_access_token(
+            client_id.to_string(), client_name, scopes.clone(), resource.clone(), plugin_id.clone(), details.clone(),
+        );
+        let refresh = self.create_refresh_token(
+            client_id.to_string(), scopes, resource, plugin_id, details,
+        );
+
+        Ok((access, refresh))
+    }
+
+    /// Revoke all tokens for a plugin (keeps the client registration).
+    /// Called on plugin stop.
+    pub fn revoke_plugin_tokens(&self, client_id: &str) {
+        {
+            let mut tokens = self.access_tokens.lock().unwrap_or_else(|e| e.into_inner());
+            tokens.retain(|_, t| t.client_id != client_id);
+        }
+        {
+            let mut tokens = self.refresh_tokens.lock().unwrap_or_else(|e| e.into_inner());
+            tokens.retain(|_, t| t.client_id != client_id);
+        }
+        self.save_refresh_tokens();
+    }
+
+    /// Remove a plugin's OAuth client entirely (client + all tokens).
+    /// Called on plugin uninstall.
+    pub fn remove_plugin_client(&self, client_id: &str) {
+        self.revoke_client(client_id);
+    }
+
+    /// Set pre-computed RFC 9396 authorization_details for a plugin client.
+    /// Called by PluginManager on install/start/update.
+    pub fn set_plugin_auth_details(&self, client_id: &str, details: Vec<AuthorizationDetail>) {
+        let mut map = self.plugin_auth_details.lock().unwrap_or_else(|e| e.into_inner());
+        if details.is_empty() {
+            map.remove(client_id);
+        } else {
+            map.insert(client_id.to_string(), details);
+        }
+    }
+
+    /// Get stored authorization_details for a plugin client.
+    pub fn get_plugin_auth_details(&self, client_id: &str) -> Vec<AuthorizationDetail> {
+        let map = self.plugin_auth_details.lock().unwrap_or_else(|e| e.into_inner());
+        map.get(client_id).cloned().unwrap_or_default()
+    }
+
+    /// Look up a client by its associated plugin ID.
+    pub fn get_client_by_plugin_id(&self, plugin_id: &str) -> Option<OAuthClient> {
+        let clients = self.clients.lock().unwrap_or_else(|e| e.into_inner());
+        clients.values().find(|c| c.plugin_id.as_deref() == Some(plugin_id)).cloned()
+    }
+
     // ── Test Helpers ─────────────────────────────────────────────
 
     /// Force an auth code to expire (test-only).
@@ -384,7 +547,7 @@ impl OAuthStore {
         let clients = self.clients.lock().unwrap_or_else(|e| e.into_inner());
         let json = serde_json::to_string_pretty(&*clients).unwrap_or_default();
         let path = self.data_dir.join("oauth_clients.json");
-        if let Err(e) = std::fs::write(&path, json) {
+        if let Err(e) = crate::util::atomic_write(&path, json.as_bytes()) {
             log::error!("Failed to save OAuth clients: {}", e);
         }
     }
@@ -393,7 +556,7 @@ impl OAuthStore {
         let tokens = self.refresh_tokens.lock().unwrap_or_else(|e| e.into_inner());
         let json = serde_json::to_string_pretty(&*tokens).unwrap_or_default();
         let path = self.data_dir.join("oauth_refresh.json");
-        if let Err(e) = std::fs::write(&path, json) {
+        if let Err(e) = crate::util::atomic_write(&path, json.as_bytes()) {
             log::error!("Failed to save OAuth refresh tokens: {}", e);
         }
     }
@@ -404,18 +567,41 @@ impl OAuthStore {
 // ---------------------------------------------------------------------------
 
 /// PKCE S256 verification: base64url(sha256(verifier)) == challenge
+/// Enforces RFC 7636 §4.1 verifier length (43-128 chars) and uses
+/// constant-time comparison to prevent timing side-channels.
 fn verify_pkce(code_verifier: &str, code_challenge: &str) -> bool {
+    // RFC 7636 §4.1: code_verifier must be 43-128 characters
+    if !(43..=128).contains(&code_verifier.len()) {
+        return false;
+    }
     let mut hasher = Sha256::new();
     hasher.update(code_verifier.as_bytes());
     let computed = URL_SAFE_NO_PAD.encode(hasher.finalize());
-    computed == code_challenge
+    computed.as_bytes().ct_eq(code_challenge.as_bytes()).unwrap_u8() == 1
 }
 
-/// Normalize localhost variants in redirect URIs.
-/// Claude Code sometimes uses `localhost` vs `127.0.0.1` inconsistently.
+/// Normalize localhost variants in redirect URIs using proper URL parsing.
+/// Handles: bare `http://localhost`, ports, paths, trailing slashes, fragments.
+/// RFC 6749 §3.1.2: redirect URI must not include a fragment — stripped here.
 pub(crate) fn normalize_redirect_uri(uri: String) -> String {
-    uri.replace("://localhost:", "://127.0.0.1:")
-        .replace("://localhost/", "://127.0.0.1/")
+    match url::Url::parse(&uri) {
+        Ok(mut parsed) => {
+            if parsed.host_str() == Some("localhost") {
+                let _ = parsed.set_host(Some("127.0.0.1"));
+            }
+            // Strip fragment (RFC 6749 §3.1.2)
+            parsed.set_fragment(None);
+            parsed.to_string()
+        }
+        Err(_) => uri,
+    }
+}
+
+/// SHA-256 hash of a client secret, base64url-encoded (no padding).
+pub(crate) fn hash_client_secret(secret: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(secret.as_bytes());
+    URL_SAFE_NO_PAD.encode(hasher.finalize())
 }
 
 // ---------------------------------------------------------------------------
@@ -998,6 +1184,8 @@ mod tests {
                 scopes: vec!["mcp".into()],
                 resource: "http://127.0.0.1:9600/mcp".into(),
                 expires_at: Utc::now() - chrono::Duration::days(1),
+                plugin_id: None,
+                authorization_details: vec![],
             },
         );
         let json = serde_json::to_string_pretty(&tokens).unwrap();
@@ -1042,7 +1230,7 @@ mod tests {
     }
 
     // =====================================================================
-    // Localhost Normalization
+    // Localhost Normalization (URL-aware)
     // =====================================================================
 
     #[test]
@@ -1071,8 +1259,106 @@ mod tests {
 
     #[test]
     fn non_localhost_uri_unchanged() {
-        let uri = "https://example.com:8080/callback".to_string();
-        assert_eq!(normalize_redirect_uri(uri.clone()), uri);
+        let result = normalize_redirect_uri("https://example.com:8080/callback".to_string());
+        assert_eq!(result, "https://example.com:8080/callback");
+    }
+
+    #[test]
+    fn normalize_handles_bare_localhost() {
+        // Bare localhost without path — url crate adds trailing slash
+        let a = normalize_redirect_uri("http://localhost:3000".into());
+        let b = normalize_redirect_uri("http://127.0.0.1:3000".into());
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn normalize_strips_fragment() {
+        // RFC 6749 §3.1.2: fragments must be stripped
+        assert!(!normalize_redirect_uri("http://127.0.0.1:3000/callback#frag".into()).contains('#'));
+    }
+
+    // =====================================================================
+    // PKCE verifier length validation (RFC 7636 §4.1)
+    // =====================================================================
+
+    #[test]
+    fn pkce_verifier_too_short() {
+        let short = "a".repeat(42); // 42 chars — below minimum
+        let (_, challenge) = pkce_pair(&short);
+        assert!(!verify_pkce(&short, &challenge));
+    }
+
+    #[test]
+    fn pkce_verifier_too_long() {
+        let long = "a".repeat(129); // 129 chars — above maximum
+        let (_, challenge) = pkce_pair(&long);
+        assert!(!verify_pkce(&long, &challenge));
+    }
+
+    #[test]
+    fn pkce_verifier_at_min_boundary() {
+        let min = "a".repeat(43); // exactly 43 — valid
+        let (_, challenge) = pkce_pair(&min);
+        assert!(verify_pkce(&min, &challenge));
+    }
+
+    #[test]
+    fn pkce_verifier_at_max_boundary() {
+        let max = "a".repeat(128); // exactly 128 — valid
+        let (_, challenge) = pkce_pair(&max);
+        assert!(verify_pkce(&max, &challenge));
+    }
+
+    // =====================================================================
+    // Approved client URI freeze (redirect URI takeover prevention)
+    // =====================================================================
+
+    #[test]
+    fn approved_client_uris_frozen() {
+        let (store, _dir) = test_store();
+        let client = store.register_client(RegistrationRequest {
+            client_name: "Frozen".into(),
+            redirect_uris: vec!["http://127.0.0.1:3000/callback".into()],
+            grant_types: vec!["authorization_code".into()],
+            token_endpoint_auth_method: "none".into(),
+        });
+        store.approve_client(&client.client_id);
+
+        // Second registration with same name tries to change URIs
+        let client2 = store.register_client(RegistrationRequest {
+            client_name: "Frozen".into(),
+            redirect_uris: vec!["http://evil.com/steal".into()],
+            grant_types: vec!["authorization_code".into()],
+            token_endpoint_auth_method: "none".into(),
+        });
+
+        assert_eq!(client.client_id, client2.client_id);
+        // URIs should NOT have changed
+        let found = store.get_client(&client.client_id).unwrap();
+        assert_eq!(found.redirect_uris.len(), 1);
+        assert!(found.redirect_uris[0].contains("127.0.0.1:3000"));
+    }
+
+    #[test]
+    fn unapproved_client_uris_can_update() {
+        let (store, _dir) = test_store();
+        let client = store.register_client(RegistrationRequest {
+            client_name: "Flexible".into(),
+            redirect_uris: vec!["http://127.0.0.1:3000/callback".into()],
+            grant_types: vec!["authorization_code".into()],
+            token_endpoint_auth_method: "none".into(),
+        });
+
+        // Second registration with same name, different port (common for reconnections)
+        let _client2 = store.register_client(RegistrationRequest {
+            client_name: "Flexible".into(),
+            redirect_uris: vec!["http://127.0.0.1:4000/callback".into()],
+            grant_types: vec!["authorization_code".into()],
+            token_endpoint_auth_method: "none".into(),
+        });
+
+        let found = store.get_client(&client.client_id).unwrap();
+        assert!(found.redirect_uris[0].contains("4000"));
     }
 
     // =====================================================================
@@ -1202,5 +1488,155 @@ mod tests {
 
         // Used code should definitely be gone (cleaned up)
         assert!(store.exchange_code(&code1, v1, &client.client_id, "http://127.0.0.1:3000/callback").is_err());
+    }
+
+    // =====================================================================
+    // Plugin Client (client_credentials)
+    // =====================================================================
+
+    #[test]
+    fn register_plugin_client_creates_confidential_client() {
+        let (store, _dir) = test_store();
+        let (client, secret) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        assert_eq!(client.client_name, "Test Plugin");
+        assert_eq!(client.plugin_id.as_deref(), Some("com.test.plugin"));
+        assert!(client.approved);
+        assert!(client.client_secret_hash.is_some());
+        assert!(!secret.is_empty());
+        assert_eq!(client.grant_types, vec!["client_credentials", "refresh_token"]);
+        assert_eq!(client.token_endpoint_auth_method, "client_secret_post");
+    }
+
+    #[test]
+    fn register_plugin_client_is_idempotent() {
+        let (store, _dir) = test_store();
+        let (c1, _s1) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+        let (c2, _s2) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        // Same client_id, but secret was rotated
+        assert_eq!(c1.client_id, c2.client_id);
+    }
+
+    #[test]
+    fn client_credentials_full_flow() {
+        let (store, _dir) = test_store();
+        let (client, secret) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        let (access, refresh) = store
+            .issue_client_credentials(&client.client_id, &secret, "http://127.0.0.1:9600".into(), vec![])
+            .unwrap();
+
+        assert_eq!(access.client_id, client.client_id);
+        assert_eq!(access.client_name, "Test Plugin");
+        assert_eq!(access.plugin_id.as_deref(), Some("com.test.plugin"));
+        assert!(store.validate_access_token(&access.token).is_some());
+
+        // Refresh works
+        let (access2, _) = store.refresh(&refresh.token, &client.client_id).unwrap();
+        assert!(store.validate_access_token(&access2.token).is_some());
+        assert_eq!(access2.plugin_id.as_deref(), Some("com.test.plugin"));
+    }
+
+    #[test]
+    fn client_credentials_wrong_secret_rejected() {
+        let (store, _dir) = test_store();
+        let (client, _secret) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        let result = store.issue_client_credentials(&client.client_id, "wrong-secret", "".into(), vec![]);
+        assert_eq!(result.unwrap_err(), "invalid_client");
+    }
+
+    #[test]
+    fn client_credentials_unknown_client_rejected() {
+        let (store, _dir) = test_store();
+        let result = store.issue_client_credentials("nonexistent", "any-secret", "".into(), vec![]);
+        assert_eq!(result.unwrap_err(), "invalid_client");
+    }
+
+    #[test]
+    fn client_credentials_public_client_rejected() {
+        let (store, _dir) = test_store();
+        // Register a public client (no secret)
+        let client = register_test_client(&store, "Public App");
+
+        let result = store.issue_client_credentials(&client.client_id, "any-secret", "".into(), vec![]);
+        assert_eq!(result.unwrap_err(), "invalid_client");
+    }
+
+    #[test]
+    fn rotate_plugin_secret_invalidates_old() {
+        let (store, _dir) = test_store();
+        let (client, old_secret) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        let new_secret = store.rotate_plugin_secret(&client.client_id).unwrap();
+        assert_ne!(old_secret, new_secret);
+
+        // Old secret no longer works
+        assert!(store.issue_client_credentials(&client.client_id, &old_secret, "".into(), vec![]).is_err());
+        // New secret works
+        assert!(store.issue_client_credentials(&client.client_id, &new_secret, "".into(), vec![]).is_ok());
+    }
+
+    #[test]
+    fn revoke_plugin_tokens_keeps_client() {
+        let (store, _dir) = test_store();
+        let (client, secret) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        let (access, _) = store
+            .issue_client_credentials(&client.client_id, &secret, "".into(), vec![])
+            .unwrap();
+
+        store.revoke_plugin_tokens(&client.client_id);
+
+        // Token is dead
+        assert!(store.validate_access_token(&access.token).is_none());
+        // Client still exists — can re-authenticate
+        assert!(store.get_client(&client.client_id).is_some());
+        assert!(store.issue_client_credentials(&client.client_id, &secret, "".into(), vec![]).is_ok());
+    }
+
+    #[test]
+    fn remove_plugin_client_removes_everything() {
+        let (store, _dir) = test_store();
+        let (client, secret) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        let (access, _) = store
+            .issue_client_credentials(&client.client_id, &secret, "".into(), vec![])
+            .unwrap();
+
+        store.remove_plugin_client(&client.client_id);
+
+        assert!(store.validate_access_token(&access.token).is_none());
+        assert!(store.get_client(&client.client_id).is_none());
+    }
+
+    #[test]
+    fn get_client_by_plugin_id() {
+        let (store, _dir) = test_store();
+        let (client, _) = store.register_plugin_client("com.test.plugin", "Test Plugin");
+
+        let found = store.get_client_by_plugin_id("com.test.plugin").unwrap();
+        assert_eq!(found.client_id, client.client_id);
+
+        assert!(store.get_client_by_plugin_id("com.nonexistent").is_none());
+    }
+
+    #[test]
+    fn plugin_client_persists_across_reload() {
+        let dir = TempDir::new().unwrap();
+
+        let (client_id, secret) = {
+            let store = OAuthStore::load(dir.path());
+            let (client, secret) = store.register_plugin_client("com.test.plugin", "Persistent Plugin");
+            (client.client_id.clone(), secret)
+        };
+
+        let store2 = OAuthStore::load(dir.path());
+        let found = store2.get_client(&client_id).unwrap();
+        assert_eq!(found.plugin_id.as_deref(), Some("com.test.plugin"));
+        assert!(found.client_secret_hash.is_some());
+        // Secret still works after reload
+        assert!(store2.issue_client_credentials(&client_id, &secret, "".into(), vec![]).is_ok());
     }
 }

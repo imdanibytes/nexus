@@ -48,11 +48,11 @@ AI Client → MCP (Streamable HTTP) → Host API (:9600/mcp) → Plugin containe
 ### Backend (src-tauri/src/)
 
 - **`lib.rs`** — App entry point. Creates `PluginManager`, wires extension IPC, spawns Host API server. `AppState = Arc<RwLock<PluginManager>>`.
-- **`host_api/`** — Axum server with three route groups:
-  - **Auth routes** (public) — `POST /api/v1/auth/token` — plugins exchange secret for session token
+- **`host_api/`** — Axum server with route groups:
+  - **OAuth routes** (public) — `/.well-known/oauth-*` discovery, `/oauth/register`, `/oauth/authorize`, `/oauth/token`
   - **MCP routes** (gateway auth) — `/mcp` (Streamable HTTP) + `/api/v1/mcp/{tools,call,events}` (legacy)
   - **Authenticated routes** — everything else (system, fs, process, docker, network, extensions, settings, storage)
-  - `middleware.rs` — auth middleware extracts Bearer tokens from SessionStore
+  - `middleware.rs` — auth middleware validates OAuth Bearer tokens via `OAuthStore`
   - `approval.rs` — generic `ApprovalBridge` using oneshot channels + Tauri events for runtime permission dialogs
   - `network.rs` — HTTP proxy with SSRF protection and IPv6 canonicalization
 - **`plugin_manager/`** — Docker lifecycle (pull, create, start, stop, remove), health checks, manifest validation, registry fetching
@@ -138,7 +138,7 @@ Each key maps to a description of how the string is used — button label, toast
 `.nest("/api", router)` strips the `/api` prefix before middleware sees the path. Permission patterns in `checker.rs` match against `/v1/...`, not `/api/v1/...`.
 
 ### Plugin auth flow
-Plugin containers get `NEXUS_PLUGIN_SECRET` env var → POST to `/api/v1/auth/token` → receive short-lived Bearer token (15 min TTL) → use for all subsequent API calls.
+Plugin containers get `NEXUS_OAUTH_CLIENT_ID` and `NEXUS_OAUTH_CLIENT_SECRET` env vars → POST to `/oauth/token` with `grant_type=client_credentials` → receive OAuth access token (1hr) + refresh token (30d) → use access token as Bearer for all API calls. Secret is rotated on every plugin start; tokens are revoked on stop.
 
 ### Extension manifest casing
 Enums use `#[serde(rename_all = "snake_case")]`. Manifest JSON must use lowercase: `risk_level: "low"`, capability type: `"network_http"`. PascalCase fails deserialization.

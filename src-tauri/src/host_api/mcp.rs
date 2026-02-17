@@ -6,14 +6,15 @@ use axum::{
     response::Response,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use crate::oauth::OAuthStore;
+use crate::permissions::rar;
 use crate::permissions::Permission;
 use crate::AppState;
 
-use super::auth::SessionStore;
 
 // ---------------------------------------------------------------------------
 // Types (used by nexus_mcp.rs and mcp_server.rs)
@@ -49,18 +50,22 @@ pub struct McpContent {
 // Authenticated MCP session store
 // ---------------------------------------------------------------------------
 
+const MCP_SESSION_TTL_SECS: u64 = 24 * 60 * 60; // 24 hours
+const MCP_SESSION_CAP: usize = 1000;
+
 /// Tracks MCP session IDs that have been authenticated via gateway token.
 /// Once a session authenticates on its first request, subsequent requests
 /// with the same Mcp-Session-Id are allowed through without re-checking.
+/// Sessions expire after 24 hours and the store is capped at 1000 entries.
 #[derive(Debug, Clone)]
 pub struct McpSessionStore {
-    authenticated: Arc<RwLock<HashSet<String>>>,
+    authenticated: Arc<RwLock<HashMap<String, Instant>>>,
 }
 
 impl Default for McpSessionStore {
     fn default() -> Self {
         Self {
-            authenticated: Arc::new(RwLock::new(HashSet::new())),
+            authenticated: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -71,15 +76,34 @@ impl McpSessionStore {
     }
 
     pub fn mark_authenticated(&self, session_id: &str) {
-        if let Ok(mut set) = self.authenticated.write() {
-            set.insert(session_id.to_string());
+        if let Ok(mut map) = self.authenticated.write() {
+            let now = Instant::now();
+            let ttl = std::time::Duration::from_secs(MCP_SESSION_TTL_SECS);
+
+            // Evict expired entries
+            map.retain(|_, ts| now.duration_since(*ts) < ttl);
+
+            // Cap check — if still at cap after eviction, log and skip
+            if map.len() >= MCP_SESSION_CAP {
+                log::warn!(
+                    "MCP session store at capacity ({}), new session not cached",
+                    MCP_SESSION_CAP
+                );
+                return;
+            }
+
+            map.insert(session_id.to_string(), now);
         }
     }
 
     pub fn is_authenticated(&self, session_id: &str) -> bool {
         self.authenticated
             .read()
-            .map(|set| set.contains(session_id))
+            .map(|map| {
+                map.get(session_id).is_some_and(|ts| {
+                    ts.elapsed() < std::time::Duration::from_secs(MCP_SESSION_TTL_SECS)
+                })
+            })
             .unwrap_or(false)
     }
 }
@@ -137,11 +161,13 @@ pub async fn gateway_auth_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let mcp_sessions = req
-        .extensions()
-        .get::<McpSessionStore>()
-        .cloned()
-        .unwrap_or_default();
+    let mcp_sessions = match req.extensions().get::<McpSessionStore>().cloned() {
+        Some(store) => store,
+        None => {
+            log::warn!("McpSessionStore missing from extensions — session caching disabled");
+            McpSessionStore::new()
+        }
+    };
 
     // If this request carries an Mcp-Session-Id that was already authenticated, let it through.
     if let Some(session_id) = req
@@ -179,17 +205,34 @@ pub async fn gateway_auth_middleware(
         }
     }
 
-    // Try Bearer token — first check OAuth tokens, then fall back to plugin sessions
+    // Try Bearer token (OAuth 2.1 — both external AI clients and plugin tokens)
     if let Some(bearer) = req
         .headers()
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
     {
-        // OAuth Bearer token (from AI clients that completed the OAuth flow)
         if let Some(oauth_store) = req.extensions().get::<Arc<OAuthStore>>().cloned() {
-            if let Some(token_info) = oauth_store.validate_access_token(bearer) {
-                log::info!("MCP authenticated via OAuth: client={}", token_info.client_name);
+            if let Some(access_token) = oauth_store.validate_access_token(bearer) {
+                // Plugin tokens (client_credentials) require mcp:call permission
+                if let Some(ref plugin_id) = access_token.plugin_id {
+                    // Fast path: check authorization_details on the token
+                    let has_mcp = rar::details_satisfy(&access_token.authorization_details, &Permission::McpCall);
+                    if !has_mcp {
+                        // Fallback: check PermissionStore
+                        let mgr = state.read().await;
+                        if !mgr.permissions.has_permission(plugin_id, &Permission::McpCall) {
+                            log::warn!(
+                                "AUDIT plugin={} tried MCP access without mcp:call permission",
+                                plugin_id
+                            );
+                            return Err(StatusCode::FORBIDDEN);
+                        }
+                        drop(mgr);
+                    }
+                }
+
+                log::info!("MCP authenticated via OAuth: client={}", access_token.client_name);
                 let resp = next.run(req).await;
                 if let Some(session_id) = resp
                     .headers()
@@ -201,40 +244,6 @@ pub async fn gateway_auth_middleware(
                 }
                 return Ok(resp);
             }
-        }
-
-        // Plugin Bearer token (requires mcp:call permission)
-        let sessions = req
-            .extensions()
-            .get::<Arc<SessionStore>>()
-            .cloned()
-            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        if let Some(plugin_id) = sessions.validate(bearer) {
-            let mgr = state.read().await;
-            if mgr
-                .permissions
-                .has_permission(&plugin_id, &Permission::McpCall)
-            {
-                drop(mgr);
-                let resp = next.run(req).await;
-
-                if let Some(session_id) = resp
-                    .headers()
-                    .get("mcp-session-id")
-                    .and_then(|v| v.to_str().ok())
-                {
-                    mcp_sessions.mark_authenticated(session_id);
-                    log::info!("MCP session authenticated (plugin): {}", session_id);
-                }
-
-                return Ok(resp);
-            }
-            log::warn!(
-                "AUDIT plugin={} tried MCP access without mcp:call permission",
-                plugin_id
-            );
-            return Err(StatusCode::FORBIDDEN);
         }
     }
 
@@ -248,4 +257,40 @@ pub async fn gateway_auth_middleware(
         .body(Body::empty())
         .unwrap();
     Ok(resp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_store_mark_and_check() {
+        let store = McpSessionStore::new();
+        assert!(!store.is_authenticated("session-1"));
+        store.mark_authenticated("session-1");
+        assert!(store.is_authenticated("session-1"));
+    }
+
+    #[test]
+    fn session_store_independent_sessions() {
+        let store = McpSessionStore::new();
+        store.mark_authenticated("session-1");
+        assert!(!store.is_authenticated("session-2"));
+    }
+
+    #[test]
+    fn session_store_cap_enforcement() {
+        let store = McpSessionStore::new();
+        // Fill to capacity
+        for i in 0..MCP_SESSION_CAP {
+            store.mark_authenticated(&format!("session-{}", i));
+        }
+        // All should be authenticated
+        assert!(store.is_authenticated("session-0"));
+        assert!(store.is_authenticated(&format!("session-{}", MCP_SESSION_CAP - 1)));
+
+        // One more should be silently dropped (cap reached)
+        store.mark_authenticated("overflow-session");
+        assert!(!store.is_authenticated("overflow-session"));
+    }
 }

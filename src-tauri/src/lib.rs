@@ -9,6 +9,7 @@ mod permissions;
 mod plugin_manager;
 pub mod runtime;
 mod update_checker;
+pub(crate) mod util;
 mod version;
 
 use host_api::approval::ApprovalBridge;
@@ -126,15 +127,15 @@ pub fn run() {
             let perm_service: Arc<dyn permissions::PermissionService> =
                 Arc::new(permissions::DefaultPermissionService::new(perm_store));
 
-            let mgr = PluginManager::new(data_dir.clone(), runtime.clone(), perm_service);
+            // OAuth 2.1 store — shared between Host API, Tauri commands, and PluginManager
+            let oauth_store = Arc::new(oauth::OAuthStore::load(&data_dir));
+            app.manage(oauth_store.clone());
+
+            let mgr = PluginManager::new(data_dir.clone(), runtime.clone(), perm_service, oauth_store.clone());
 
             let state = Arc::new(RwLock::new(mgr));
             PluginManager::wire_extension_ipc(&state);
             app.manage(state.clone());
-
-            // OAuth 2.1 store — shared between Host API (Axum) and Tauri commands
-            let oauth_store = Arc::new(oauth::OAuthStore::load(&data_dir));
-            app.manage(oauth_store.clone());
 
             // Active theme — shared between Tauri UI and Axum (OAuth consent page)
             let theme = {

@@ -1,4 +1,5 @@
 pub mod checker;
+pub mod rar;
 pub mod service;
 pub mod store;
 pub mod types;

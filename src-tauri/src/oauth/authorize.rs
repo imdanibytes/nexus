@@ -29,6 +29,12 @@ struct PendingAuth {
 /// Shared map of pending authorizations, keyed by `state` param (unique nonce
 /// per authorization attempt). Using `state` as key ensures browser reloads
 /// of the same authorize URL don't create duplicate approval requests.
+///
+/// SECURITY NOTE (accepted risk): Keyed by client-supplied `state`. Collision
+/// possible if two clients reuse the same nonce, but: (a) state is specified
+/// as a unique nonce per RFC 6749 §10.12, (b) collision only returns the
+/// existing consent page, (c) auth codes are tied to client_id + redirect_uri
+/// so no code leakage. Acceptable for localhost threat model.
 #[derive(Clone, Default)]
 pub struct PendingAuthMap(Arc<Mutex<HashMap<String, PendingAuth>>>);
 
@@ -61,25 +67,9 @@ pub async fn authorize(
 ) -> Result<Response, StatusCode> {
     let theme_name = theme.get();
 
-    // Validate response_type
-    if params.response_type != "code" {
-        return Ok(error_redirect(
-            &params.redirect_uri,
-            "unsupported_response_type",
-            "Only 'code' is supported",
-            &params.state,
-        ));
-    }
-
-    // Validate code_challenge_method
-    if params.code_challenge_method != "S256" {
-        return Ok(error_redirect(
-            &params.redirect_uri,
-            "invalid_request",
-            "Only S256 is supported",
-            &params.state,
-        ));
-    }
+    // RFC 6749 §4.1.2.1: Validate client and redirect_uri FIRST.
+    // Error redirects MUST only go to validated URIs. Unknown client or bad
+    // URI → plain HTTP 400, never a redirect to an unvalidated URI.
 
     // Look up client
     let client = store
@@ -99,6 +89,25 @@ pub async fn authorize(
             client.redirect_uris
         );
         return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Now that redirect_uri is validated, safe to use error redirects
+    if params.response_type != "code" {
+        return Ok(error_redirect(
+            &params.redirect_uri,
+            "unsupported_response_type",
+            "Only 'code' is supported",
+            &params.state,
+        ));
+    }
+
+    if params.code_challenge_method != "S256" {
+        return Ok(error_redirect(
+            &params.redirect_uri,
+            "invalid_request",
+            "Only S256 is supported",
+            &params.state,
+        ));
     }
 
     let scopes: Vec<String> = if params.scope.is_empty() {

@@ -245,7 +245,7 @@ mod tests {
             container_id: None,
             status: PluginStatus::Stopped,
             assigned_port: 9700,
-            auth_token: "hash".to_string(),
+            oauth_client_id: String::new(),
             installed_at: chrono::Utc::now(),
             manifest_url_origin: origin.map(|o| o.to_string()),
             dev_mode: false,

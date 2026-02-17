@@ -94,6 +94,70 @@ pub async fn rate_limit_middleware(
     next.run(req).await
 }
 
+// ---------------------------------------------------------------------------
+// Global (non-per-plugin) rate limiter — for public endpoints like /oauth/register
+// ---------------------------------------------------------------------------
+
+/// Global fixed-window rate limiter (single counter, not per-plugin).
+/// Used for unauthenticated public endpoints.
+#[derive(Clone)]
+pub struct GlobalRateLimiter {
+    inner: &'static GlobalRateLimiterInner,
+}
+
+struct GlobalRateLimiterInner {
+    counter: Mutex<WindowCounter>,
+    max_requests: u64,
+    window: Duration,
+}
+
+impl GlobalRateLimiter {
+    pub fn new(max_requests: u64, window: Duration) -> Self {
+        let inner = Box::leak(Box::new(GlobalRateLimiterInner {
+            counter: Mutex::new(WindowCounter {
+                count: 0,
+                window_start: Instant::now(),
+            }),
+            max_requests,
+            window,
+        }));
+        Self { inner }
+    }
+
+    pub fn check(&self) -> bool {
+        let mut counter = self.inner.counter.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+
+        if now.duration_since(counter.window_start) >= self.inner.window {
+            counter.count = 0;
+            counter.window_start = now;
+        }
+
+        counter.count += 1;
+        counter.count <= self.inner.max_requests
+    }
+}
+
+/// Axum middleware that enforces a global rate limit (no plugin identity needed).
+pub async fn global_rate_limit_middleware(
+    req: Request,
+    next: Next,
+) -> Response {
+    if let Some(limiter) = req.extensions().get::<GlobalRateLimiter>().cloned() {
+        if !limiter.check() {
+            log::warn!("Global rate limit exceeded for {}", req.uri());
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                [("retry-after", "10")],
+                "Rate limit exceeded",
+            )
+                .into_response();
+        }
+    }
+
+    next.run(req).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,5 +213,38 @@ mod tests {
         assert!(limiter.check("plugin-a")); // window reset — allowed
         assert!(limiter.check("plugin-a")); // still in new window
         assert!(!limiter.check("plugin-a")); // blocked again
+    }
+
+    // --- GlobalRateLimiter tests ---
+
+    #[test]
+    fn global_under_limit() {
+        let limiter = GlobalRateLimiter::new(5, Duration::from_secs(1));
+        for _ in 0..5 {
+            assert!(limiter.check());
+        }
+    }
+
+    #[test]
+    fn global_over_limit() {
+        let limiter = GlobalRateLimiter::new(3, Duration::from_secs(1));
+        assert!(limiter.check()); // 1
+        assert!(limiter.check()); // 2
+        assert!(limiter.check()); // 3
+        assert!(!limiter.check()); // 4 — blocked
+    }
+
+    #[test]
+    fn global_window_resets() {
+        let limiter = GlobalRateLimiter::new(2, Duration::from_millis(50));
+        assert!(limiter.check());
+        assert!(limiter.check());
+        assert!(!limiter.check()); // blocked
+
+        std::thread::sleep(Duration::from_millis(60));
+
+        assert!(limiter.check()); // window reset
+        assert!(limiter.check());
+        assert!(!limiter.check()); // blocked again
     }
 }

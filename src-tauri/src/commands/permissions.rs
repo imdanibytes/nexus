@@ -16,6 +16,14 @@ pub async fn permission_grant(
             .grant(&plugin_id, perm, None)
             .map_err(|e| e.to_string())?;
     }
+
+    // Recompute authorization_details so the next token issuance picks up new permissions
+    if let Some(client) = mgr.oauth_store.get_client_by_plugin_id(&plugin_id) {
+        let grants = mgr.permissions.get_grants(&plugin_id);
+        let details = crate::permissions::rar::build_authorization_details(&grants);
+        mgr.oauth_store.set_plugin_auth_details(&client.client_id, details);
+    }
+
     mgr.notify_tools_changed();
     Ok(())
 }
@@ -32,6 +40,17 @@ pub async fn permission_revoke(
             .revoke(&plugin_id, perm)
             .map_err(|e| e.to_string())?;
     }
+
+    // Revoke the plugin's OAuth tokens so it re-authenticates with a fresh
+    // token that no longer carries the revoked permission.
+    if let Some(client) = mgr.oauth_store.get_client_by_plugin_id(&plugin_id) {
+        mgr.oauth_store.revoke_plugin_tokens(&client.client_id);
+        // Recompute authorization_details without the revoked permission
+        let grants = mgr.permissions.get_grants(&plugin_id);
+        let details = crate::permissions::rar::build_authorization_details(&grants);
+        mgr.oauth_store.set_plugin_auth_details(&client.client_id, details);
+    }
+
     mgr.notify_tools_changed();
     Ok(())
 }
@@ -48,6 +67,14 @@ pub async fn permission_unrevoke(
             .unrevoke(&plugin_id, perm)
             .map_err(|e| e.to_string())?;
     }
+
+    // Recompute authorization_details since we re-activated permissions
+    if let Some(client) = mgr.oauth_store.get_client_by_plugin_id(&plugin_id) {
+        let grants = mgr.permissions.get_grants(&plugin_id);
+        let details = crate::permissions::rar::build_authorization_details(&grants);
+        mgr.oauth_store.set_plugin_auth_details(&client.client_id, details);
+    }
+
     mgr.notify_tools_changed();
     Ok(())
 }

@@ -2,11 +2,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
+use crate::permissions::rar::AuthorizationDetail;
+
 // ---------------------------------------------------------------------------
 // Client registration (RFC 7591)
 // ---------------------------------------------------------------------------
 
-/// A registered OAuth 2.1 client (e.g. "Claude Code", "Cursor").
+/// A registered OAuth 2.1 client (e.g. "Claude Code", "Cursor", or a Nexus plugin).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthClient {
     pub client_id: String,
@@ -18,6 +20,12 @@ pub struct OAuthClient {
     /// Whether the user explicitly approved this client (skip consent on reconnect).
     #[serde(default)]
     pub approved: bool,
+    /// SHA-256 hash of client_secret for confidential clients (plugins).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_secret_hash: Option<String>,
+    /// Associated Nexus plugin ID (maps OAuth tokens to plugin permissions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
 }
 
 /// Inbound registration request body.
@@ -59,6 +67,8 @@ pub struct OAuthClientInfo {
     pub client_name: String,
     pub registered_at: DateTime<Utc>,
     pub approved: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
 }
 
 impl From<&OAuthClient> for OAuthClientInfo {
@@ -68,6 +78,7 @@ impl From<&OAuthClient> for OAuthClientInfo {
             client_name: c.client_name.clone(),
             registered_at: c.registered_at,
             approved: c.approved,
+            plugin_id: c.plugin_id.clone(),
         }
     }
 }
@@ -104,6 +115,10 @@ pub struct AccessToken {
     pub scopes: Vec<String>,
     pub resource: String,
     pub expires_at: Instant,
+    /// Nexus plugin ID (present for plugin tokens, None for external clients).
+    pub plugin_id: Option<String>,
+    /// RFC 9396 authorization details — structured permissions carried on the token.
+    pub authorization_details: Vec<AuthorizationDetail>,
 }
 
 /// Persistent refresh token (survives restarts).
@@ -114,6 +129,12 @@ pub struct RefreshToken {
     pub scopes: Vec<String>,
     pub resource: String,
     pub expires_at: DateTime<Utc>,
+    /// Nexus plugin ID (present for plugin tokens, None for external clients).
+    #[serde(default)]
+    pub plugin_id: Option<String>,
+    /// RFC 9396 authorization details — structured permissions carried on the token.
+    #[serde(default)]
+    pub authorization_details: Vec<AuthorizationDetail>,
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +152,10 @@ pub struct TokenRequest {
     pub resource: Option<String>,
     // refresh_token fields
     pub refresh_token: Option<String>,
+    // client_credentials fields
+    pub client_secret: Option<String>,
+    /// RFC 9396 authorization_details (JSON string from form body).
+    pub authorization_details: Option<String>,
 }
 
 /// Token endpoint response.
@@ -141,6 +166,9 @@ pub struct TokenResponse {
     pub expires_in: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
+    /// RFC 9396 authorization details on the issued token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authorization_details: Option<Vec<AuthorizationDetail>>,
 }
 
 // ---------------------------------------------------------------------------

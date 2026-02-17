@@ -60,8 +60,8 @@ pub async fn extension_list(
         // Find which installed plugins consume this extension
         let mut consumers = Vec::new();
         for plugin in mgr.storage.list() {
-            if let Some(ops) = plugin.manifest.extensions.get(&ext_info.id) {
-                let all_granted = ops.iter().all(|op_name| {
+            if let Some(deps) = plugin.manifest.extensions.get(&ext_info.id) {
+                let all_granted = deps.operation_names().iter().all(|op_name| {
                     let perm_str =
                         ExtensionRegistry::permission_string(&ext_info.id, op_name);
                     let perm = Permission::Extension(perm_str);

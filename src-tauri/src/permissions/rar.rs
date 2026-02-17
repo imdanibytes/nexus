@@ -47,6 +47,7 @@ fn permission_to_type_action(perm: &Permission) -> (&'static str, &'static str) 
         Permission::NetworkInternet => ("nexus:network", "internet"),
         Permission::McpCall => ("nexus:mcp", "call"),
         Permission::Extension(_) => ("nexus:extension", ""),
+        Permission::McpAccess(_) => ("nexus:mcp", "access"),
     }
 }
 
@@ -94,6 +95,20 @@ fn permission_to_detail(
                 identifier: Some(ext_id),
             }
         }
+        Permission::McpAccess(mcp_str) => {
+            // Format: "mcp:{target_plugin_id}"
+            let target_plugin_id = mcp_str
+                .strip_prefix("mcp:")
+                .unwrap_or(mcp_str)
+                .to_string();
+
+            AuthorizationDetail {
+                detail_type: "nexus:mcp".to_string(),
+                actions: vec!["access".to_string()],
+                locations: None,
+                identifier: Some(target_plugin_id),
+            }
+        }
         _ => {
             let (detail_type, action) = permission_to_type_action(perm);
             let locations = approved_scopes
@@ -129,6 +144,14 @@ pub fn details_satisfy(details: &[AuthorizationDetail], required: &Permission) -
                 d.detail_type == "nexus:extension"
                     && d.identifier.as_deref() == Some(ext_id)
                     && d.actions.iter().any(|a| a == operation)
+            })
+        }
+        Permission::McpAccess(mcp_str) => {
+            let target = mcp_str.strip_prefix("mcp:").unwrap_or(mcp_str);
+            details.iter().any(|d| {
+                d.detail_type == "nexus:mcp"
+                    && d.actions.iter().any(|a| a == "access")
+                    && d.identifier.as_deref() == Some(target)
             })
         }
         _ => {
@@ -407,6 +430,64 @@ mod tests {
     fn satisfy_empty_details_denies_all() {
         assert!(!details_satisfy(&[], &Permission::SystemInfo));
         assert!(!details_satisfy(&[], &Permission::FilesystemRead));
+    }
+
+    // ── McpAccess ─────────────────────────────────────────────
+
+    #[test]
+    fn build_mcp_access_permission() {
+        let grants = vec![grant(
+            Permission::McpAccess("mcp:com.nexus.agent".to_string()),
+            PermissionState::Active,
+            None,
+        )];
+
+        let details = build_authorization_details(&grants);
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0].detail_type, "nexus:mcp");
+        assert_eq!(details[0].actions, vec!["access"]);
+        assert_eq!(details[0].identifier, Some("com.nexus.agent".to_string()));
+        assert!(details[0].locations.is_none());
+    }
+
+    #[test]
+    fn satisfy_mcp_access_permission() {
+        let details = vec![AuthorizationDetail {
+            detail_type: "nexus:mcp".to_string(),
+            actions: vec!["access".to_string()],
+            locations: None,
+            identifier: Some("com.nexus.agent".to_string()),
+        }];
+
+        assert!(details_satisfy(
+            &details,
+            &Permission::McpAccess("mcp:com.nexus.agent".into())
+        ));
+        // Different target plugin → denied
+        assert!(!details_satisfy(
+            &details,
+            &Permission::McpAccess("mcp:com.nexus.cookie-jar".into())
+        ));
+        // Blanket mcp:call is NOT satisfied by an access detail
+        assert!(!details_satisfy(&details, &Permission::McpCall));
+    }
+
+    #[test]
+    fn mcp_call_does_not_satisfy_mcp_access() {
+        let details = vec![AuthorizationDetail {
+            detail_type: "nexus:mcp".to_string(),
+            actions: vec!["call".to_string()],
+            locations: None,
+            identifier: None,
+        }];
+
+        // Blanket mcp:call detail satisfies McpCall
+        assert!(details_satisfy(&details, &Permission::McpCall));
+        // But it does NOT satisfy a specific McpAccess
+        assert!(!details_satisfy(
+            &details,
+            &Permission::McpAccess("mcp:com.nexus.agent".into())
+        ));
     }
 
     #[test]

@@ -241,6 +241,7 @@ mod tests {
                 settings: vec![],
                 mcp: None,
                 extensions: HashMap::new(),
+                mcp_access: vec![],
             },
             container_id: None,
             status: PluginStatus::Stopped,

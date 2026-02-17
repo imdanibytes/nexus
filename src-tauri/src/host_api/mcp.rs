@@ -214,16 +214,25 @@ pub async fn gateway_auth_middleware(
     {
         if let Some(oauth_store) = req.extensions().get::<Arc<OAuthStore>>().cloned() {
             if let Some(access_token) = oauth_store.validate_access_token(bearer) {
-                // Plugin tokens (client_credentials) require mcp:call permission
+                // Plugin tokens (client_credentials) require either blanket mcp:call
+                // or at least one mcp:{target} permission to access the MCP endpoint.
                 if let Some(ref plugin_id) = access_token.plugin_id {
                     // Fast path: check authorization_details on the token
-                    let has_mcp = rar::details_satisfy(&access_token.authorization_details, &Permission::McpCall);
-                    if !has_mcp {
-                        // Fallback: check PermissionStore
+                    let has_blanket_mcp = rar::details_satisfy(&access_token.authorization_details, &Permission::McpCall);
+                    let has_any_mcp_access = access_token.authorization_details.iter().any(|d| {
+                        d.detail_type == "nexus:mcp" && d.actions.iter().any(|a| a == "access")
+                    });
+                    if !has_blanket_mcp && !has_any_mcp_access {
+                        // Fallback: check PermissionStore for McpCall or any McpAccess
                         let mgr = state.read().await;
-                        if !mgr.permissions.has_permission(plugin_id, &Permission::McpCall) {
+                        let has_perm = mgr.permissions.has_permission(plugin_id, &Permission::McpCall)
+                            || mgr.permissions.get_grants(plugin_id).iter().any(|g| {
+                                matches!(&g.permission, Permission::McpAccess(_))
+                                    && g.state == crate::permissions::PermissionState::Active
+                            });
+                        if !has_perm {
                             log::warn!(
-                                "AUDIT plugin={} tried MCP access without mcp:call permission",
+                                "AUDIT plugin={} tried MCP access without mcp:call or mcp:* permission",
                                 plugin_id
                             );
                             return Err(StatusCode::FORBIDDEN);

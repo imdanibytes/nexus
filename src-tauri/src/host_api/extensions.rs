@@ -108,7 +108,7 @@ pub async fn list_extensions(
         .unwrap_or_default();
 
     let mut views = Vec::new();
-    for (ext_id, declared_ops) in &declared {
+    for (ext_id, deps) in &declared {
         let registered = mgr.extensions.get(ext_id);
         let available = registered.is_some();
 
@@ -116,16 +116,17 @@ pub async fn list_extensions(
             .map(|e| (Some(e.display_name().to_string()), Some(e.description().to_string())))
             .unwrap_or((None, None));
 
-        let operations = declared_ops
-            .iter()
+        let operations = deps
+            .operation_names()
+            .into_iter()
             .map(|op_name| {
-                let perm_str = crate::extensions::registry::ExtensionRegistry::permission_string(ext_id, op_name);
+                let perm_str = crate::extensions::registry::ExtensionRegistry::permission_string(ext_id, &op_name);
                 let permitted = mgr.permissions.has_permission(&auth.plugin_id, &Permission::Extension(perm_str));
                 let op_available = available
-                    && registered.is_some_and(|e| e.operations().iter().any(|o| o.name == *op_name));
+                    && registered.is_some_and(|e| e.operations().iter().any(|o| o.name == op_name));
 
                 PluginOperationView {
-                    name: op_name.clone(),
+                    name: op_name,
                     permitted,
                     available: op_available,
                 }

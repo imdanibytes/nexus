@@ -2,6 +2,49 @@ use crate::permissions::Permission;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
+/// Per-operation declaration in the "extensions" manifest block.
+/// Used by the rich object format to pre-declare resource scopes.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ExtensionOpDecl {
+    /// Pre-declared resource scopes the plugin needs for this operation.
+    /// Shown in the install dialog; approved scopes are pre-populated on grant.
+    #[serde(default)]
+    pub scopes: Vec<String>,
+}
+
+/// Extension dependency: either a flat list of operation names or a rich
+/// object mapping operation names to declarations with pre-declared scopes.
+///
+/// Flat: `["subscribe", "poll"]` — no scope declarations (backward-compatible)
+/// Rich: `{ "subscribe": { "scopes": ["robot/**"] }, "poll": {} }` — with scopes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ExtensionDeps {
+    /// Simple: `["op1", "op2"]` — no scope declarations
+    Flat(Vec<String>),
+    /// Rich: `{ "op1": { "scopes": [...] }, "op2": {} }`
+    Rich(HashMap<String, ExtensionOpDecl>),
+}
+
+impl ExtensionDeps {
+    /// Get all operation names regardless of format.
+    pub fn operation_names(&self) -> Vec<String> {
+        match self {
+            ExtensionDeps::Flat(ops) => ops.clone(),
+            ExtensionDeps::Rich(map) => map.keys().cloned().collect(),
+        }
+    }
+
+    /// Get pre-declared scopes for a specific operation, if any.
+    /// Returns `None` for the flat format or if the operation isn't found.
+    pub fn scopes_for(&self, op: &str) -> Option<Vec<String>> {
+        match self {
+            ExtensionDeps::Flat(_) => None,
+            ExtensionDeps::Rich(map) => map.get(op).map(|decl| decl.scopes.clone()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SettingDef {
     pub key: String,
@@ -80,10 +123,22 @@ pub struct PluginManifest {
     pub settings: Vec<SettingDef>,
     #[serde(default)]
     pub mcp: Option<McpConfig>,
-    /// Extension dependencies: maps extension ID to list of operations the plugin uses.
-    /// Example: { "weather": ["get_forecast", "list_alerts"] }
+    /// Extension dependencies: maps extension ID to operations the plugin uses.
+    /// Supports both flat format (backward-compatible) and rich format with scope declarations.
+    ///
+    /// Flat: `{ "zenoh": ["subscribe", "poll"] }`
+    /// Rich: `{ "zenoh": { "subscribe": { "scopes": ["robot/**"] }, "poll": {} } }`
     #[serde(default)]
-    pub extensions: HashMap<String, Vec<String>>,
+    pub extensions: HashMap<String, ExtensionDeps>,
+    /// Per-plugin MCP access declarations: list of target plugin IDs this plugin
+    /// needs to call MCP tools from. Each entry generates a `Permission::McpAccess`.
+    ///
+    /// Example: `["com.nexus.agent", "com.nexus.cookie-jar"]`
+    ///
+    /// If absent and `mcp:call` is in `permissions`, blanket access is preserved
+    /// for backward compatibility.
+    #[serde(default)]
+    pub mcp_access: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,18 +173,23 @@ fn strip_bidi_overrides(s: &str) -> bool {
 }
 
 impl PluginManifest {
-    /// Returns all permissions this plugin needs, including both declared
-    /// permissions and generated extension permissions.
+    /// Returns all permissions this plugin needs, including declared permissions,
+    /// generated extension permissions, and per-plugin MCP access permissions.
     ///
     /// Extension permissions are generated from the `extensions` map as
     /// `Permission::Extension("ext:{ext_id}:{operation}")` for each entry.
+    /// MCP access permissions are generated from `mcp_access` as
+    /// `Permission::McpAccess("mcp:{target_plugin_id}")`.
     pub fn all_permissions(&self) -> Vec<Permission> {
         let mut perms = self.permissions.clone();
-        for (ext_id, operations) in &self.extensions {
-            for op in operations {
+        for (ext_id, deps) in &self.extensions {
+            for op in deps.operation_names() {
                 let perm_str = format!("ext:{}:{}", ext_id, op);
                 perms.push(Permission::Extension(perm_str));
             }
+        }
+        for target in &self.mcp_access {
+            perms.push(Permission::McpAccess(format!("mcp:{}", target)));
         }
         perms
     }
@@ -277,7 +337,7 @@ impl PluginManifest {
         }
 
         // Extension dependency validation
-        for (ext_id, operations) in &self.extensions {
+        for (ext_id, deps) in &self.extensions {
             if ext_id.is_empty() || ext_id.len() > 100 {
                 return Err(format!(
                     "Extension ID '{}' must be 1-100 characters",
@@ -293,13 +353,14 @@ impl PluginManifest {
                     ext_id
                 ));
             }
+            let operations = deps.operation_names();
             if operations.is_empty() {
                 return Err(format!(
                     "Extension '{}' must declare at least one operation",
                     ext_id
                 ));
             }
-            for op in operations {
+            for op in &operations {
                 if op.is_empty() || op.len() > 100 {
                     return Err(format!(
                         "Extension '{}' operation '{}' must be 1-100 characters",
@@ -312,6 +373,16 @@ impl PluginManifest {
                         ext_id, op
                     ));
                 }
+            }
+        }
+
+        // MCP access validation
+        for target in &self.mcp_access {
+            if target.is_empty() || target.len() > 200 {
+                return Err(format!(
+                    "mcp_access target '{}' must be 1-200 characters",
+                    target
+                ));
             }
         }
 
@@ -343,6 +414,7 @@ mod tests {
             settings: vec![],
             mcp: None,
             extensions: HashMap::new(),
+            mcp_access: vec![],
         }
     }
 
@@ -394,5 +466,140 @@ mod tests {
         let mut m = valid_manifest();
         m.name = "Evil\u{202E}Plugin".into();
         assert!(m.validate().is_err());
+    }
+
+    // ── ExtensionDeps dual format ────────────────────────────────
+
+    #[test]
+    fn extension_deps_flat_format_deserializes() {
+        let json = serde_json::json!(["subscribe", "poll"]);
+        let deps: ExtensionDeps = serde_json::from_value(json).unwrap();
+        assert_eq!(deps.operation_names().len(), 2);
+        assert!(deps.scopes_for("subscribe").is_none());
+    }
+
+    #[test]
+    fn extension_deps_rich_format_deserializes() {
+        let json = serde_json::json!({
+            "subscribe": { "scopes": ["robot/**", "sensor/**"] },
+            "poll": {}
+        });
+        let deps: ExtensionDeps = serde_json::from_value(json).unwrap();
+        let mut ops = deps.operation_names();
+        ops.sort();
+        assert_eq!(ops, vec!["poll", "subscribe"]);
+        assert_eq!(
+            deps.scopes_for("subscribe"),
+            Some(vec!["robot/**".to_string(), "sensor/**".to_string()])
+        );
+        assert_eq!(deps.scopes_for("poll"), Some(vec![]));
+    }
+
+    #[test]
+    fn manifest_with_flat_extensions_validates() {
+        let mut m = valid_manifest();
+        m.extensions.insert(
+            "zenoh".into(),
+            ExtensionDeps::Flat(vec!["subscribe".into(), "poll".into()]),
+        );
+        assert!(m.validate().is_ok());
+    }
+
+    #[test]
+    fn manifest_with_rich_extensions_validates() {
+        let mut m = valid_manifest();
+        let mut ops = HashMap::new();
+        ops.insert("subscribe".into(), ExtensionOpDecl {
+            scopes: vec!["robot/**".into()],
+        });
+        ops.insert("poll".into(), ExtensionOpDecl::default());
+        m.extensions.insert("zenoh".into(), ExtensionDeps::Rich(ops));
+        assert!(m.validate().is_ok());
+    }
+
+    #[test]
+    fn all_permissions_includes_rich_extension_ops() {
+        let mut m = valid_manifest();
+        let mut ops = HashMap::new();
+        ops.insert("subscribe".into(), ExtensionOpDecl {
+            scopes: vec!["robot/**".into()],
+        });
+        ops.insert("poll".into(), ExtensionOpDecl::default());
+        m.extensions.insert("zenoh".into(), ExtensionDeps::Rich(ops));
+
+        let perms = m.all_permissions();
+        let ext_perms: Vec<&str> = perms
+            .iter()
+            .filter_map(|p| match p {
+                Permission::Extension(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(ext_perms.contains(&"ext:zenoh:subscribe"));
+        assert!(ext_perms.contains(&"ext:zenoh:poll"));
+    }
+
+    // ── mcp_access ───────────────────────────────────────────────
+
+    #[test]
+    fn all_permissions_includes_mcp_access() {
+        let mut m = valid_manifest();
+        m.mcp_access = vec!["com.nexus.agent".into(), "com.nexus.cookie-jar".into()];
+
+        let perms = m.all_permissions();
+        let mcp_perms: Vec<&str> = perms
+            .iter()
+            .filter_map(|p| match p {
+                Permission::McpAccess(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(mcp_perms.contains(&"mcp:com.nexus.agent"));
+        assert!(mcp_perms.contains(&"mcp:com.nexus.cookie-jar"));
+    }
+
+    #[test]
+    fn mcp_access_validation_rejects_empty_target() {
+        let mut m = valid_manifest();
+        m.mcp_access = vec!["".into()];
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn manifest_json_roundtrip_with_all_new_fields() {
+        let mut m = valid_manifest();
+        let mut ops = HashMap::new();
+        ops.insert("subscribe".into(), ExtensionOpDecl {
+            scopes: vec!["robot/**".into()],
+        });
+        m.extensions.insert("zenoh".into(), ExtensionDeps::Rich(ops));
+        m.mcp_access = vec!["com.nexus.agent".into()];
+
+        let json = serde_json::to_string(&m).unwrap();
+        let roundtripped: PluginManifest = serde_json::from_str(&json).unwrap();
+        assert_eq!(roundtripped.mcp_access, vec!["com.nexus.agent"]);
+
+        let zenoh_deps = roundtripped.extensions.get("zenoh").unwrap();
+        assert_eq!(zenoh_deps.scopes_for("subscribe"), Some(vec!["robot/**".to_string()]));
+    }
+
+    #[test]
+    fn manifest_backward_compatible_no_mcp_access() {
+        // Old manifests without mcp_access should deserialize fine (defaults to empty vec)
+        let json = serde_json::json!({
+            "id": "com.test.old",
+            "name": "Old Plugin",
+            "version": "1.0.0",
+            "description": "A legacy plugin",
+            "author": "Test",
+            "image": "test:latest",
+            "ui": { "port": 80 },
+            "permissions": ["mcp:call"],
+            "extensions": { "zenoh": ["subscribe", "poll"] }
+        });
+        let m: PluginManifest = serde_json::from_value(json).unwrap();
+        assert!(m.mcp_access.is_empty());
+        assert_eq!(m.extensions.get("zenoh").unwrap().operation_names().len(), 2);
+        assert!(m.validate().is_ok());
     }
 }

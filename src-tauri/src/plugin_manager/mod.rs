@@ -148,6 +148,29 @@ impl PluginManager {
         }
     }
 
+    /// Extract pre-declared scopes from the manifest for an extension permission.
+    ///
+    /// Format: "ext:{ext_id}:{operation}" → look up ext_id and operation in
+    /// `manifest.extensions` and return the scopes if the rich format is used.
+    /// Falls back to `Some(vec![])` (empty scopes, runtime approval) if no
+    /// pre-declared scopes are found.
+    fn extract_manifest_scopes(manifest: &PluginManifest, ext_str: &str) -> Option<Vec<String>> {
+        let parts: Vec<&str> = ext_str.splitn(3, ':').collect();
+        if parts.len() >= 3 {
+            let ext_id = parts[1];
+            let op = parts[2];
+            if let Some(deps) = manifest.extensions.get(ext_id) {
+                if let Some(scopes) = deps.scopes_for(op) {
+                    if !scopes.is_empty() {
+                        return Some(scopes);
+                    }
+                }
+            }
+        }
+        // Default: empty scopes → runtime approval on first use
+        Some(vec![])
+    }
+
     /// Build resource limits from current settings.
     fn resource_limits(&self) -> ResourceLimits {
         ResourceLimits {
@@ -337,13 +360,16 @@ impl PluginManager {
         // Grant only user-approved permissions.
         // Filesystem permissions default to an empty approved_scopes list so that
         // every path access triggers a runtime approval prompt. Extension permissions
-        // with scope_key also default to empty scopes. Existing plugins with `None`
-        // (unrestricted) are unaffected — this only applies at install time.
+        // with scope_key also default to empty scopes unless the manifest pre-declares
+        // them (rich format). Existing plugins with `None` (unrestricted) are unaffected.
         for perm in &approved_permissions {
             let approved_scopes = match perm {
                 crate::permissions::Permission::FilesystemRead
                 | crate::permissions::Permission::FilesystemWrite => Some(vec![]),
-                crate::permissions::Permission::Extension(_) => Some(vec![]),
+                crate::permissions::Permission::Extension(ext_str) => {
+                    // Check if the manifest pre-declares scopes for this operation
+                    Self::extract_manifest_scopes(&plugin.manifest, ext_str)
+                }
                 _ => None,
             };
             let _ = self
@@ -357,7 +383,9 @@ impl PluginManager {
             let approved_scopes = match perm {
                 crate::permissions::Permission::FilesystemRead
                 | crate::permissions::Permission::FilesystemWrite => Some(vec![]),
-                crate::permissions::Permission::Extension(_) => Some(vec![]),
+                crate::permissions::Permission::Extension(ext_str) => {
+                    Self::extract_manifest_scopes(&plugin.manifest, ext_str)
+                }
                 _ => None,
             };
             let _ = self
@@ -896,6 +924,7 @@ mod tests {
             settings: vec![],
             mcp: None,
             extensions: HashMap::new(),
+            mcp_access: vec![],
         }
     }
 

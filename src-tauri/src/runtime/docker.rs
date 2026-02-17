@@ -152,6 +152,7 @@ impl ContainerRuntime for DockerRuntime {
         let opts = BuildImageOptions {
             t: Some(tag.to_string()),
             rm: true,
+            forcerm: true,
             ..Default::default()
         };
 

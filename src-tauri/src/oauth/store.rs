@@ -597,6 +597,37 @@ pub(crate) fn normalize_redirect_uri(uri: String) -> String {
     }
 }
 
+/// Check if a redirect_uri matches a registered URI, with relaxed port
+/// matching for loopback addresses. MCP clients use ephemeral ports for
+/// their local callback server — the port can change between registration
+/// and the authorize request. For non-loopback URIs, exact match is required.
+///
+/// RFC 8252 §7.3: Loopback redirect URIs use random ports; the authorization
+/// server MUST allow any port for loopback IPs.
+pub(crate) fn redirect_uri_matches(requested: &str, registered: &str) -> bool {
+    let norm_req = normalize_redirect_uri(requested.to_string());
+    let norm_reg = normalize_redirect_uri(registered.to_string());
+
+    // Exact match (fast path)
+    if norm_req == norm_reg {
+        return true;
+    }
+
+    // Loopback port-relaxed match (RFC 8252 §7.3)
+    match (url::Url::parse(&norm_req), url::Url::parse(&norm_reg)) {
+        (Ok(req), Ok(reg)) => {
+            let is_loopback = req.host_str() == Some("127.0.0.1")
+                && reg.host_str() == Some("127.0.0.1");
+            if !is_loopback {
+                return false;
+            }
+            // Match scheme + host + path, ignore port
+            req.scheme() == reg.scheme() && req.path() == reg.path()
+        }
+        _ => false,
+    }
+}
+
 /// SHA-256 hash of a client secret, base64url-encoded (no padding).
 pub(crate) fn hash_client_secret(secret: &str) -> String {
     let mut hasher = Sha256::new();
@@ -1275,6 +1306,50 @@ mod tests {
     fn normalize_strips_fragment() {
         // RFC 6749 §3.1.2: fragments must be stripped
         assert!(!normalize_redirect_uri("http://127.0.0.1:3000/callback#frag".into()).contains('#'));
+    }
+
+    // =====================================================================
+    // Loopback redirect_uri matching (RFC 8252 §7.3)
+    // =====================================================================
+
+    #[test]
+    fn loopback_different_port_matches() {
+        assert!(redirect_uri_matches(
+            "http://localhost:55839/callback",
+            "http://127.0.0.1:54663/callback",
+        ));
+    }
+
+    #[test]
+    fn loopback_same_port_matches() {
+        assert!(redirect_uri_matches(
+            "http://127.0.0.1:3000/callback",
+            "http://127.0.0.1:3000/callback",
+        ));
+    }
+
+    #[test]
+    fn loopback_different_path_no_match() {
+        assert!(!redirect_uri_matches(
+            "http://127.0.0.1:3000/callback",
+            "http://127.0.0.1:3000/other",
+        ));
+    }
+
+    #[test]
+    fn non_loopback_different_port_no_match() {
+        assert!(!redirect_uri_matches(
+            "https://example.com:8080/callback",
+            "https://example.com:9090/callback",
+        ));
+    }
+
+    #[test]
+    fn non_loopback_exact_match() {
+        assert!(redirect_uri_matches(
+            "https://example.com:8080/callback",
+            "https://example.com:8080/callback",
+        ));
     }
 
     // =====================================================================

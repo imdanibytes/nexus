@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Json, Redirect, Response};
 use crate::host_api::approval::{ApprovalBridge, ApprovalDecision, ApprovalRequest};
 use crate::ActiveTheme;
 
-use super::store::{normalize_redirect_uri, OAuthStore};
+use super::store::{redirect_uri_matches, OAuthStore};
 use super::types::AuthorizeParams;
 
 // ---------------------------------------------------------------------------
@@ -76,10 +76,9 @@ pub async fn authorize(
         .get_client(&params.client_id)
         .ok_or(StatusCode::BAD_REQUEST)?;
 
-    // Validate redirect_uri matches registration
-    let normalized_uri = normalize_redirect_uri(params.redirect_uri.clone());
+    // Validate redirect_uri matches registration (RFC 8252 §7.3: loopback port relaxed)
     let uri_valid = client.redirect_uris.iter().any(|registered| {
-        normalize_redirect_uri(registered.clone()) == normalized_uri
+        redirect_uri_matches(&params.redirect_uri, registered)
     });
     if !uri_valid {
         log::warn!(

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
+import { useNotificationCount } from "../../stores/notificationStore";
 import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { ExtensionStatus } from "../../types/extension";
@@ -81,7 +82,7 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
       </SidebarMenuButton>
 
       {hasUpdate && (
-        <SidebarMenuBadge>
+        <SidebarMenuBadge className="group-focus-within/menu-item:opacity-0 group-hover/menu-item:opacity-0">
           <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent" />
         </SidebarMenuBadge>
       )}
@@ -325,7 +326,8 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
 
 export function AppSidebar() {
   const { t } = useTranslation(["common", "plugins"]);
-  const { currentView, setView, installedPlugins, installedExtensions, availableUpdates } = useAppStore();
+  const { currentView, setView, installedPlugins, installedExtensions } = useAppStore();
+  const badgeCount = useNotificationCount();
 
   const plugins = installedPlugins.filter((p) => p.manifest.ui !== null);
   const integrations = installedPlugins.filter((p) => p.manifest.ui === null);
@@ -426,10 +428,8 @@ export function AppSidebar() {
               <Settings size={15} strokeWidth={1.5} />
               {t("common:nav.settings")}
             </SidebarMenuButton>
-            {availableUpdates.length > 0 && (
-              <SidebarMenuBadge className="min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-nx-accent text-nx-deep">
-                {availableUpdates.length}
-              </SidebarMenuBadge>
+            {badgeCount > 0 && (
+              <SidebarMenuBadge className="min-w-0 h-2 w-2 p-0 rounded-full bg-nx-accent" style={{ top: "50%", transform: "translateY(-50%)" }} />
             )}
           </SidebarMenuItem>
         </SidebarMenu>

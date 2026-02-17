@@ -8,6 +8,7 @@ import { SettingsPage } from "./components/settings/SettingsPage";
 import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarketplacePage";
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
+import { useNotificationStore } from "./stores/notificationStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { useExtensions } from "./hooks/useExtensions";
 import { useDevRebuild } from "./hooks/useDevRebuild";
@@ -138,6 +139,7 @@ function App() {
   const { refresh: extensionRefresh } = useExtensions();
   useDevRebuild();
   const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval } = useAppStore();
+  const { notify, dismissByCategory } = useNotificationStore();
 
   const checkForPluginUpdates = useCallback(async () => {
     try {
@@ -145,11 +147,17 @@ function App() {
       const updates = await checkUpdates();
       if (updates.length > 0) {
         setAvailableUpdates(updates);
+        dismissByCategory("updates.plugins");
+        dismissByCategory("updates.extensions");
+        for (const u of updates) {
+          const cat = u.item_type === "plugin" ? "updates.plugins" : "updates.extensions";
+          notify(cat, u.item_name, { data: u });
+        }
       }
     } catch {
       // Silently ignore — offline or registry unreachable
     }
-  }, [setAvailableUpdates]);
+  }, [setAvailableUpdates, dismissByCategory, notify]);
 
   // One-time startup: docker check, app update check, initial plugin check, load interval setting
   useEffect(() => {
@@ -159,15 +167,13 @@ function App() {
     checkEngine()
       .then((status) => {
         if (!status.installed) {
-          addNotification(
-            i18n.t("common:notification.engineNotFound"),
-            "error"
-          );
+          const msg = i18n.t("common:notification.engineNotFound");
+          addNotification(msg, "error");
+          notify("system.engine", msg);
         } else if (!status.running) {
-          addNotification(
-            i18n.t("common:notification.engineNotRunning"),
-            "error"
-          );
+          const msg = i18n.t("common:notification.engineNotRunning");
+          addNotification(msg, "error");
+          notify("system.engine", msg);
         }
       })
       .catch(() => {});
@@ -176,10 +182,9 @@ function App() {
       .then(({ check }) => check())
       .then((update) => {
         if (update) {
-          addNotification(
-            i18n.t("common:notification.updateAvailable", { version: update.version }),
-            "info"
-          );
+          const msg = i18n.t("common:notification.updateAvailable", { version: update.version });
+          addNotification(msg, "info");
+          notify("updates.app", msg, { data: update });
         }
       })
       .catch(() => {});
@@ -188,7 +193,7 @@ function App() {
     getUpdateCheckInterval()
       .then(setUpdateCheckInterval)
       .catch(() => {});
-  }, [refresh, extensionRefresh, addNotification, checkForPluginUpdates, setUpdateCheckInterval]);
+  }, [refresh, extensionRefresh, addNotification, checkForPluginUpdates, setUpdateCheckInterval, notify]);
 
   // Reactive timer — restarts whenever the interval setting changes
   useEffect(() => {

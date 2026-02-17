@@ -12,6 +12,7 @@ import {
   setUpdateCheckInterval,
 } from "../../lib/tauri";
 import { useAppStore } from "../../stores/appStore";
+import { useNotificationStore } from "../../stores/notificationStore";
 import { usePlugins } from "../../hooks/usePlugins";
 import type { AvailableUpdate, UpdateSecurity } from "../../types/updates";
 import { KeyChangeWarningDialog } from "./KeyChangeWarningDialog";
@@ -98,7 +99,15 @@ export function UpdatesTab() {
   const CHECK_INTERVALS = useCheckIntervalOptions();
   const { availableUpdates, setAvailableUpdates, addNotification } =
     useAppStore();
+  const { notifications, dismiss: dismissNotification } = useNotificationStore();
   const { refresh: refreshPlugins } = usePlugins();
+
+  function dismissNotificationByItemId(itemId: string) {
+    const match = notifications.find(
+      (n) => (n.data as { item_id?: string })?.item_id === itemId,
+    );
+    if (match) dismissNotification(match.id);
+  }
 
   const { updateCheckInterval, setUpdateCheckInterval: setStoreInterval } = useAppStore();
 
@@ -152,6 +161,7 @@ export function UpdatesTab() {
       setAvailableUpdates(
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
+      dismissNotificationByItemId(update.item_id);
     } catch (e) {
       addNotification(i18n.t("common:error.dismissFailed", { error: e }), "error");
     }
@@ -173,6 +183,7 @@ export function UpdatesTab() {
       setAvailableUpdates(
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
+      dismissNotificationByItemId(update.item_id);
     } catch (e) {
       addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
     } finally {
@@ -193,6 +204,7 @@ export function UpdatesTab() {
       setAvailableUpdates(
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
+      dismissNotificationByItemId(update.item_id);
     } catch (e) {
       addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
     } finally {

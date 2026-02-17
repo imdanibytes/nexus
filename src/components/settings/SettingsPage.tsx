@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
+import { useNotificationCount } from "../../stores/notificationStore";
 import { GeneralTab } from "./GeneralTab";
 import { SystemTab } from "./SystemTab";
 import { PluginsTab } from "./PluginsTab";
@@ -26,6 +27,13 @@ const TABS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] = [
 
 const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
 
+/** Map tab IDs to notification category prefixes */
+const TAB_NOTIFICATION_PREFIX: Partial<Record<SettingsTab, string>> = {
+  updates: "updates",
+  system: "system",
+  general: "updates.app",
+};
+
 // Map old persisted tab IDs to their new homes so bookmarks/deep links still work
 const TAB_REDIRECTS: Record<string, SettingsTab> = {
   runtime: "system",
@@ -33,6 +41,13 @@ const TAB_REDIRECTS: Record<string, SettingsTab> = {
   permissions: "security",
   notifications: "general",
 };
+
+function TabDot({ tabId }: { tabId: SettingsTab }) {
+  const prefix = TAB_NOTIFICATION_PREFIX[tabId];
+  const count = useNotificationCount(prefix);
+  if (!prefix || count === 0) return null;
+  return <span className="w-1.5 h-1.5 rounded-full bg-nx-accent" />;
+}
 
 export function SettingsPage() {
   const { t } = useTranslation("settings");
@@ -66,6 +81,7 @@ export function SettingsPage() {
               >
                 <Icon size={14} strokeWidth={1.5} />
                 {t(tab.labelKey)}
+                <TabDot tabId={tab.id} />
               </button>
             );
           })}

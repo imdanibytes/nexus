@@ -1,14 +1,13 @@
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { NexusServer } from "@imdanibytes/nexus-sdk/server";
 
 const PORT = 80;
-const NEXUS_PLUGIN_SECRET = process.env.NEXUS_PLUGIN_SECRET || "";
-const NEXUS_API_URL =
-  process.env.NEXUS_API_URL || "http://host.docker.internal:9600";
-const NEXUS_HOST_URL =
-  process.env.NEXUS_HOST_URL || "http://host.docker.internal:9600";
+const nexus = new NexusServer();
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, "dist");
 
 const MIME_TYPES = {
@@ -22,31 +21,6 @@ const MIME_TYPES = {
   ".woff2": "font/woff2",
 };
 
-// ── Token Management ───────────────────────────────────────────
-let cachedAccessToken = null;
-let tokenExpiresAt = 0;
-
-async function getAccessToken() {
-  if (cachedAccessToken && Date.now() < tokenExpiresAt - 30000) {
-    return cachedAccessToken;
-  }
-
-  const res = await fetch(`${NEXUS_HOST_URL}/api/v1/auth/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ secret: NEXUS_PLUGIN_SECRET }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Token exchange failed: ${res.status}`);
-  }
-
-  const data = await res.json();
-  cachedAccessToken = data.access_token;
-  tokenExpiresAt = Date.now() + data.expires_in * 1000;
-  return cachedAccessToken;
-}
-
 // ── Server ─────────────────────────────────────────────────────
 
 const server = http.createServer((req, res) => {
@@ -59,13 +33,14 @@ const server = http.createServer((req, res) => {
 
   // Config endpoint — serves a short-lived access token to the frontend
   if (req.url === "/api/config") {
-    getAccessToken()
-      .then((token) => {
+    nexus
+      .getAccessToken()
+      .then(() => {
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         });
-        res.end(JSON.stringify({ token, apiUrl: NEXUS_API_URL }));
+        res.end(JSON.stringify(nexus.getClientConfig()));
       })
       .catch((err) => {
         res.writeHead(500, { "Content-Type": "application/json" });
@@ -82,15 +57,10 @@ const server = http.createServer((req, res) => {
       try {
         const { tool_name } = JSON.parse(body);
         let result;
-        const token = await getAccessToken();
-        const headers = { Authorization: `Bearer ${token}` };
 
         switch (tool_name) {
           case "get_system_info": {
-            const resp = await fetch(`${NEXUS_HOST_URL}/api/v1/system/info`, {
-              headers,
-            });
-            const info = await resp.json();
+            const info = await nexus.systemInfo();
             result = {
               content: [{ type: "text", text: JSON.stringify(info, null, 2) }],
               is_error: false,
@@ -98,9 +68,7 @@ const server = http.createServer((req, res) => {
             break;
           }
           case "list_storage_keys": {
-            const resp = await fetch(`${NEXUS_HOST_URL}/api/v1/storage`, {
-              headers,
-            });
+            const resp = await nexus.fetch("/api/v1/storage");
             const keys = await resp.json();
             result = {
               content: [{ type: "text", text: JSON.stringify(keys, null, 2) }],

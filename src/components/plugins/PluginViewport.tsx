@@ -82,8 +82,7 @@ export function PluginViewport({
             className="w-full h-full border-0"
             title={plugin.manifest.name}
             data-nexus-plugin={plugin.manifest.id}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            allow="clipboard-read; clipboard-write"
+            sandbox="allow-scripts allow-same-origin"
             onLoad={handleIframeLoad}
           />
         ) : isRunning && !isBusy && !hasUi ? (

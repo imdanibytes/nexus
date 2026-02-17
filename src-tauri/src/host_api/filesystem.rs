@@ -14,6 +14,19 @@ use crate::AppState;
 /// Maximum file size for reads (5 MB). Prevents loading huge files into memory.
 const MAX_READ_BYTES: u64 = 5 * 1024 * 1024;
 
+/// Expand `~` or `~/...` to the user's home directory.
+fn expand_tilde(raw: &str) -> PathBuf {
+    if raw == "~" {
+        dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
+    } else if let Some(rest) = raw.strip_prefix("~/") {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("/"))
+            .join(rest)
+    } else {
+        PathBuf::from(raw)
+    }
+}
+
 #[derive(Deserialize, IntoParams)]
 pub struct PathQuery {
     pub path: String,
@@ -131,7 +144,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 /// Validate safety for a read/list path. Canonicalizes (path must exist) and
 /// blocks access to the Nexus data directory.
 fn validate_read_safety(data_dir: &Path, raw_path: &str) -> Result<PathBuf, StatusCode> {
-    let path = PathBuf::from(raw_path);
+    let path = expand_tilde(raw_path);
     let canonical = path.canonicalize().map_err(|_| StatusCode::FORBIDDEN)?;
 
     if canonical.starts_with(data_dir) {
@@ -144,7 +157,7 @@ fn validate_read_safety(data_dir: &Path, raw_path: &str) -> Result<PathBuf, Stat
 /// Validate safety for a write path. Normalizes (target may not exist) and
 /// blocks access to the Nexus data directory.
 fn validate_write_safety(data_dir: &Path, raw_path: &str) -> Result<PathBuf, StatusCode> {
-    let path = PathBuf::from(raw_path);
+    let path = expand_tilde(raw_path);
 
     if !path.is_absolute() {
         return Err(StatusCode::FORBIDDEN);

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
-import { useNotificationCount } from "../../stores/notificationStore";
+import { useNotificationCount } from "../../stores/appStore";
 import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { ExtensionStatus } from "../../types/extension";
@@ -46,8 +46,8 @@ const statusColor: Record<string, string> = {
 
 function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const { selectedPluginId, selectPlugin, setView, setSettingsTab, availableUpdates, setAvailableUpdates, busyPlugins, setBusy, setShowLogs, warmViewports, addNotification } = useAppStore();
-  const { start, stop, remove, rebuild, toggleDevMode, refresh } = usePluginActions();
+  const { selectedPluginId, selectPlugin, setView, setSettingsTab, availableUpdates, setAvailableUpdates, busyPlugins, setShowLogs, warmViewports } = useAppStore();
+  const { start, stop, remove, rebuild, toggleDevMode } = usePluginActions();
   const id = plugin.manifest.id;
   const isSelected = selectedPluginId === id;
   const isRunning = plugin.status === "running";
@@ -71,16 +71,11 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
       setView("settings");
       return;
     }
-    setBusy(id, "updating");
     try {
       await api.updatePlugin(update.manifest_url, update.new_image_digest, update.build_context);
-      addNotification(t("common:notification.updatedTo", { name: update.item_name, version: update.available_version }), "success");
-      await refresh();
       setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== id));
-    } catch (e) {
-      addNotification(t("common:error.updateFailed", { error: e }), "error");
-    } finally {
-      setBusy(id, null);
+    } catch {
+      // Lifecycle events handle busy state and error toasts
     }
   }
 
@@ -204,7 +199,7 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
 
 function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const { availableUpdates, setAvailableUpdates, busyExtensions, setExtensionBusy, setExtensions, addNotification, setView, setSettingsTab, setFocusExtensionId } = useAppStore();
+  const { availableUpdates, setAvailableUpdates, busyExtensions, setView, setSettingsTab, setFocusExtensionId } = useAppStore();
   const isBusy = !!busyExtensions[ext.id];
   const update = availableUpdates.find((u) => u.item_id === ext.id);
   const hasUpdate = !!update;
@@ -217,57 +212,25 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
       setView("settings");
       return;
     }
-    setExtensionBusy(ext.id, "updating");
     try {
       await api.updateExtension(update.manifest_url);
-      addNotification(t("common:notification.updatedTo", { name: update.item_name, version: update.available_version }), "success");
-      const exts = await api.extensionList();
-      setExtensions(exts);
       setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== ext.id));
-    } catch (e) {
-      addNotification(t("common:error.updateFailed", { error: e }), "error");
-    } finally {
-      setExtensionBusy(ext.id, null);
+    } catch {
+      // Lifecycle events handle busy state and error toasts
     }
   }
 
   async function handleToggle() {
-    const action = ext.enabled ? "disabling" : "enabling";
-    setExtensionBusy(ext.id, action);
-    try {
-      if (ext.enabled) {
-        await api.extensionDisable(ext.id);
-        addNotification(t("common:notification.extensionDisabledName", { name: ext.display_name }), "info");
-      } else {
-        await api.extensionEnable(ext.id);
-        addNotification(t("common:notification.extensionEnabledName", { name: ext.display_name }), "success");
-      }
-      const exts = await api.extensionList();
-      setExtensions(exts);
-    } catch (e) {
-      addNotification(
-        ext.enabled
-          ? t("common:error.extensionDisableFailed", { error: e })
-          : t("common:error.extensionEnableFailed", { error: e }),
-        "error"
-      );
-    } finally {
-      setExtensionBusy(ext.id, null);
+    if (ext.enabled) {
+      await api.extensionDisable(ext.id);
+    } else {
+      await api.extensionEnable(ext.id);
     }
   }
 
   async function handleRemove() {
     setRemoveDialogOpen(false);
-    setExtensionBusy(ext.id, "removing");
-    try {
-      await api.extensionRemove(ext.id);
-      useAppStore.getState().removeExtension(ext.id);
-      addNotification(t("common:notification.extensionRemovedName", { name: ext.display_name }), "info");
-    } catch (e) {
-      addNotification(t("common:error.extensionRemoveFailed", { error: e }), "error");
-    } finally {
-      setExtensionBusy(ext.id, null);
-    }
+    await api.extensionRemove(ext.id);
   }
 
   return (

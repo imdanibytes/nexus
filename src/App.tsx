@@ -8,11 +8,9 @@ import { SettingsPage } from "./components/settings/SettingsPage";
 import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarketplacePage";
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
-import { useNotificationStore } from "./stores/notificationStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { useExtensions } from "./hooks/useExtensions";
-import { useDevRebuild } from "./hooks/useDevRebuild";
-import { useUpdateEvents } from "./hooks/useUpdateEvents";
+import { useLifecycleEvents } from "./hooks/useLifecycleEvents";
 import { checkEngine, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -138,10 +136,8 @@ function App() {
   } = useAppStore();
   const { refresh } = usePlugins();
   const { refresh: extensionRefresh } = useExtensions();
-  useDevRebuild();
-  useUpdateEvents();
-  const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval } = useAppStore();
-  const { notify, dismissByCategory } = useNotificationStore();
+  useLifecycleEvents();
+  const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval, notify, dismissByCategory } = useAppStore();
 
   const checkForPluginUpdates = useCallback(async () => {
     try {

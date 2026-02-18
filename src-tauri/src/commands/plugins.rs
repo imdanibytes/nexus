@@ -1,3 +1,4 @@
+use crate::lifecycle_events::{self, LifecycleEvent};
 use crate::permissions::Permission;
 use crate::plugin_manager::dev_watcher::DevWatcher;
 use crate::plugin_manager::health;
@@ -50,11 +51,16 @@ pub async fn plugin_preview_local(
 #[tauri::command]
 pub async fn plugin_install(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     manifest_url: String,
     approved_permissions: Vec<Permission>,
     deferred_permissions: Option<Vec<Permission>>,
     build_context: Option<String>,
 ) -> Result<InstalledPlugin, String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalling {
+        message: "Installing plugin...".into(),
+    });
+
     let manifest = registry::fetch_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
@@ -77,19 +83,38 @@ pub async fn plugin_install(
         }
     }
 
+    let plugin_id = manifest.id.clone();
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url), None)
-        .await
-        .map_err(|e| e.to_string())
+    match mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url), None).await {
+        Ok(plugin) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalled {
+                plugin: plugin.clone(),
+            });
+            Ok(plugin)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
+                plugin_id,
+                action: "installing".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn plugin_install_local(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     manifest_path: String,
     approved_permissions: Vec<Permission>,
     deferred_permissions: Option<Vec<Permission>>,
 ) -> Result<InstalledPlugin, String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalling {
+        message: "Installing plugin from local path...".into(),
+    });
+
     let data = std::fs::read_to_string(&manifest_path)
         .map_err(|e| format!("Failed to read manifest: {}", e))?;
     let manifest: PluginManifest =
@@ -97,6 +122,8 @@ pub async fn plugin_install_local(
     manifest
         .validate()
         .map_err(|e| format!("Invalid manifest: {}", e))?;
+
+    let plugin_id = manifest.id.clone();
 
     // Auto-build: if a Dockerfile sits next to the manifest, always rebuild.
     // Local installs are a dev workflow — always pick up the latest code.
@@ -118,46 +145,120 @@ pub async fn plugin_install_local(
     }
 
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), None, Some(manifest_path))
-        .await
-        .map_err(|e| e.to_string())
+    match mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), None, Some(manifest_path)).await {
+        Ok(plugin) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalled {
+                plugin: plugin.clone(),
+            });
+            Ok(plugin)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
+                plugin_id,
+                action: "installing".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn plugin_start(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     plugin_id: String,
 ) -> Result<(), String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStarting {
+        plugin_id: plugin_id.clone(),
+    });
+
     let mut mgr = state.write().await;
-    mgr.start(&plugin_id).await.map_err(|e| e.to_string())?;
-    mgr.notify_tools_changed();
-    Ok(())
+    match mgr.start(&plugin_id).await {
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            let plugin = mgr.storage.get(&plugin_id).cloned();
+            drop(mgr);
+            if let Some(plugin) = plugin {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStarted { plugin });
+            }
+            Ok(())
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
+                plugin_id,
+                action: "starting".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn plugin_stop(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     plugin_id: String,
 ) -> Result<(), String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStopping {
+        plugin_id: plugin_id.clone(),
+    });
+
     let mut mgr = state.write().await;
-    mgr.stop(&plugin_id).await.map_err(|e| e.to_string())?;
-    mgr.notify_tools_changed();
-    Ok(())
+    match mgr.stop(&plugin_id).await {
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            let plugin = mgr.storage.get(&plugin_id).cloned();
+            drop(mgr);
+            if let Some(plugin) = plugin {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStopped { plugin });
+            }
+            Ok(())
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
+                plugin_id,
+                action: "stopping".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn plugin_remove(
     state: tauri::State<'_, AppState>,
     dev_watcher: tauri::State<'_, Arc<DevWatcher>>,
+    app: tauri::AppHandle,
     plugin_id: String,
 ) -> Result<(), String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginRemoving {
+        plugin_id: plugin_id.clone(),
+    });
+
     // Stop dev watcher before removing the plugin
     dev_watcher.stop_watching(&plugin_id).await;
 
     let mut mgr = state.write().await;
-    mgr.remove(&plugin_id).await.map_err(|e| e.to_string())?;
-    mgr.notify_tools_changed();
-    Ok(())
+    match mgr.remove(&plugin_id).await {
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginRemoved {
+                plugin_id,
+            });
+            Ok(())
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
+                plugin_id,
+                action: "removing".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 

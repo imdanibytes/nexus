@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
-import { useNotificationCount } from "../../stores/notificationStore";
+import { useNotificationCount } from "../../stores/appStore";
 import { GeneralTab } from "./GeneralTab";
 import { SystemTab } from "./SystemTab";
 import { PluginsTab } from "./PluginsTab";

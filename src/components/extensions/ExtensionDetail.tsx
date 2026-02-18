@@ -66,7 +66,7 @@ interface Props {
 
 export function ExtensionDetail({ entry, onBack }: Props) {
   const { t } = useTranslation("plugins");
-  const { addNotification, setInstallStatus } = useAppStore();
+  const { addNotification } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [manifest, setManifest] = useState<ExtensionManifest | null>(null);
@@ -94,16 +94,13 @@ export function ExtensionDetail({ entry, onBack }: Props) {
 
   async function handleInstall() {
     setInstalling(true);
-    setInstallStatus(t("extensions.installingExtension"));
     try {
       await extensionInstall(entry.manifest_url);
-      addNotification(t("common:notification.extensionInstalled", { name: entry.name }), "success");
       onBack();
     } catch (e) {
       addNotification(t("common:error.installFailed", { error: e }), "error");
     } finally {
       setInstalling(false);
-      setInstallStatus(null);
     }
   }
 

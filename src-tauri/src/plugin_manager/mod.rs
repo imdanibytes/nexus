@@ -21,8 +21,6 @@ use storage::{
     PluginStorage,
 };
 
-use tauri::Emitter;
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -52,23 +50,14 @@ fn check_min_nexus_version(manifest: &PluginManifest) -> NexusResult<()> {
     Ok(())
 }
 
-/// Emitted on `nexus://plugin-update` so the frontend can show granular progress.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct PluginUpdateEvent {
-    pub plugin_id: String,
-    pub stage: &'static str, // stopping | pulling | starting
-}
-
 fn emit_update(app_handle: Option<&tauri::AppHandle>, plugin_id: &str, stage: &'static str) {
-    if let Some(app) = app_handle {
-        let _ = app.emit(
-            "nexus://plugin-update",
-            PluginUpdateEvent {
-                plugin_id: plugin_id.to_string(),
-                stage,
-            },
-        );
-    }
+    crate::lifecycle_events::emit(
+        app_handle,
+        crate::lifecycle_events::LifecycleEvent::PluginUpdateStage {
+            plugin_id: plugin_id.to_string(),
+            stage: stage.to_string(),
+        },
+    );
 }
 
 pub struct PluginManager {

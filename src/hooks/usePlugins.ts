@@ -5,7 +5,7 @@ import type { PluginManifest } from "../types/plugin";
 import * as api from "../lib/tauri";
 import i18n from "../i18n";
 
-const SYNC_INTERVAL_MS = 5000;
+const SYNC_INTERVAL_MS = 30_000;
 
 export function usePlugins() {
   const {
@@ -14,17 +14,14 @@ export function usePlugins() {
     busyPlugins,
     setPlugins,
     selectPlugin,
-    removePlugin: removeFromStore,
-    setBusy,
     addNotification,
-    setInstallStatus,
   } = useAppStore();
 
   const selectedPlugin = installedPlugins.find(
     (p) => p.manifest.id === selectedPluginId
   );
 
-  // Poll Docker state every 5 seconds
+  // Fallback poll — lifecycle events handle most updates, this is a safety net
   const syncingRef = useRef(false);
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -76,119 +73,41 @@ export function usePlugins() {
     [addNotification]
   );
 
-  // Step 2: Install with user-approved and deferred permissions
+  // Step 2: Install — fire and forget, lifecycle events handle status
   const install = useCallback(
     async (manifestUrl: string, approvedPermissions: Permission[], deferredPermissions?: Permission[], buildContext?: string) => {
-      setInstallStatus(buildContext ? i18n.t("plugins:installStatus.building") : i18n.t("plugins:installStatus.installing"));
-      try {
-        await api.pluginInstall(manifestUrl, approvedPermissions, deferredPermissions, buildContext);
-        addNotification(i18n.t("notification.pluginInstalled"), "success");
-        await refresh();
-      } catch (e) {
-        addNotification(i18n.t("error.installFailed", { error: e }), "error");
-      } finally {
-        setInstallStatus(null);
-      }
+      await api.pluginInstall(manifestUrl, approvedPermissions, deferredPermissions, buildContext);
     },
-    [refresh, addNotification, setInstallStatus]
+    []
   );
 
   const installLocal = useCallback(
     async (manifestPath: string, approvedPermissions: Permission[], deferredPermissions?: Permission[]) => {
-      setInstallStatus(i18n.t("plugins:installStatus.building"));
-      try {
-        await api.pluginInstallLocal(manifestPath, approvedPermissions, deferredPermissions);
-        addNotification(i18n.t("notification.pluginInstalledLocal"), "success");
-        await refresh();
-      } catch (e) {
-        addNotification(i18n.t("error.localInstallFailed", { error: e }), "error");
-      } finally {
-        setInstallStatus(null);
-      }
+      await api.pluginInstallLocal(manifestPath, approvedPermissions, deferredPermissions);
     },
-    [refresh, addNotification, setInstallStatus]
+    []
   );
 
-  const start = useCallback(
-    async (pluginId: string) => {
-      setBusy(pluginId, "starting");
-      try {
-        await api.pluginStart(pluginId);
-        addNotification(i18n.t("notification.pluginStarted"), "success");
-        await refresh();
-      } catch (e) {
-        addNotification(i18n.t("error.startFailed", { error: e }), "error");
-      } finally {
-        setBusy(pluginId, null);
-      }
-    },
-    [refresh, setBusy, addNotification]
-  );
+  const start = useCallback(async (pluginId: string) => {
+    await api.pluginStart(pluginId);
+  }, []);
 
-  const stop = useCallback(
-    async (pluginId: string) => {
-      setBusy(pluginId, "stopping");
-      try {
-        await api.pluginStop(pluginId);
-        addNotification(i18n.t("notification.pluginStopped"), "info");
-        await refresh();
-      } catch (e) {
-        addNotification(i18n.t("error.stopFailed", { error: e }), "error");
-      } finally {
-        setBusy(pluginId, null);
-      }
-    },
-    [refresh, setBusy, addNotification]
-  );
+  const stop = useCallback(async (pluginId: string) => {
+    await api.pluginStop(pluginId);
+  }, []);
 
-  const remove = useCallback(
-    async (pluginId: string) => {
-      setBusy(pluginId, "removing");
-      try {
-        await api.pluginRemove(pluginId);
-        removeFromStore(pluginId);
-        addNotification(i18n.t("notification.pluginRemoved"), "info");
-      } catch (e) {
-        addNotification(i18n.t("error.removeFailed", { error: e }), "error");
-      } finally {
-        setBusy(pluginId, null);
-      }
-    },
-    [removeFromStore, setBusy, addNotification]
-  );
+  const remove = useCallback(async (pluginId: string) => {
+    await api.pluginRemove(pluginId);
+  }, []);
 
-  const restart = useCallback(
-    async (pluginId: string) => {
-      setBusy(pluginId, "stopping");
-      try {
-        await api.pluginStop(pluginId);
-        setBusy(pluginId, "starting");
-        await api.pluginStart(pluginId);
-        addNotification(i18n.t("notification.pluginStarted"), "success");
-        await refresh();
-      } catch (e) {
-        addNotification(i18n.t("error.startFailed", { error: e }), "error");
-      } finally {
-        setBusy(pluginId, null);
-      }
-    },
-    [refresh, setBusy, addNotification]
-  );
+  const restart = useCallback(async (pluginId: string) => {
+    await api.pluginStop(pluginId);
+    await api.pluginStart(pluginId);
+  }, []);
 
-  const rebuild = useCallback(
-    async (pluginId: string) => {
-      setBusy(pluginId, "rebuilding");
-      try {
-        await api.pluginRebuild(pluginId);
-        // Toast + busy clear handled by useDevRebuild() hook on "complete" event.
-        // The command returns immediately (rebuild is spawned in background).
-      } catch (e) {
-        addNotification(i18n.t("error.rebuildFailed", { error: e }), "error");
-        setBusy(pluginId, null);
-      }
-    },
-    [setBusy, addNotification]
-  );
+  const rebuild = useCallback(async (pluginId: string) => {
+    await api.pluginRebuild(pluginId);
+  }, []);
 
   const toggleDevMode = useCallback(
     async (pluginId: string, enable: boolean) => {
@@ -200,12 +119,14 @@ export function usePlugins() {
             : i18n.t("notification.devModeDisabled"),
           "info"
         );
-        await refresh();
+        // No lifecycle event for dev mode — refresh to pick up the change
+        const plugins = await api.pluginList();
+        setPlugins(plugins);
       } catch (e) {
         addNotification(i18n.t("error.devModeToggleFailed", { error: e }), "error");
       }
     },
-    [refresh, addNotification]
+    [setPlugins, addNotification]
   );
 
   const getLogs = useCallback(

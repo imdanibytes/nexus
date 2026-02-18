@@ -67,6 +67,7 @@ AI Client → MCP (Streamable HTTP) → Host API (:9600/mcp) → Plugin containe
   - `signing.rs` — ed25519 signature verification
 - **`mcp_wrap/`** — Wraps arbitrary MCP servers as Nexus plugins (discovery, classification, code generation)
 - **`commands/`** — Tauri IPC command handlers (one file per domain). These are the bridge between frontend `invoke()` calls and backend logic.
+- **`lifecycle_events.rs`** — Unified event contract. All state-change events flow through `nexus://lifecycle` as a `#[serde(tag = "kind")]` discriminated union. See "Lifecycle Events" section below.
 
 ### Frontend (src/)
 
@@ -148,6 +149,23 @@ Generic `ApprovalBridge` in `approval.rs` — creates a oneshot channel, emits a
 
 ### Frontend state
 Single Zustand store, no React Router. Navigation is `setView("marketplace")`. All Tauri commands are called through typed wrappers in `lib/tauri.ts`.
+
+### Lifecycle events
+Backend is the sole source of truth. Every state-changing command emits events on the `nexus://lifecycle` Tauri event channel. The frontend listens via a single hook (`useLifecycleEvents`) that dispatches to the Zustand store.
+
+**Event flow**: Component calls `api.*()` (fire-and-forget) → backend command runs → emits `LifecycleEvent` → `useLifecycleEvents` handler → store mutation → React re-render.
+
+**Rules**:
+- Components MUST NOT call `setBusy`/`setExtensionBusy`/`setPlugins`/`updatePlugin` directly. They only fire commands.
+- "In-progress" events carry only ID + action (cheap). "Completion" events carry the full entity for store upsert.
+- Error toasts come from the lifecycle listener, not from component catch blocks.
+- Polling (30s) is a crash-recovery fallback, not the primary update mechanism.
+
+**Adding a new lifecycle operation**:
+1. Add variants to `LifecycleEvent` in `src-tauri/src/lifecycle_events.rs` (Rust)
+2. Add matching types to `src/types/lifecycle.ts` (TypeScript)
+3. Emit events from the backend command in `src-tauri/src/commands/`
+4. Add cases to the switch in `src/hooks/useLifecycleEvents.ts`
 
 ## Registry CLI (nexus-registry)
 

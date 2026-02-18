@@ -3,19 +3,17 @@ import { useAppStore } from "../stores/appStore";
 import * as api from "../lib/tauri";
 import i18n from "../i18n";
 
-const SYNC_INTERVAL_MS = 10_000;
+const SYNC_INTERVAL_MS = 30_000;
 
 export function useExtensions() {
   const {
     installedExtensions,
     busyExtensions,
     setExtensions,
-    removeExtension: removeFromStore,
-    setExtensionBusy,
     addNotification,
   } = useAppStore();
 
-  // Poll extension state every 10 seconds
+  // Fallback poll — lifecycle events handle most updates, this is a safety net
   const syncingRef = useRef(false);
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -42,53 +40,17 @@ export function useExtensions() {
     }
   }, [setExtensions, addNotification]);
 
-  const enable = useCallback(
-    async (extId: string) => {
-      setExtensionBusy(extId, "enabling");
-      try {
-        await api.extensionEnable(extId);
-        addNotification(i18n.t("notification.extensionEnabled"), "success");
-        await refresh();
-      } catch (e) {
-        addNotification(i18n.t("error.enableFailed", { error: e }), "error");
-      } finally {
-        setExtensionBusy(extId, null);
-      }
-    },
-    [refresh, setExtensionBusy, addNotification]
-  );
+  const enable = useCallback(async (extId: string) => {
+    await api.extensionEnable(extId);
+  }, []);
 
-  const disable = useCallback(
-    async (extId: string) => {
-      setExtensionBusy(extId, "disabling");
-      try {
-        await api.extensionDisable(extId);
-        addNotification(i18n.t("notification.extensionDisabled"), "info");
-        await refresh();
-      } catch (e) {
-        addNotification(i18n.t("error.disableFailed", { error: e }), "error");
-      } finally {
-        setExtensionBusy(extId, null);
-      }
-    },
-    [refresh, setExtensionBusy, addNotification]
-  );
+  const disable = useCallback(async (extId: string) => {
+    await api.extensionDisable(extId);
+  }, []);
 
-  const remove = useCallback(
-    async (extId: string) => {
-      setExtensionBusy(extId, "removing");
-      try {
-        await api.extensionRemove(extId);
-        removeFromStore(extId);
-        addNotification(i18n.t("notification.extensionRemoved"), "info");
-      } catch (e) {
-        addNotification(i18n.t("error.removeFailed", { error: e }), "error");
-      } finally {
-        setExtensionBusy(extId, null);
-      }
-    },
-    [removeFromStore, setExtensionBusy, addNotification]
-  );
+  const remove = useCallback(async (extId: string) => {
+    await api.extensionRemove(extId);
+  }, []);
 
   return {
     extensions: installedExtensions,

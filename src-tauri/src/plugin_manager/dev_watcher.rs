@@ -3,19 +3,10 @@ use crate::plugin_manager::storage::PluginStatus;
 use crate::AppState;
 
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use tauri::Emitter;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-
-/// Emitted on the `nexus://dev-rebuild` Tauri event channel.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct DevRebuildEvent {
-    pub plugin_id: String,
-    pub status: &'static str, // started | building | restarting | complete | error
-    pub message: String,
-}
 
 struct WatcherHandle {
     _watcher: RecommendedWatcher,
@@ -130,12 +121,14 @@ impl DevWatcher {
 }
 
 fn emit_rebuild(app_handle: &tauri::AppHandle, plugin_id: &str, status: &'static str, message: String) {
-    let event = DevRebuildEvent {
-        plugin_id: plugin_id.to_string(),
-        status,
-        message,
-    };
-    let _ = app_handle.emit("nexus://dev-rebuild", &event);
+    crate::lifecycle_events::emit(
+        Some(app_handle),
+        crate::lifecycle_events::LifecycleEvent::PluginRebuild {
+            plugin_id: plugin_id.to_string(),
+            status: status.to_string(),
+            message,
+        },
+    );
 }
 
 /// Read manifest, build image, reinstall plugin, restart if it was running.

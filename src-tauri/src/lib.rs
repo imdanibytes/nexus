@@ -2,6 +2,7 @@ mod commands;
 mod error;
 pub mod extensions;
 pub mod host_api;
+pub mod lifecycle_events;
 pub mod mcp_wrap;
 mod notification;
 pub mod oauth;

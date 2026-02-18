@@ -12,7 +12,6 @@ import {
   setUpdateCheckInterval,
 } from "../../lib/tauri";
 import { useAppStore } from "../../stores/appStore";
-import { useNotificationStore } from "../../stores/notificationStore";
 import { usePlugins } from "../../hooks/usePlugins";
 import type { AvailableUpdate, UpdateSecurity } from "../../types/updates";
 import { KeyChangeWarningDialog } from "./KeyChangeWarningDialog";
@@ -97,16 +96,15 @@ function RegistryBadge({ source }: { source: string }) {
 export function UpdatesTab() {
   const { t } = useTranslation("settings");
   const CHECK_INTERVALS = useCheckIntervalOptions();
-  const { availableUpdates, setAvailableUpdates, addNotification } =
+  const { availableUpdates, setAvailableUpdates, addNotification, notifications, dismiss } =
     useAppStore();
-  const { notifications, dismiss: dismissNotification } = useNotificationStore();
   const { refresh: refreshPlugins } = usePlugins();
 
   function dismissNotificationByItemId(itemId: string) {
     const match = notifications.find(
       (n) => (n.data as { item_id?: string })?.item_id === itemId,
     );
-    if (match) dismissNotification(match.id);
+    if (match) dismiss(match.id);
   }
 
   const { updateCheckInterval, setUpdateCheckInterval: setStoreInterval } = useAppStore();

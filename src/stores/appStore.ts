@@ -1,3 +1,13 @@
+/**
+ * Single Zustand store for ALL app state. Do not create additional stores.
+ *
+ * State updates flow through lifecycle events from the backend:
+ *   Component fires Tauri command -> Backend processes -> Backend emits lifecycle event
+ *   -> useLifecycleEvents listener -> store mutation -> React re-render
+ *
+ * Components MUST NOT call setBusy/setExtensionBusy/setPlugins/etc directly.
+ * They only fire commands via lib/tauri.ts wrappers.
+ */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
@@ -12,6 +22,22 @@ export type ExtensionAction = "enabling" | "disabling" | "removing" | "updating"
 interface InstallStatus {
   active: boolean;
   message: string;
+}
+
+export interface NotificationMeta {
+  /** Dot-delimited category for hierarchical querying.
+   *  e.g. "updates.plugins", "system.engine", "plugin.com.nexus.agent" */
+  category: string;
+  /** Optional source plugin ID — enables per-plugin sidebar badges later */
+  pluginId?: string;
+}
+
+export interface Notification {
+  id: string;
+  message: string;
+  meta: NotificationMeta;
+  createdAt: number;
+  data?: unknown;
 }
 
 interface AppState {
@@ -34,10 +60,12 @@ interface AppState {
   settingsTab: string;
   focusExtensionId: string | null;
   warmViewports: Record<string, true>;
+  notifications: Notification[];
 
   setView: (view: View) => void;
   setPlugins: (plugins: InstalledPlugin[]) => void;
   updatePlugin: (plugin: InstalledPlugin) => void;
+  updateExtension: (extension: ExtensionStatus) => void;
   removePlugin: (pluginId: string) => void;
   selectPlugin: (pluginId: string | null) => void;
   setBusy: (pluginId: string, action: PluginAction | null) => void;
@@ -58,6 +86,14 @@ interface AppState {
   setSettingsTab: (tab: string) => void;
   setFocusExtensionId: (id: string | null) => void;
   setWarmViewports: (ids: string[]) => void;
+  notify: (
+    category: string,
+    message: string,
+    opts?: { pluginId?: string; data?: unknown },
+  ) => string;
+  dismiss: (id: string) => void;
+  dismissByCategory: (prefix: string) => void;
+  clearAll: () => void;
 }
 
 export const useAppStore = create<AppState>()(persist((set) => ({
@@ -82,13 +118,31 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   warmViewports: {},
 
   setView: (view) => set({ currentView: view }),
+  notifications: [],
+
   setPlugins: (plugins) => set({ installedPlugins: plugins }),
   updatePlugin: (plugin) =>
-    set((state) => ({
-      installedPlugins: state.installedPlugins.map((p) =>
-        p.manifest.id === plugin.manifest.id ? plugin : p
-      ),
-    })),
+    set((state) => {
+      const idx = state.installedPlugins.findIndex(
+        (p) => p.manifest.id === plugin.manifest.id
+      );
+      if (idx >= 0) {
+        const next = [...state.installedPlugins];
+        next[idx] = plugin;
+        return { installedPlugins: next };
+      }
+      return { installedPlugins: [...state.installedPlugins, plugin] };
+    }),
+  updateExtension: (extension) =>
+    set((state) => {
+      const idx = state.installedExtensions.findIndex((e) => e.id === extension.id);
+      if (idx >= 0) {
+        const next = [...state.installedExtensions];
+        next[idx] = extension;
+        return { installedExtensions: next };
+      }
+      return { installedExtensions: [...state.installedExtensions, extension] };
+    }),
   removePlugin: (pluginId) =>
     set((state) => ({
       installedPlugins: state.installedPlugins.filter(
@@ -150,6 +204,37 @@ export const useAppStore = create<AppState>()(persist((set) => ({
     for (const id of ids) next[id] = true;
     return set({ warmViewports: next });
   },
+
+  notify: (category, message, opts) => {
+    const id = crypto.randomUUID();
+    set((state) => ({
+      notifications: [
+        ...state.notifications,
+        {
+          id,
+          message,
+          meta: { category, pluginId: opts?.pluginId },
+          createdAt: Date.now(),
+          data: opts?.data,
+        },
+      ],
+    }));
+    return id;
+  },
+
+  dismiss: (id) =>
+    set((state) => ({
+      notifications: state.notifications.filter((n) => n.id !== id),
+    })),
+
+  dismissByCategory: (prefix) =>
+    set((state) => ({
+      notifications: state.notifications.filter(
+        (n) => !n.meta.category.startsWith(prefix),
+      ),
+    })),
+
+  clearAll: () => set({ notifications: [] }),
 }), {
   name: "nexus-nav",
   partialize: (state) => ({
@@ -158,3 +243,21 @@ export const useAppStore = create<AppState>()(persist((set) => ({
     settingsTab: state.settingsTab,
   }),
 }));
+
+/** Total count, or count matching a category prefix */
+export function useNotificationCount(prefix?: string): number {
+  return useAppStore((state) =>
+    prefix
+      ? state.notifications.filter((n) =>
+          n.meta.category.startsWith(prefix),
+        ).length
+      : state.notifications.length,
+  );
+}
+
+/** All notifications matching a category prefix */
+export function useNotifications(prefix: string): Notification[] {
+  return useAppStore((state) =>
+    state.notifications.filter((n) => n.meta.category.startsWith(prefix)),
+  );
+}

@@ -2,8 +2,10 @@ use crate::extensions::capability::Capability;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::extensions::storage::InstalledExtension;
 use crate::extensions::RiskLevel;
+use crate::lifecycle_events::{self, LifecycleEvent};
 use crate::permissions::Permission;
 use crate::plugin_manager::registry::ExtensionRegistryEntry;
+use crate::plugin_manager::PluginManager;
 use crate::AppState;
 use serde::Serialize;
 
@@ -33,6 +35,85 @@ pub struct ExtensionStatus {
     pub consumers: Vec<ExtensionConsumer>,
     pub installed: bool,
     pub enabled: bool,
+}
+
+/// Build an `ExtensionStatus` for a single extension by ID.
+/// Checks the running registry first, then falls back to installed-but-disabled storage.
+fn build_extension_status(mgr: &PluginManager, ext_id: &str) -> Option<ExtensionStatus> {
+    // Check running registry first
+    if let Some(ext_info) = mgr.extensions.list().into_iter().find(|e| e.id == ext_id) {
+        let operations: Vec<ExtensionOperationStatus> = ext_info
+            .operations
+            .iter()
+            .map(|op| ExtensionOperationStatus {
+                name: op.name.clone(),
+                description: op.description.clone(),
+                risk_level: op.risk_level,
+                scope_key: op.scope_key.clone(),
+                scope_description: op.scope_description.clone(),
+            })
+            .collect();
+
+        let mut consumers = Vec::new();
+        for plugin in mgr.storage.list() {
+            if let Some(deps) = plugin.manifest.extensions.get(&ext_info.id) {
+                let all_granted = deps.operation_names().iter().all(|op_name| {
+                    let perm_str = ExtensionRegistry::permission_string(&ext_info.id, op_name);
+                    let perm = Permission::Extension(perm_str);
+                    mgr.permissions.has_permission(&plugin.manifest.id, &perm)
+                });
+
+                consumers.push(ExtensionConsumer {
+                    plugin_id: plugin.manifest.id.clone(),
+                    plugin_name: plugin.manifest.name.clone(),
+                    granted: all_granted,
+                });
+            }
+        }
+
+        let installed_ext = mgr.extension_loader.storage.get(&ext_info.id);
+        return Some(ExtensionStatus {
+            id: ext_info.id,
+            display_name: ext_info.display_name,
+            description: ext_info.description,
+            operations,
+            capabilities: ext_info.capabilities,
+            consumers,
+            installed: installed_ext.is_some(),
+            enabled: installed_ext.is_some_and(|e| e.enabled),
+        });
+    }
+
+    // Fall back to installed-but-disabled storage
+    if let Some(installed) = mgr.extension_loader.storage.get(ext_id) {
+        if !installed.enabled {
+            let operations: Vec<ExtensionOperationStatus> = installed
+                .manifest
+                .operations
+                .iter()
+                .map(|op| ExtensionOperationStatus {
+                    name: op.name.clone(),
+                    description: op.description.clone(),
+                    risk_level: op.risk_level,
+                    scope_key: op.scope_key.clone(),
+                    scope_description: op.scope_description.clone(),
+                })
+                .collect();
+
+            return Some(ExtensionStatus {
+                id: installed.manifest.id.clone(),
+                display_name: installed.manifest.display_name.clone(),
+                description: installed.manifest.description.clone(),
+                operations,
+                capabilities: installed.manifest.capabilities.clone(),
+                consumers: Vec::new(),
+                installed: true,
+                enabled: false,
+            });
+        }
+    }
+
+    None
 }
 
 /// List all registered (running) extensions with their status.
@@ -130,6 +211,7 @@ pub async fn extension_list(
 #[tauri::command]
 pub async fn extension_install(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     manifest_url: String,
 ) -> Result<InstalledExtension, String> {
     // Fetch manifest
@@ -137,41 +219,107 @@ pub async fn extension_install(
         .await
         .map_err(|e| e.to_string())?;
 
+    let ext_id = manifest.id.clone();
+    lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalling {
+        ext_id: ext_id.clone(),
+    });
+
     let mut mgr = state.write().await;
-    mgr.extension_loader
-        .install(manifest, Some(&manifest_url))
-        .await
-        .map_err(|e| e.to_string())
+    match mgr.extension_loader.install(manifest, Some(&manifest_url)).await {
+        Ok(installed) => {
+            if let Some(status) = build_extension_status(&mgr, &ext_id) {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
+                    extension: status,
+                });
+            }
+            Ok(installed)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                ext_id,
+                action: "installing".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Enable an installed extension (spawns process, registers in runtime).
 #[tauri::command]
 pub async fn extension_enable(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     ext_id: String,
 ) -> Result<(), String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionEnabling {
+        ext_id: ext_id.clone(),
+    });
+
     let mut mgr = state.write().await;
-    mgr.enable_extension(&ext_id)
-        .map_err(|e| e.to_string())
+    match mgr.enable_extension(&ext_id) {
+        Ok(()) => {
+            if let Some(status) = build_extension_status(&mgr, &ext_id) {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionEnabled {
+                    extension: status,
+                });
+            }
+            Ok(())
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                ext_id,
+                action: "enabling".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Disable an extension (stops process, unregisters from runtime).
 #[tauri::command]
 pub async fn extension_disable(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     ext_id: String,
 ) -> Result<(), String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionDisabling {
+        ext_id: ext_id.clone(),
+    });
+
     let mut mgr = state.write().await;
-    mgr.disable_extension(&ext_id)
-        .map_err(|e| e.to_string())
+    match mgr.disable_extension(&ext_id) {
+        Ok(()) => {
+            if let Some(status) = build_extension_status(&mgr, &ext_id) {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionDisabled {
+                    extension: status,
+                });
+            }
+            Ok(())
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                ext_id,
+                action: "disabling".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Remove an extension entirely (stop, delete files, unregister).
 #[tauri::command]
 pub async fn extension_remove(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     ext_id: String,
 ) -> Result<(), String> {
+    lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionRemoving {
+        ext_id: ext_id.clone(),
+    });
+
     let mut mgr = state.write().await;
 
     // Collect plugin IDs and their extension permissions to revoke
@@ -199,8 +347,22 @@ pub async fn extension_remove(
         }
     }
 
-    mgr.remove_extension(&ext_id)
-        .map_err(|e| e.to_string())
+    match mgr.remove_extension(&ext_id) {
+        Ok(()) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionRemoved {
+                ext_id,
+            });
+            Ok(())
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                ext_id,
+                action: "removing".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Preview an extension from the marketplace (fetch manifest without installing).
@@ -218,11 +380,40 @@ pub async fn extension_preview(
 #[tauri::command]
 pub async fn extension_install_local(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     manifest_path: String,
 ) -> Result<InstalledExtension, String> {
+    // Read the manifest to get the ext_id for events before the install
+    let manifest_data = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Failed to read manifest: {}", e))?;
+    let manifest: crate::extensions::manifest::ExtensionManifest =
+        serde_json::from_str(&manifest_data)
+            .map_err(|e| format!("Invalid manifest: {}", e))?;
+    let ext_id = manifest.id.clone();
+
+    lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalling {
+        ext_id: ext_id.clone(),
+    });
+
     let mut mgr = state.write().await;
-    mgr.install_extension_local(std::path::Path::new(&manifest_path))
-        .map_err(|e| e.to_string())
+    match mgr.install_extension_local(std::path::Path::new(&manifest_path)) {
+        Ok(installed) => {
+            if let Some(status) = build_extension_status(&mgr, &ext_id) {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
+                    extension: status,
+                });
+            }
+            Ok(installed)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                ext_id,
+                action: "installing".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Search the extension marketplace.

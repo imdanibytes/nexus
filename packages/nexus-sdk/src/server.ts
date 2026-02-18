@@ -70,6 +70,8 @@ export class NexusServer {
       process.env.NEXUS_HOST_URL ||
       "http://host.docker.internal:9600";
     this.refreshBuffer = options?.refreshBuffer ?? 30_000;
+
+    _patchCreateServer();
   }
 
   // ── Auth (internal) ───────────────────────────────────────
@@ -308,4 +310,90 @@ export class NexusServer {
     this.expiresAt = Date.now() + data.expires_in * 1000;
     return this.accessToken;
   }
+}
+
+// ── One-shot http.createServer patch for /__nexus/* routes ────────
+
+import type { IncomingMessage, ServerResponse } from "node:http";
+
+type RequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
+
+let _patched = false;
+
+function _patchCreateServer(): void {
+  if (_patched) return;
+  _patched = true;
+
+  // Dynamic import avoided — http is always available in Node.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const http = require("node:http") as typeof import("node:http");
+  const originalCreateServer = http.createServer.bind(http);
+
+  // Replace http.createServer with a one-shot wrapper.
+  // On first call: wraps the user's handler to intercept /__nexus/* routes.
+  // Immediately restores the original so subsequent createServer calls are untouched.
+  (http as { createServer: typeof http.createServer }).createServer = function (
+    ...args: unknown[]
+  ) {
+    // Restore immediately — one-shot only.
+    (http as { createServer: typeof http.createServer }).createServer =
+      originalCreateServer;
+
+    // Find the request handler arg (first function argument).
+    const handlerIdx = args.findIndex((a) => typeof a === "function");
+    if (handlerIdx === -1) {
+      // No handler — pass through untouched (e.g. createServer with just options).
+      return originalCreateServer(...(args as Parameters<typeof http.createServer>));
+    }
+
+    const userHandler = args[handlerIdx] as RequestHandler;
+    args[handlerIdx] = (req: IncomingMessage, res: ServerResponse) => {
+      if (req.url?.startsWith("/__nexus/")) {
+        _handleNexusRoute(req, res);
+        return;
+      }
+      userHandler(req, res);
+    };
+
+    return originalCreateServer(...(args as Parameters<typeof http.createServer>));
+  } as typeof http.createServer;
+}
+
+function _handleNexusRoute(req: IncomingMessage, res: ServerResponse): void {
+  if (req.method === "POST" && req.url === "/__nexus/log") {
+    _handleLogRoute(req, res);
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not Found");
+}
+
+function _handleLogRoute(req: IncomingMessage, res: ServerResponse): void {
+  const chunks: Buffer[] = [];
+  req.on("data", (chunk: Buffer) => chunks.push(chunk));
+  req.on("end", () => {
+    // Respond immediately — don't block the browser.
+    res.writeHead(204);
+    res.end();
+
+    try {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+      const entries: { level?: string; args?: string[] }[] = body?.entries;
+      if (!Array.isArray(entries)) return;
+
+      for (const entry of entries) {
+        const level = entry.level ?? "log";
+        const args = Array.isArray(entry.args) ? entry.args.join(" ") : "";
+        const line = `[UI:${level}] ${args}\n`;
+        if (level === "error" || level === "warn") {
+          process.stderr.write(line);
+        } else {
+          process.stdout.write(line);
+        }
+      }
+    } catch {
+      // Malformed JSON — silently ignore.
+    }
+  });
 }

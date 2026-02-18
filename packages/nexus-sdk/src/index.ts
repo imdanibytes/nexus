@@ -66,10 +66,127 @@ export type NexusEventHandler = (event: string, data: unknown) => void;
 export * as sdk from "./client/sdk.gen";
 export { client } from "./client/client.gen";
 
+/** Options for {@link NexusPlugin.init}. */
+export interface NexusInitOptions {
+  /**
+   * Forward `console.log/info/warn/error/debug` calls from the browser to the
+   * plugin server, where they appear as Docker stdout/stderr and show up in
+   * Nexus's built-in log viewer.
+   *
+   * Original console methods still fire (browser devtools unaffected).
+   *
+   * @default true
+   */
+  console?: boolean;
+}
+
 /** Opaque config from the plugin server. Auth details are internal. */
 interface ClientConfig {
   token: string;
   apiUrl: string;
+}
+
+// ── Console forwarding internals ──────────────────────────────────
+
+type ConsoleLevel = "log" | "info" | "warn" | "error" | "debug";
+const CONSOLE_LEVELS: ConsoleLevel[] = ["log", "info", "warn", "error", "debug"];
+const MAX_ARG_LENGTH = 10_240; // 10 KB per serialized arg
+const FLUSH_INTERVAL = 250; // ms
+
+interface LogEntry {
+  level: ConsoleLevel;
+  args: string[];
+  ts: number;
+}
+
+/** Marker to prevent double-patching across multiple init() calls. */
+const PATCHED = Symbol.for("nexus:console-patched");
+
+function safeSerialize(value: unknown): string {
+  const seen = new WeakSet();
+
+  function inner(v: unknown): unknown {
+    if (v === null || v === undefined) return v;
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return v;
+
+    if (v instanceof Error) {
+      return v.stack || v.message;
+    }
+
+    if (typeof v === "object") {
+      if (seen.has(v as object)) return "[Circular]";
+      seen.add(v as object);
+
+      if (Array.isArray(v)) {
+        return v.map(inner);
+      }
+
+      const result: Record<string, unknown> = {};
+      for (const key of Object.keys(v as Record<string, unknown>)) {
+        result[key] = inner((v as Record<string, unknown>)[key]);
+      }
+      return result;
+    }
+
+    if (typeof v === "function") return `[Function: ${v.name || "anonymous"}]`;
+    if (typeof v === "symbol") return v.toString();
+    if (typeof v === "bigint") return v.toString();
+
+    return String(v);
+  }
+
+  const raw = inner(value);
+  const str = typeof raw === "string" ? raw : JSON.stringify(raw);
+  return str.length > MAX_ARG_LENGTH ? str.slice(0, MAX_ARG_LENGTH) + "…[truncated]" : str;
+}
+
+function patchConsole(): void {
+  const g = globalThis as Record<symbol, boolean>;
+  if (g[PATCHED]) return;
+  g[PATCHED] = true;
+
+  let buffer: LogEntry[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  function flush(): void {
+    if (buffer.length === 0) return;
+    const entries = buffer;
+    buffer = [];
+    timer = null;
+
+    fetch("/__nexus/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries }),
+      keepalive: true,
+    }).catch(() => {});
+  }
+
+  function scheduleFlush(immediate: boolean): void {
+    if (immediate) {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      flush();
+    } else if (timer === null) {
+      timer = setTimeout(flush, FLUSH_INTERVAL);
+    }
+  }
+
+  for (const level of CONSOLE_LEVELS) {
+    const original = console[level];
+    console[level] = (...args: unknown[]) => {
+      original.apply(console, args);
+      buffer.push({
+        level,
+        args: args.map(safeSerialize),
+        ts: Date.now(),
+      });
+      scheduleFlush(level === "error" || level === "warn");
+    };
+  }
 }
 
 /**
@@ -94,9 +211,21 @@ export class NexusPlugin {
    * Initialize the SDK. Fetches config from the plugin server and
    * configures the HTTP client. Auth is handled automatically.
    *
+   * Console forwarding is enabled by default — `console.log/info/warn/error/debug`
+   * calls are batched and sent to the plugin server, where they appear as Docker
+   * stdout/stderr in Nexus's log viewer. Browser devtools still work normally.
+   *
    * @param configUrl - Override the config endpoint (defaults to `/api/config`)
+   * @param options - SDK options (e.g. `{ console: false }` to disable log forwarding)
    */
-  static async init(configUrl = "/api/config"): Promise<NexusPlugin> {
+  static async init(
+    configUrl = "/api/config",
+    options?: NexusInitOptions,
+  ): Promise<NexusPlugin> {
+    if (options?.console !== false) {
+      patchConsole();
+    }
+
     const res = await fetch(configUrl);
     if (!res.ok) {
       throw new Error(

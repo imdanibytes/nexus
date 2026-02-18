@@ -248,6 +248,9 @@ impl OAuthStore {
         let refresh = if no_refresh {
             None
         } else {
+            // Clean up stale refresh tokens for this client before issuing a new one.
+            // This prevents accumulation when clients re-authorize instead of refreshing.
+            self.revoke_client_refresh_tokens(client_id);
             Some(self.create_refresh_token(client_id.to_string(), scopes, resource, plugin_id, vec![]))
         };
 
@@ -256,7 +259,7 @@ impl OAuthStore {
 
     // ── Access Tokens ────────────────────────────────────────────
 
-    fn create_access_token(
+    pub(crate) fn create_access_token(
         &self,
         client_id: String,
         client_name: String,
@@ -476,6 +479,21 @@ impl OAuthStore {
         );
 
         Ok((access, refresh))
+    }
+
+    /// Revoke all refresh tokens for a client (keeps access tokens and registration).
+    /// Called during auth code exchange to clean up stale refresh tokens when a
+    /// client re-authorizes instead of using the refresh flow.
+    fn revoke_client_refresh_tokens(&self, client_id: &str) {
+        let mut tokens = self.refresh_tokens.lock().unwrap_or_else(|e| e.into_inner());
+        let before = tokens.len();
+        tokens.retain(|_, t| t.client_id != client_id);
+        let removed = before - tokens.len();
+        drop(tokens);
+        if removed > 0 {
+            log::info!("Cleaned up {} stale refresh token(s) for client {}", removed, client_id);
+            self.save_refresh_tokens();
+        }
     }
 
     /// Revoke all tokens for a plugin (keeps the client registration).
@@ -1713,5 +1731,100 @@ mod tests {
         assert!(found.client_secret_hash.is_some());
         // Secret still works after reload
         assert!(store2.issue_client_credentials(&client_id, &secret, "".into(), vec![]).is_ok());
+    }
+
+    // =====================================================================
+    // Stale refresh token cleanup on re-authorization
+    // =====================================================================
+
+    #[test]
+    fn reauth_cleans_stale_refresh_tokens() {
+        let (store, _dir) = test_store();
+        let client = register_test_client(&store, "Stale Cleanup");
+
+        // First auth — creates a refresh token
+        let (v1, c1) = pkce_pair("verifier-for-stale-cleanup-test-first-auth-at-least-43");
+        let code1 = create_code(&store, &client.client_id, &c1);
+        let (_, refresh1) = store
+            .exchange_code(&code1, v1, &client.client_id, "http://127.0.0.1:3000/callback")
+            .unwrap();
+        let refresh1 = refresh1.unwrap();
+
+        // Second auth (simulates client re-authorizing instead of refreshing)
+        let (v2, c2) = pkce_pair("verifier-for-stale-cleanup-test-second-auth-at-least43");
+        let code2 = create_code(&store, &client.client_id, &c2);
+        let (_, refresh2) = store
+            .exchange_code(&code2, v2, &client.client_id, "http://127.0.0.1:3000/callback")
+            .unwrap();
+        let refresh2 = refresh2.unwrap();
+
+        // Old refresh token should be revoked
+        assert!(
+            store.refresh(&refresh1.token, &client.client_id).is_err(),
+            "stale refresh token should have been cleaned up"
+        );
+        // New refresh token should work
+        assert!(store.refresh(&refresh2.token, &client.client_id).is_ok());
+    }
+
+    #[test]
+    fn reauth_cleanup_does_not_affect_other_clients() {
+        let (store, _dir) = test_store();
+        let alice = register_test_client(&store, "Alice");
+        let bob = register_test_client(&store, "Bob");
+
+        // Alice gets a refresh token
+        let (va, ca) = pkce_pair("verifier-for-alice-isolation-test-at-least-43-chars!!");
+        let code_a = create_code(&store, &alice.client_id, &ca);
+        let (_, refresh_a) = store
+            .exchange_code(&code_a, va, &alice.client_id, "http://127.0.0.1:3000/callback")
+            .unwrap();
+        let refresh_a = refresh_a.unwrap();
+
+        // Bob re-authorizes
+        let (vb, cb) = pkce_pair("verifier-for-bob-reauth-isolation-test-at-least-43-ch!");
+        let code_b = create_code(&store, &bob.client_id, &cb);
+        let _ = store
+            .exchange_code(&code_b, vb, &bob.client_id, "http://127.0.0.1:3000/callback")
+            .unwrap();
+
+        // Alice's refresh token should be untouched
+        assert!(
+            store.refresh(&refresh_a.token, &alice.client_id).is_ok(),
+            "other client's refresh token should not be affected"
+        );
+    }
+
+    #[test]
+    fn reauth_cleanup_persists_to_disk() {
+        let dir = TempDir::new().unwrap();
+
+        let client_id = {
+            let store = OAuthStore::load(dir.path());
+            let client = register_test_client(&store, "Persist Cleanup");
+            store.approve_client(&client.client_id);
+
+            // Create a stale refresh token
+            let (v1, c1) = pkce_pair("verifier-for-persist-cleanup-first-auth-at-least-43-ch");
+            let code1 = create_code(&store, &client.client_id, &c1);
+            store
+                .exchange_code(&code1, v1, &client.client_id, "http://127.0.0.1:3000/callback")
+                .unwrap();
+
+            // Re-auth (should clean up the first)
+            let (v2, c2) = pkce_pair("verifier-for-persist-cleanup-second-auth-at-least-43ch");
+            let code2 = create_code(&store, &client.client_id, &c2);
+            store
+                .exchange_code(&code2, v2, &client.client_id, "http://127.0.0.1:3000/callback")
+                .unwrap();
+
+            client.client_id
+        };
+
+        // Reload from disk — should only have one refresh token for this client
+        let store2 = OAuthStore::load(dir.path());
+        let tokens = store2.refresh_tokens.lock().unwrap();
+        let count = tokens.values().filter(|t| t.client_id == client_id).count();
+        assert_eq!(count, 1, "only the newest refresh token should survive on disk");
     }
 }

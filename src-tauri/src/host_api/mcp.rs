@@ -206,6 +206,13 @@ pub async fn gateway_auth_middleware(
     }
 
     // Try Bearer token (OAuth 2.1 — both external AI clients and plugin tokens)
+    let bearer_was_provided = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.starts_with("Bearer "))
+        .unwrap_or(false);
+
     if let Some(bearer) = req
         .headers()
         .get("authorization")
@@ -256,7 +263,22 @@ pub async fn gateway_auth_middleware(
         }
     }
 
-    // 401 with WWW-Authenticate header — tells MCP clients where to find OAuth metadata
+    // Bearer token was provided but failed validation — tell the client to refresh
+    // (RFC 6750 §3.1: error="invalid_token" signals expired/revoked tokens)
+    if bearer_was_provided {
+        log::info!("MCP Bearer token invalid/expired — returning invalid_token hint");
+        let resp = Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(
+                "www-authenticate",
+                "Bearer error=\"invalid_token\", resource_metadata=\"http://127.0.0.1:9600/.well-known/oauth-protected-resource/mcp\"",
+            )
+            .body(Body::empty())
+            .unwrap();
+        return Ok(resp);
+    }
+
+    // No auth provided at all — return discovery challenge
     let resp = Response::builder()
         .status(StatusCode::UNAUTHORIZED)
         .header(
@@ -271,6 +293,35 @@ pub async fn gateway_auth_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{routing::get, Extension, Router, middleware as axum_mw};
+    use tower::ServiceExt;
+
+    use crate::permissions::{DefaultPermissionService, PermissionStore};
+    use crate::runtime::mock::MockRuntime;
+    use crate::plugin_manager::PluginManager;
+
+    /// Build a minimal test router with the gateway auth middleware.
+    fn gateway_test_app(oauth_store: Arc<OAuthStore>, data_dir: &std::path::Path) -> Router {
+        let perm_store = PermissionStore::load(data_dir).unwrap_or_default();
+        let permissions: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(perm_store));
+        let mock = Arc::new(MockRuntime::new());
+        let mgr = PluginManager::new(data_dir.to_path_buf(), mock, permissions, oauth_store.clone());
+        let state: AppState = Arc::new(tokio::sync::RwLock::new(mgr));
+
+        let mcp_sessions = McpSessionStore::new();
+
+        Router::new()
+            .route("/mcp", get(|| async { "ok" }))
+            .layer(axum_mw::from_fn_with_state(state.clone(), gateway_auth_middleware))
+            .layer(Extension(oauth_store))
+            .layer(Extension(mcp_sessions))
+            .with_state(state)
+    }
+
+    // =====================================================================
+    // Session store
+    // =====================================================================
 
     #[test]
     fn session_store_mark_and_check() {
@@ -301,5 +352,100 @@ mod tests {
         // One more should be silently dropped (cap reached)
         store.mark_authenticated("overflow-session");
         assert!(!store.is_authenticated("overflow-session"));
+    }
+
+    // =====================================================================
+    // Gateway auth — WWW-Authenticate differentiation (RFC 6750 §3.1)
+    // =====================================================================
+
+    #[tokio::test]
+    async fn no_auth_returns_discovery_challenge() {
+        let tmp = tempfile::tempdir().unwrap();
+        let oauth_store = Arc::new(OAuthStore::load(tmp.path()));
+        let app = gateway_test_app(oauth_store, tmp.path());
+
+        let req = Request::builder()
+            .uri("/mcp")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        let www_auth = resp
+            .headers()
+            .get("www-authenticate")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            www_auth.contains("resource_metadata="),
+            "should include resource_metadata for discovery"
+        );
+        assert!(
+            !www_auth.contains("error="),
+            "no auth provided → no error hint (pure discovery challenge)"
+        );
+    }
+
+    #[tokio::test]
+    async fn expired_bearer_returns_invalid_token() {
+        let tmp = tempfile::tempdir().unwrap();
+        let oauth_store = Arc::new(OAuthStore::load(tmp.path()));
+        let app = gateway_test_app(oauth_store, tmp.path());
+
+        // Send a Bearer token that doesn't exist in the store (simulates expired/invalid)
+        let req = Request::builder()
+            .uri("/mcp")
+            .header("authorization", "Bearer this-token-does-not-exist")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        let www_auth = resp
+            .headers()
+            .get("www-authenticate")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(
+            www_auth.contains("error=\"invalid_token\""),
+            "expired/invalid Bearer → must include error=\"invalid_token\" per RFC 6750"
+        );
+        assert!(
+            www_auth.contains("resource_metadata="),
+            "should still include resource_metadata for re-discovery"
+        );
+    }
+
+    #[tokio::test]
+    async fn valid_bearer_passes_through() {
+        let tmp = tempfile::tempdir().unwrap();
+        let oauth_store = Arc::new(OAuthStore::load(tmp.path()));
+
+        // Create a valid access token (non-plugin, MCP scope)
+        let token = oauth_store.create_access_token(
+            "test-client".into(),
+            "Test Client".into(),
+            vec!["mcp".into()],
+            "http://127.0.0.1:9600/mcp".into(),
+            None,
+            vec![],
+        );
+
+        let app = gateway_test_app(oauth_store, tmp.path());
+
+        let req = Request::builder()
+            .uri("/mcp")
+            .header("authorization", format!("Bearer {}", token.token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "valid Bearer should pass through to the handler"
+        );
     }
 }

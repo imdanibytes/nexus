@@ -31,7 +31,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         // -- Read-only tools --
         McpToolEntry {
             name: "nexus.list_plugins".into(),
-            description: "List all installed plugins with their status, version, port, and dev mode flag.".into(),
+            description: "List all installed Nexus plugins with their status, version, port, and dev mode flag. Use to check what plugins are available, their health status, or to find a plugin ID for other operations. Do NOT use to check if a specific plugin exists by name — scan the results instead of calling repeatedly.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -46,7 +46,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.plugin_logs".into(),
-            description: "Get recent log lines from a plugin's container.".into(),
+            description: "Get recent log lines from a plugin's Docker container. Use to debug plugin issues, check startup errors, or monitor runtime behavior. Do NOT use for general status checks — use list_plugins for that. Defaults to 100 lines; adjust tail for more or fewer.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -71,7 +71,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.list_extensions".into(),
-            description: "List all host extensions with their enabled/running status and operations.".into(),
+            description: "List all host extensions (native binaries) with their enabled/running status and available operations. Use to discover what extensions are installed or to check if a specific extension is running. Extensions are different from plugins — they run as native processes, not Docker containers.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -86,7 +86,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.search_marketplace".into(),
-            description: "Search the plugin and extension registries by keyword.".into(),
+            description: "Search the Nexus marketplace for plugins and extensions by keyword. Use when the user wants to find or install new capabilities. Returns matching plugins and extensions with their manifest URLs for installation. Do NOT use to search for already-installed plugins — use list_plugins for that.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -107,7 +107,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.get_settings".into(),
-            description: "Get Nexus app settings (resource quotas, update interval).".into(),
+            description: "Get Nexus app settings including CPU quota, memory limit, and update check interval. Use when you need to understand resource constraints or check configuration. Do NOT call unless settings are relevant to the current task.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -122,7 +122,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.get_mcp_settings".into(),
-            description: "Get MCP gateway settings (global enabled flag, per-plugin tool states).".into(),
+            description: "Get MCP gateway settings including the global enabled flag and per-plugin tool enable/disable states. Use to check which tools are active or to debug tool availability issues. Do NOT use for general status — this is specifically about MCP tool routing configuration.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -137,7 +137,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.engine_status".into(),
-            description: "Check if the container engine is installed and running.".into(),
+            description: "Check if the Docker/container engine is installed, running, and responsive. Use to diagnose plugin startup failures or verify the container runtime before operations. Do NOT call routinely — only when container operations are failing or during setup troubleshooting.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -153,7 +153,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         // -- Mutating tools --
         McpToolEntry {
             name: "nexus.plugin_start".into(),
-            description: "Start a stopped plugin.".into(),
+            description: "Start a stopped Nexus plugin by its plugin ID. Use when the user explicitly asks to start a plugin or when a plugin needs to be running for a task. Do NOT start plugins speculatively — only when there's a clear need. Requires user approval.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -174,7 +174,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.plugin_stop".into(),
-            description: "Stop a running plugin.".into(),
+            description: "Stop a running Nexus plugin. Use when the user asks to stop a plugin or when a plugin needs to be restarted. Do NOT stop plugins without the user's intent — stopping removes the plugin's tools from the MCP gateway. Requires user approval.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -195,7 +195,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.plugin_remove".into(),
-            description: "Remove an installed plugin (stops it first if running).".into(),
+            description: "Permanently remove an installed plugin, including its Docker container and configuration. Stops the plugin first if running. Use ONLY when the user explicitly asks to uninstall a plugin. This is destructive — plugin data in Docker volumes may be lost. Requires user approval.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -216,7 +216,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.plugin_install".into(),
-            description: "Install a plugin from a registry manifest URL. Grants no permissions by default — the user must approve permissions through the UI after installation.".into(),
+            description: "Install a new Nexus plugin from a registry manifest URL. Use when the user wants to add new functionality via a plugin. The plugin starts with no permissions — the user must approve them through the UI after installation. Do NOT fabricate manifest URLs — use search_marketplace to find valid ones. Requires user approval.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -237,7 +237,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.extension_enable".into(),
-            description: "Enable a host extension (spawns the process and registers it).".into(),
+            description: "Enable a host extension by spawning its native process and registering its operations. Use when the user wants to activate an installed extension. Do NOT enable extensions speculatively. Extensions run as native processes on the host, not in containers. Requires user approval.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -258,7 +258,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.extension_disable".into(),
-            description: "Disable a host extension (stops the process and unregisters it).".into(),
+            description: "Disable a host extension by stopping its process and unregistering its operations. Use when the user wants to deactivate an extension. Do NOT disable extensions that are actively being used by other tools. Requires user approval.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -280,7 +280,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         // -- Nexus Code tools (disabled by default) --
         McpToolEntry {
             name: "nexus.read_file".into(),
-            description: "Read the contents of a file from the host filesystem. Returns the file content as text. Files larger than 5 MB are rejected.".into(),
+            description: "Read a file from the host filesystem as text. Use to examine source code, config files, or any text file needed for the current task. Do NOT use for binary files (images, compiled code) — only text content is returned. Files over 5 MB are rejected. Requires an absolute path. The Nexus data directory is blocked for security.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -301,7 +301,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.write_file".into(),
-            description: "Write content to a file on the host filesystem. Creates the file and parent directories if they don't exist. Overwrites existing content.".into(),
+            description: "Write content to a file on the host filesystem. Creates parent directories automatically. Use for creating new files or replacing entire file contents. Do NOT use for partial edits — use edit_file for find-and-replace operations instead. Overwrites the entire file. Requires an absolute path. The Nexus data directory is blocked for security.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -326,7 +326,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.edit_file".into(),
-            description: "Perform an atomic find-and-replace in a file. The old_string must exist in the file. By default, old_string must be unique (appear exactly once); set replace_all to true to replace all occurrences.".into(),
+            description: "Perform an atomic find-and-replace in a file. Use for targeted edits to existing files — modifying functions, updating config values, fixing bugs. Preferred over write_file when changing part of a file. Do NOT use when you need to rewrite most of the file — use write_file instead. The old_string must exist and be unique unless replace_all is true. Read the file first to ensure your old_string matches exactly.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -359,7 +359,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.list_directory".into(),
-            description: "List the contents of a directory on the host filesystem. Returns file names, paths, sizes, and whether each entry is a directory.".into(),
+            description: "List the contents of a directory on the host filesystem. Returns file names, paths, sizes, and whether each entry is a directory. Use to explore project structure or verify a path exists before reading/writing. Do NOT use recursively to scan large trees — use nexus.search_files with a glob pattern instead.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -380,7 +380,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.search_files".into(),
-            description: "Search for files matching a glob pattern. Searches recursively from the given base directory. Returns up to 1000 matching file paths.".into(),
+            description: "Search for files matching a glob pattern. Searches recursively from the given base directory. Returns up to 1000 matching file paths. Use when you need to find files by name or extension across a project (e.g. '**/*.ts', 'src/**/*.test.*'). Do NOT use for searching file contents — use nexus.search_content for that. Do NOT use for listing a single known directory — use nexus.list_directory instead.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -405,7 +405,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.search_content".into(),
-            description: "Search file contents for a regex pattern. Walks the directory tree, skipping hidden dirs, node_modules, target, __pycache__, and dist. Returns matching lines with optional context.".into(),
+            description: "Search file contents for a regex pattern (like grep/ripgrep). Walks the directory tree, skipping hidden dirs, node_modules, target, __pycache__, and dist. Returns matching lines with file paths and line numbers. Use to find function definitions, imports, usage patterns, or any text inside files. Use the 'include' parameter to narrow by file type. Do NOT use for finding files by name — use nexus.search_files instead. Do NOT use on very broad directories without an include filter — results will be noisy.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -442,7 +442,7 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
         },
         McpToolEntry {
             name: "nexus.execute_command".into(),
-            description: "Execute a command on the host system. Returns stdout, stderr, and exit code. Commands have a configurable timeout (default: 30s, max: 10min). Every invocation requires user approval.".into(),
+            description: "Execute a command on the host system. Returns stdout, stderr, and exit code. Every invocation requires explicit user approval. Use for build commands (cargo, pnpm, make), git operations, package management, or any CLI tool. Pass the command name and args as separate parameters — do NOT combine into a single shell string. Set working_dir for project-scoped commands. Do NOT use for file reads/writes/searches when dedicated nexus.read_file, nexus.write_file, nexus.search_files, or nexus.search_content tools exist. Timeout default is 30s (max 600s) — increase for long builds.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

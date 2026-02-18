@@ -106,6 +106,12 @@ impl McpSessionStore {
             })
             .unwrap_or(false)
     }
+
+    pub fn remove(&self, session_id: &str) {
+        if let Ok(mut map) = self.authenticated.write() {
+            map.remove(session_id);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -174,9 +180,21 @@ pub async fn gateway_auth_middleware(
         .headers()
         .get("mcp-session-id")
         .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
     {
-        if mcp_sessions.is_authenticated(session_id) {
-            return Ok(next.run(req).await);
+        if mcp_sessions.is_authenticated(&session_id) {
+            let resp = next.run(req).await;
+            // rmcp lost the session (e.g. in-memory store cleared on restart) but our
+            // session cache still had it. Rewrite 401 → 404 per MCP spec.
+            if resp.status() == StatusCode::UNAUTHORIZED {
+                log::info!("MCP session {} stale in rmcp — evicting cache, rewriting 401 → 404", session_id);
+                mcp_sessions.remove(&session_id);
+                return Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::empty())
+                    .unwrap());
+            }
+            return Ok(resp);
         }
     }
 
@@ -190,6 +208,17 @@ pub async fn gateway_auth_middleware(
         if mgr.verify_gateway_token(token) {
             drop(mgr);
             let resp = next.run(req).await;
+
+            // rmcp returns 401 for unknown sessions (e.g. after host restart) instead
+            // of 404 per MCP spec. Since our auth already passed, a downstream 401 means
+            // stale session — rewrite to 404 so the client re-initializes.
+            if resp.status() == StatusCode::UNAUTHORIZED {
+                log::info!("MCP session stale after gateway auth — rewriting 401 → 404");
+                return Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::empty())
+                    .unwrap());
+            }
 
             // The response may contain a new Mcp-Session-Id — remember it as authenticated
             if let Some(session_id) = resp
@@ -250,6 +279,18 @@ pub async fn gateway_auth_middleware(
 
                 log::info!("MCP authenticated via OAuth: client={}", access_token.client_name);
                 let resp = next.run(req).await;
+
+                // rmcp returns 401 for unknown sessions (e.g. after host restart) instead
+                // of 404 per MCP spec. Since OAuth auth already passed, a downstream 401
+                // means stale session — rewrite to 404 so the client re-initializes.
+                if resp.status() == StatusCode::UNAUTHORIZED {
+                    log::info!("MCP session stale after OAuth auth — rewriting 401 → 404");
+                    return Ok(Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .body(Body::empty())
+                        .unwrap());
+                }
+
                 if let Some(session_id) = resp
                     .headers()
                     .get("mcp-session-id")
@@ -447,5 +488,123 @@ mod tests {
             StatusCode::OK,
             "valid Bearer should pass through to the handler"
         );
+    }
+
+    // =====================================================================
+    // Stale session 401 → 404 rewrite (rmcp spec compliance)
+    // =====================================================================
+
+    /// Build a test router whose handler returns 401 (simulates rmcp rejecting
+    /// unknown sessions after host restart).
+    fn gateway_test_app_stale_session(oauth_store: Arc<OAuthStore>, data_dir: &std::path::Path) -> Router {
+        let perm_store = PermissionStore::load(data_dir).unwrap_or_default();
+        let permissions: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(perm_store));
+        let mock = Arc::new(MockRuntime::new());
+        let mgr = PluginManager::new(data_dir.to_path_buf(), mock, permissions, oauth_store.clone());
+        let state: AppState = Arc::new(tokio::sync::RwLock::new(mgr));
+
+        let mcp_sessions = McpSessionStore::new();
+
+        Router::new()
+            .route("/mcp", get(|| async {
+                // Simulate rmcp returning 401 for an unknown session
+                Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(Body::from("Unauthorized: Session not found"))
+                    .unwrap()
+            }))
+            .layer(axum_mw::from_fn_with_state(state.clone(), gateway_auth_middleware))
+            .layer(Extension(oauth_store))
+            .layer(Extension(mcp_sessions))
+            .with_state(state)
+    }
+
+    #[tokio::test]
+    async fn stale_session_bearer_auth_rewrites_401_to_404() {
+        let tmp = tempfile::tempdir().unwrap();
+        let oauth_store = Arc::new(OAuthStore::load(tmp.path()));
+
+        let token = oauth_store.create_access_token(
+            "test-client".into(),
+            "Test Client".into(),
+            vec!["mcp".into()],
+            "http://127.0.0.1:9600/mcp".into(),
+            None,
+            vec![],
+        );
+
+        let app = gateway_test_app_stale_session(oauth_store, tmp.path());
+
+        // Request with valid Bearer + stale Mcp-Session-Id
+        let req = Request::builder()
+            .uri("/mcp")
+            .header("authorization", format!("Bearer {}", token.token))
+            .header("mcp-session-id", "stale-session-from-before-restart")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "auth succeeded but rmcp rejected session → must rewrite to 404 per MCP spec"
+        );
+    }
+
+    #[tokio::test]
+    async fn stale_session_cached_rewrites_401_to_404() {
+        let tmp = tempfile::tempdir().unwrap();
+        let oauth_store = Arc::new(OAuthStore::load(tmp.path()));
+
+        let perm_store = PermissionStore::load(tmp.path()).unwrap_or_default();
+        let permissions: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(perm_store));
+        let mock = Arc::new(MockRuntime::new());
+        let mgr = PluginManager::new(tmp.path().to_path_buf(), mock, permissions, oauth_store.clone());
+        let state: AppState = Arc::new(tokio::sync::RwLock::new(mgr));
+
+        let mcp_sessions = McpSessionStore::new();
+        // Pre-populate session cache (simulates session that was valid before restart)
+        mcp_sessions.mark_authenticated("cached-but-stale");
+
+        let app = Router::new()
+            .route("/mcp", get(|| async {
+                Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(Body::from("Unauthorized: Session not found"))
+                    .unwrap()
+            }))
+            .layer(axum_mw::from_fn_with_state(state.clone(), gateway_auth_middleware))
+            .layer(Extension(oauth_store))
+            .layer(Extension(mcp_sessions.clone()))
+            .with_state(state);
+
+        let req = Request::builder()
+            .uri("/mcp")
+            .header("mcp-session-id", "cached-but-stale")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "cached session rejected by rmcp → must rewrite to 404"
+        );
+        // Session should be evicted from cache
+        assert!(
+            !mcp_sessions.is_authenticated("cached-but-stale"),
+            "stale session should be evicted from cache"
+        );
+    }
+
+    #[test]
+    fn session_store_remove() {
+        let store = McpSessionStore::new();
+        store.mark_authenticated("session-to-remove");
+        assert!(store.is_authenticated("session-to-remove"));
+        store.remove("session-to-remove");
+        assert!(!store.is_authenticated("session-to-remove"));
     }
 }

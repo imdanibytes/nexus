@@ -77,6 +77,12 @@ pub struct MockRuntime {
     inner: Mutex<Inner>,
 }
 
+impl Default for MockRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockRuntime {
     pub fn new() -> Self {
         Self {
@@ -249,8 +255,8 @@ impl ContainerRuntime for MockRuntime {
         inner.calls.push(RuntimeCall::ListImages);
         Ok(inner
             .images
-            .iter()
-            .map(|(name, _digest)| ImageInfo {
+            .keys()
+            .map(|name| ImageInfo {
                 id: format!("sha256:mock-{}", name),
                 repo_tags: vec![name.clone()],
                 size: 100_000_000,

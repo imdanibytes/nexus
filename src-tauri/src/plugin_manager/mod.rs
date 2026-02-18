@@ -1559,7 +1559,7 @@ mod tests {
         mgr.install(m, vec![], vec![], None, None).await.unwrap();
 
         assert!(
-            mgr.mcp_settings.plugins.get("com.test.nomcp").is_none(),
+            !mgr.mcp_settings.plugins.contains_key("com.test.nomcp"),
             "plugin with no MCP config should not create an mcp_settings entry"
         );
     }

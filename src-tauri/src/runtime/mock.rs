@@ -447,6 +447,32 @@ impl ContainerRuntime for MockRuntime {
         }
     }
 
+    async fn container_stats_raw(
+        &self,
+        id: &str,
+    ) -> Result<serde_json::Value, RuntimeError> {
+        let inner = self.inner.lock().unwrap();
+        if inner.containers.contains_key(id) {
+            Ok(serde_json::json!({
+                "cpu_stats": {
+                    "cpu_usage": { "total_usage": 100000 },
+                    "system_cpu_usage": 1000000,
+                    "online_cpus": 2
+                },
+                "precpu_stats": {
+                    "cpu_usage": { "total_usage": 90000 },
+                    "system_cpu_usage": 900000
+                },
+                "memory_stats": {
+                    "usage": 52428800_u64,
+                    "limit": 2147483648_u64
+                }
+            }))
+        } else {
+            Err(RuntimeError::NotFound(id.to_string()))
+        }
+    }
+
     async fn aggregate_stats(
         &self,
         _filters: ContainerFilters,

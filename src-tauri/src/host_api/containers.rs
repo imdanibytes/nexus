@@ -240,7 +240,7 @@ pub async fn container_stats(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let runtime = { state.read().await.runtime.clone() };
     let stats = runtime
-        .inspect_container_raw(&id)
+        .container_stats_raw(&id)
         .await
         .map_err(runtime_err)?;
     Ok(Json(stats))

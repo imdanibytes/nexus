@@ -442,6 +442,24 @@ impl ContainerRuntime for DockerRuntime {
             .map_err(|e| RuntimeError::Other(format!("JSON serialization failed: {e}")))
     }
 
+    async fn container_stats_raw(
+        &self,
+        id: &str,
+    ) -> Result<serde_json::Value, RuntimeError> {
+        let opts = StatsOptions {
+            stream: false,
+            one_shot: true,
+        };
+        let mut stream = self.docker.stats(id, Some(opts));
+        let stats = stream
+            .next()
+            .await
+            .ok_or_else(|| RuntimeError::NotFound(format!("no stats for container {id}")))?
+            .map_err(to_err)?;
+        serde_json::to_value(stats)
+            .map_err(|e| RuntimeError::Other(format!("JSON serialization failed: {e}")))
+    }
+
     async fn aggregate_stats(
         &self,
         filters: ContainerFilters,

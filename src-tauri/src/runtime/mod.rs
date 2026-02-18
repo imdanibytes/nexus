@@ -192,6 +192,10 @@ pub trait ContainerRuntime: Send + Sync {
     ) -> Result<serde_json::Value, RuntimeError>;
 
     // Stats
+    async fn container_stats_raw(
+        &self,
+        id: &str,
+    ) -> Result<serde_json::Value, RuntimeError>;
     async fn aggregate_stats(
         &self,
         filters: ContainerFilters,

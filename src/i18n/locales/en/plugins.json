@@ -43,7 +43,9 @@
     "starting": "Starting",
     "startingSub": "Launching container...",
     "rebuilding": "Rebuilding",
-    "rebuildingSub": "Building image and restarting..."
+    "rebuildingSub": "Building image and restarting...",
+    "updating": "Updating",
+    "updatingSub": "Pulling latest version..."
   },
   "menu": {
     "about": "About {{name}}",

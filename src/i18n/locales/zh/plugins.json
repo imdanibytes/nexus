@@ -43,7 +43,9 @@
     "starting": "正在启动",
     "startingSub": "正在启动容器...",
     "rebuilding": "正在重建",
-    "rebuildingSub": "正在构建镜像并重启..."
+    "rebuildingSub": "正在构建镜像并重启...",
+    "updating": "更新中",
+    "updatingSub": "正在拉取最新版本..."
   },
   "menu": {
     "about": "关于 {{name}}",

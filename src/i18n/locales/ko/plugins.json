@@ -43,7 +43,9 @@
     "starting": "시작 중",
     "startingSub": "컨테이너를 실행하는 중...",
     "rebuilding": "다시 빌드 중",
-    "rebuildingSub": "이미지를 빌드하고 재시작하는 중..."
+    "rebuildingSub": "이미지를 빌드하고 재시작하는 중...",
+    "updating": "업데이트 중",
+    "updatingSub": "최신 버전을 가져오는 중..."
   },
   "menu": {
     "about": "{{name}} 정보",

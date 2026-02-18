@@ -43,7 +43,9 @@
     "starting": "Starten",
     "startingSub": "Container wird gestartet...",
     "rebuilding": "Neuerstellung",
-    "rebuildingSub": "Image wird erstellt und neu gestartet..."
+    "rebuildingSub": "Image wird erstellt und neu gestartet...",
+    "updating": "Aktualisieren",
+    "updatingSub": "Neueste Version wird heruntergeladen..."
   },
   "menu": {
     "about": "Uber {{name}}",

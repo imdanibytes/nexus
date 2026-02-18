@@ -179,6 +179,10 @@ impl ContainerRuntime for MockRuntime {
         "/tmp/mock.sock".to_string()
     }
 
+    fn host_gateway_hostname(&self) -> &str {
+        "host.docker.internal"
+    }
+
     async fn ping(&self) -> Result<(), RuntimeError> {
         self.inner.lock().unwrap().calls.push(RuntimeCall::Ping);
         Ok(())

@@ -43,7 +43,9 @@
     "starting": "Overlay heading — plugin is being started",
     "startingSub": "Overlay subtext — describes what's happening during start",
     "rebuilding": "Overlay heading — plugin is being rebuilt",
-    "rebuildingSub": "Overlay subtext — describes what's happening during rebuild"
+    "rebuildingSub": "Overlay subtext — describes what's happening during rebuild",
+    "updating": "Overlay heading — shown while plugin is being updated to a newer version",
+    "updatingSub": "Overlay subtext — describes what's happening during update"
   },
   "menu": {
     "about": "Menu item — show plugin info dialog. {{name}} is plugin display name",

@@ -43,7 +43,9 @@
     "starting": "開始中",
     "startingSub": "コンテナを起動中...",
     "rebuilding": "再ビルド中",
-    "rebuildingSub": "イメージをビルドして再起動中..."
+    "rebuildingSub": "イメージをビルドして再起動中...",
+    "updating": "アップデート中",
+    "updatingSub": "最新バージョンを取得中..."
   },
   "menu": {
     "about": "{{name}} について",

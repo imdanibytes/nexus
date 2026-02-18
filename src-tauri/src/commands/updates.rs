@@ -65,6 +65,7 @@ pub async fn dismiss_update(
 /// Update a plugin to a new version from a manifest URL.
 #[tauri::command]
 pub async fn update_plugin(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     manifest_url: String,
     expected_digest: Option<String>,
@@ -88,7 +89,7 @@ pub async fn update_plugin(
 
     let mut mgr = state.write().await;
     let result = mgr
-        .update_plugin(manifest, expected_digest)
+        .update_plugin(manifest, expected_digest, Some(&app))
         .await
         .map_err(|e| e.to_string())?;
 

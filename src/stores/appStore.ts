@@ -6,8 +6,8 @@ import type { ExtensionRegistryEntry, ExtensionStatus } from "../types/extension
 import type { AvailableUpdate } from "../types/updates";
 
 type View = "plugins" | "marketplace" | "settings" | "plugin-detail" | "extension-marketplace" | "extension-detail";
-export type PluginAction = "starting" | "stopping" | "removing" | "rebuilding";
-export type ExtensionAction = "enabling" | "disabling" | "removing";
+export type PluginAction = "starting" | "stopping" | "removing" | "rebuilding" | "updating";
+export type ExtensionAction = "enabling" | "disabling" | "removing" | "updating";
 
 interface InstallStatus {
   active: boolean;

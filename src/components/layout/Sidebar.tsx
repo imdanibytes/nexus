@@ -46,13 +46,14 @@ const statusColor: Record<string, string> = {
 
 function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const { selectedPluginId, selectPlugin, setView, availableUpdates, busyPlugins, setShowLogs, warmViewports } = useAppStore();
-  const { start, stop, remove, rebuild, toggleDevMode } = usePluginActions();
+  const { selectedPluginId, selectPlugin, setView, setSettingsTab, availableUpdates, setAvailableUpdates, busyPlugins, setBusy, setShowLogs, warmViewports, addNotification } = useAppStore();
+  const { start, stop, remove, rebuild, toggleDevMode, refresh } = usePluginActions();
   const id = plugin.manifest.id;
   const isSelected = selectedPluginId === id;
   const isRunning = plugin.status === "running";
   const isWarm = !!warmViewports[id];
-  const hasUpdate = availableUpdates.some((u) => u.item_id === id);
+  const update = availableUpdates.find((u) => u.item_id === id);
+  const hasUpdate = !!update;
   const isBusy = !!busyPlugins[id];
   const isLocal = !!plugin.local_manifest_path;
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
@@ -62,6 +63,26 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
   const handleRebuild = () => rebuild(id);
   const handleToggleDevMode = () => toggleDevMode(id, !plugin.dev_mode);
   const handleRemove = () => { setRemoveDialogOpen(false); remove(id); };
+
+  async function handleUpdate() {
+    if (!update) return;
+    if (update.security.includes("key_changed")) {
+      setSettingsTab("updates");
+      setView("settings");
+      return;
+    }
+    setBusy(id, "updating");
+    try {
+      await api.updatePlugin(update.manifest_url, update.new_image_digest, update.build_context);
+      addNotification(t("common:notification.updatedTo", { name: update.item_name, version: update.available_version }), "success");
+      await refresh();
+      setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== id));
+    } catch (e) {
+      addNotification(t("common:error.updateFailed", { error: e }), "error");
+    } finally {
+      setBusy(id, null);
+    }
+  }
 
   return (
     <SidebarMenuItem>
@@ -94,6 +115,16 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
           </SidebarMenuAction>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" className="w-48">
+          {hasUpdate && (
+            <>
+              <DropdownMenuItem onClick={handleUpdate} disabled={isBusy}>
+                <ArrowUp size={14} strokeWidth={1.5} className="text-nx-accent" />
+                {t("plugins:menu.update")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+
           {isRunning ? (
             <DropdownMenuItem onClick={handleStop} disabled={isBusy}>
               <Square size={14} strokeWidth={1.5} className="text-nx-warning" />
@@ -173,9 +204,32 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
 
 function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const { busyExtensions, setExtensionBusy, setExtensions, addNotification, setView, setSettingsTab, setFocusExtensionId } = useAppStore();
+  const { availableUpdates, setAvailableUpdates, busyExtensions, setExtensionBusy, setExtensions, addNotification, setView, setSettingsTab, setFocusExtensionId } = useAppStore();
   const isBusy = !!busyExtensions[ext.id];
+  const update = availableUpdates.find((u) => u.item_id === ext.id);
+  const hasUpdate = !!update;
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+
+  async function handleExtUpdate() {
+    if (!update) return;
+    if (update.security.includes("key_changed")) {
+      setSettingsTab("updates");
+      setView("settings");
+      return;
+    }
+    setExtensionBusy(ext.id, "updating");
+    try {
+      await api.updateExtension(update.manifest_url);
+      addNotification(t("common:notification.updatedTo", { name: update.item_name, version: update.available_version }), "success");
+      const exts = await api.extensionList();
+      setExtensions(exts);
+      setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== ext.id));
+    } catch (e) {
+      addNotification(t("common:error.updateFailed", { error: e }), "error");
+    } finally {
+      setExtensionBusy(ext.id, null);
+    }
+  }
 
   async function handleToggle() {
     const action = ext.enabled ? "disabling" : "enabling";
@@ -233,6 +287,12 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
         <span className="truncate">{ext.display_name}</span>
       </SidebarMenuButton>
 
+      {hasUpdate && (
+        <SidebarMenuBadge className="group-focus-within/menu-item:opacity-0 group-hover/menu-item:opacity-0">
+          <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent" />
+        </SidebarMenuBadge>
+      )}
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <SidebarMenuAction showOnHover className="text-nx-text-ghost hover:text-nx-text">
@@ -240,6 +300,16 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
           </SidebarMenuAction>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" className="w-48">
+          {hasUpdate && (
+            <>
+              <DropdownMenuItem onClick={handleExtUpdate} disabled={isBusy}>
+                <ArrowUp size={14} strokeWidth={1.5} className="text-nx-accent" />
+                {t("plugins:menu.update")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+
           <DropdownMenuItem onClick={handleToggle} disabled={isBusy}>
             <Power size={14} strokeWidth={1.5} className={ext.enabled ? "text-nx-warning" : "text-nx-success"} />
             {ext.enabled ? t("common:action.disable") : t("common:action.enable")}

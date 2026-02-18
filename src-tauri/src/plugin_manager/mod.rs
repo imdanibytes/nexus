@@ -21,6 +21,8 @@ use storage::{
     PluginStorage,
 };
 
+use tauri::Emitter;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -48,6 +50,25 @@ fn check_min_nexus_version(manifest: &PluginManifest) -> NexusResult<()> {
         }
     }
     Ok(())
+}
+
+/// Emitted on `nexus://plugin-update` so the frontend can show granular progress.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PluginUpdateEvent {
+    pub plugin_id: String,
+    pub stage: &'static str, // stopping | pulling | starting
+}
+
+fn emit_update(app_handle: Option<&tauri::AppHandle>, plugin_id: &str, stage: &'static str) {
+    if let Some(app) = app_handle {
+        let _ = app.emit(
+            "nexus://plugin-update",
+            PluginUpdateEvent {
+                plugin_id: plugin_id.to_string(),
+                stage,
+            },
+        );
+    }
 }
 
 pub struct PluginManager {
@@ -315,8 +336,11 @@ impl PluginManager {
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_SECRET={}", oauth_secret));
         // Browser-accessible URL — the iframe JS runs in the host browser, not inside the container
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
-        // Container-internal URL — for server-side code (MCP handlers etc.) that runs inside Docker
-        env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+        // Container-internal URL — for server-side code (MCP handlers etc.) that runs inside the container
+        env_vars.push(format!(
+            "NEXUS_HOST_URL=http://{}:9600",
+            self.runtime.host_gateway_hostname()
+        ));
         // Persistent data directory inside the container
         env_vars.push("NEXUS_DATA_DIR=/data".to_string());
         // UI language (BCP-47 code)
@@ -475,7 +499,10 @@ impl PluginManager {
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", oauth_client_id));
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_SECRET={}", new_secret));
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
-        env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+        env_vars.push(format!(
+            "NEXUS_HOST_URL=http://{}:9600",
+            self.runtime.host_gateway_hostname()
+        ));
         env_vars.push("NEXUS_DATA_DIR=/data".to_string());
         env_vars.push(format!("NEXUS_LANGUAGE={}", self.settings.language));
 
@@ -651,12 +678,15 @@ impl PluginManager {
         &mut self,
         manifest: PluginManifest,
         expected_digest: Option<String>,
+        app_handle: Option<&tauri::AppHandle>,
     ) -> NexusResult<InstalledPlugin> {
         manifest
             .validate()
             .map_err(NexusError::InvalidManifest)?;
 
         check_min_nexus_version(&manifest)?;
+
+        let plugin_id = manifest.id.clone();
 
         let plugin = self
             .storage
@@ -690,6 +720,7 @@ impl PluginManager {
         let preserved_local_path = plugin.local_manifest_path.clone();
 
         // Stop old container (also remove by name as fallback for Docker restarts)
+        emit_update(app_handle, &plugin_id, "stopping");
         if let Some(ref cid) = old_container_id {
             if was_running {
                 if let Err(e) = self.runtime.stop_container(cid).await {
@@ -715,6 +746,7 @@ impl PluginManager {
         }
 
         // Pull new image
+        emit_update(app_handle, &plugin_id, "pulling");
         log::info!("Pulling updated image: {}", manifest.image);
         self.runtime.pull_image(&manifest.image).await?;
 
@@ -767,7 +799,10 @@ impl PluginManager {
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", oauth_client_id));
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_SECRET={}", new_secret));
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
-        env_vars.push("NEXUS_HOST_URL=http://host.docker.internal:9600".to_string());
+        env_vars.push(format!(
+            "NEXUS_HOST_URL=http://{}:9600",
+            self.runtime.host_gateway_hostname()
+        ));
         env_vars.push("NEXUS_DATA_DIR=/data".to_string());
 
         let mut labels = HashMap::new();
@@ -811,6 +846,7 @@ impl PluginManager {
 
         // Restart if it was running
         if was_running {
+            emit_update(app_handle, &plugin_id, "starting");
             let ready_path = updated_plugin
                 .manifest
                 .health
@@ -1269,7 +1305,7 @@ mod tests {
         let mut m2 = test_manifest("com.test.update");
         m2.version = "2.0.0".into();
 
-        let updated = mgr.update_plugin(m2, None).await.unwrap();
+        let updated = mgr.update_plugin(m2, None, None).await.unwrap();
         assert_eq!(updated.manifest.version, "2.0.0");
         assert_eq!(updated.status, PluginStatus::Stopped); // wasn't running
 
@@ -1300,7 +1336,7 @@ mod tests {
 
         let mut m2 = test_manifest("com.test.uprun");
         m2.version = "2.0.0".into();
-        let updated = mgr.update_plugin(m2, None).await.unwrap();
+        let updated = mgr.update_plugin(m2, None, None).await.unwrap();
 
         assert_eq!(updated.status, PluginStatus::Running);
 

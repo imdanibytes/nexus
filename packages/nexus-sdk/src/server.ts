@@ -58,6 +58,9 @@ export class NexusServer {
       options?.clientId || process.env.NEXUS_OAUTH_CLIENT_ID || "";
     this.clientSecret =
       options?.clientSecret || process.env.NEXUS_OAUTH_CLIENT_SECRET || "";
+    // Fallback: only used when running outside a Nexus container (local dev).
+    // Inside containers, NEXUS_HOST_URL is always set by the Nexus backend
+    // with the correct engine-specific hostname.
     this.hostUrl =
       options?.hostUrl ||
       process.env.NEXUS_HOST_URL ||

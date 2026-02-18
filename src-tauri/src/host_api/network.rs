@@ -71,7 +71,7 @@ fn is_private_ip(ip: IpAddr) -> bool {
 fn is_private_host(host: &str) -> bool {
     let host = strip_brackets(host);
 
-    if host == "localhost" || host == "host.docker.internal" {
+    if host == "localhost" {
         return true;
     }
 

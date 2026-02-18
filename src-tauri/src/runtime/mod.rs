@@ -154,6 +154,9 @@ pub trait ContainerRuntime: Send + Sync {
     fn engine_id(&self) -> &str;
     /// Socket or pipe path used to connect to the engine.
     fn socket_path(&self) -> String;
+    /// Hostname that resolves to the host machine from inside containers.
+    /// Docker: `host.docker.internal`, Podman: `host.containers.internal`.
+    fn host_gateway_hostname(&self) -> &str;
 
     // Daemon
     async fn ping(&self) -> Result<(), RuntimeError>;

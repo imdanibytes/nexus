@@ -12,6 +12,7 @@ import { useNotificationStore } from "./stores/notificationStore";
 import { usePlugins } from "./hooks/usePlugins";
 import { useExtensions } from "./hooks/useExtensions";
 import { useDevRebuild } from "./hooks/useDevRebuild";
+import { useUpdateEvents } from "./hooks/useUpdateEvents";
 import { checkEngine, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -138,6 +139,7 @@ function App() {
   const { refresh } = usePlugins();
   const { refresh: extensionRefresh } = useExtensions();
   useDevRebuild();
+  useUpdateEvents();
   const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval } = useAppStore();
   const { notify, dismissByCategory } = useNotificationStore();
 

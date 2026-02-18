@@ -6,7 +6,7 @@ import type { PluginAction } from "../../stores/appStore";
 import { useAppStore } from "../../stores/appStore";
 import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
 import { getTheme } from "../../lib/theme";
-import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand, Wrench, ScrollText, TriangleAlert } from "lucide-react";
+import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand, Wrench, ScrollText, TriangleAlert, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Menubar,
@@ -78,6 +78,7 @@ export function PluginViewport({
         {menuOpen && <div className="absolute inset-0 z-10" />}
         {isRunning && !isBusy && hasUi ? (
           <iframe
+            key={`${plugin.manifest.id}-${plugin.manifest.version}`}
             src={iframeSrc!}
             className="w-full h-full border-0"
             title={plugin.manifest.name}
@@ -516,6 +517,13 @@ function BusyOverlay({ action, pluginName }: { action: PluginAction; pluginName:
       icon: Hammer,
       label: t("overlay.rebuilding"),
       sub: t("overlay.rebuildingSub"),
+      color: "text-nx-accent",
+      bg: "bg-nx-accent-muted",
+    },
+    updating: {
+      icon: ArrowUp,
+      label: t("overlay.updating"),
+      sub: t("overlay.updatingSub"),
       color: "text-nx-accent",
       bg: "bg-nx-accent-muted",
     },

@@ -67,6 +67,10 @@ impl ContainerRuntime for DockerRuntime {
         }
     }
 
+    fn host_gateway_hostname(&self) -> &str {
+        "host.docker.internal"
+    }
+
     async fn ping(&self) -> Result<(), RuntimeError> {
         self.docker.ping().await.map_err(to_err)?;
         Ok(())
@@ -261,7 +265,7 @@ impl ContainerRuntime for DockerRuntime {
         let host_config = HostConfig {
             port_bindings: Some(port_bindings),
             network_mode: Some(config.network.clone()),
-            extra_hosts: Some(vec!["host.docker.internal:host-gateway".to_string()]),
+            extra_hosts: Some(vec![format!("{}:host-gateway", self.host_gateway_hostname())]),
             cap_drop: Some(config.security.cap_drop.clone()),
             cap_add: Some(config.security.cap_add.clone()),
             security_opt: if config.security.no_new_privileges {

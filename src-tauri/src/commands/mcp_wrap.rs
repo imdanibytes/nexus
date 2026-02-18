@@ -1,3 +1,4 @@
+use crate::lifecycle_events::{self, LifecycleEvent};
 use crate::mcp_wrap::{classify, discovery, generate, PluginMetadata};
 use crate::mcp_wrap::classify::ClassifiedTool;
 use crate::plugin_manager::{manifest::PluginManifest, storage::InstalledPlugin};
@@ -59,8 +60,27 @@ pub async fn mcp_generate_and_install(
         .map_err(|e| format!("Docker build failed: {}", e))?;
 
     // 3. Install via PluginManager
+    let plugin_id = manifest.id.clone();
+
+    lifecycle_events::emit(Some(&app_handle), LifecycleEvent::PluginInstalling {
+        message: "Installing MCP plugin...".into(),
+    });
+
     let mut mgr = state.write().await;
-    mgr.install(manifest, approved_permissions, deferred_permissions, None, None)
-        .await
-        .map_err(|e| e.to_string())
+    match mgr.install(manifest, approved_permissions, deferred_permissions, None, None).await {
+        Ok(plugin) => {
+            lifecycle_events::emit(Some(&app_handle), LifecycleEvent::PluginInstalled {
+                plugin: plugin.clone(),
+            });
+            Ok(plugin)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app_handle), LifecycleEvent::PluginError {
+                plugin_id,
+                action: "installing".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }

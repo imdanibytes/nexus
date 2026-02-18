@@ -1,10 +1,11 @@
 use super::storage::PluginStatus;
+use crate::lifecycle_events::{self, LifecycleEvent};
 use crate::runtime::ContainerState;
 use crate::AppState;
 
 /// Reconcile stored plugin states against actual Docker container states.
 /// Returns true if any state was updated.
-pub async fn sync_plugin_states(state: &AppState) -> bool {
+pub async fn sync_plugin_states(state: &AppState, app: Option<&tauri::AppHandle>) -> bool {
     let (container_ids, runtime) = {
         let mgr = state.read().await;
         let ids: Vec<(String, Option<String>, PluginStatus)> = mgr
@@ -31,8 +32,7 @@ pub async fn sync_plugin_states(state: &AppState) -> bool {
     for (plugin_id, container_id, stored_status) in container_ids {
         let actual_status = match &container_id {
             Some(cid) => match runtime.container_state(cid).await {
-                Ok(ContainerState::Running) => ContainerState::Running,
-                Ok(_) => ContainerState::Stopped,
+                Ok(state) => state,
                 Err(_) => ContainerState::Gone,
             },
             None => ContainerState::Gone,
@@ -60,11 +60,29 @@ pub async fn sync_plugin_states(state: &AppState) -> bool {
                     stored_status,
                     new_status
                 );
-                plugin.status = new_status;
+                plugin.status = new_status.clone();
                 if actual_status == ContainerState::Gone {
                     plugin.container_id = None;
                 }
+                // Clone before save to satisfy borrow checker
+                let plugin_snapshot = plugin.clone();
                 let _ = mgr.storage.save();
+
+                // Emit lifecycle event for the state transition
+                match new_status {
+                    PluginStatus::Error => {
+                        lifecycle_events::emit(app, LifecycleEvent::PluginError {
+                            plugin_id: plugin_id.clone(),
+                            action: "sync".into(),
+                            message: "Container stopped or disappeared externally".into(),
+                        });
+                    }
+                    _ => {
+                        lifecycle_events::emit(app, LifecycleEvent::PluginStopped {
+                            plugin: plugin_snapshot,
+                        });
+                    }
+                }
             }
             changed = true;
         }

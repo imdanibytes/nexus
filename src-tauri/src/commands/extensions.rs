@@ -39,7 +39,7 @@ pub struct ExtensionStatus {
 
 /// Build an `ExtensionStatus` for a single extension by ID.
 /// Checks the running registry first, then falls back to installed-but-disabled storage.
-fn build_extension_status(mgr: &PluginManager, ext_id: &str) -> Option<ExtensionStatus> {
+pub(crate) fn build_extension_status(mgr: &PluginManager, ext_id: &str) -> Option<ExtensionStatus> {
     // Check running registry first
     if let Some(ext_info) = mgr.extensions.list().into_iter().find(|e| e.id == ext_id) {
         let operations: Vec<ExtensionOperationStatus> = ext_info

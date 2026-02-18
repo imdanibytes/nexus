@@ -200,6 +200,37 @@ impl PluginManager {
         hash_token(raw) == self.gateway_token_hash
     }
 
+    /// Reconcile MCP settings with a plugin's declared tools.
+    /// Adds new tools to enabled_tools, removes stale tools that no longer exist.
+    fn reconcile_mcp_settings(&mut self, plugin_id: &str, manifest: &PluginManifest) {
+        if let Some(mcp_config) = &manifest.mcp {
+            let tool_names: Vec<String> = mcp_config.tools.iter().map(|t| t.name.clone()).collect();
+            if tool_names.is_empty() {
+                return;
+            }
+
+            let entry = self
+                .mcp_settings
+                .plugins
+                .entry(plugin_id.to_string())
+                .or_default();
+
+            // Add new tools that aren't tracked yet
+            for name in &tool_names {
+                if !entry.enabled_tools.contains(name) && !entry.disabled_tools.contains(name) {
+                    entry.enabled_tools.push(name.clone());
+                }
+            }
+
+            // Remove stale tools that no longer exist in the manifest
+            entry.enabled_tools.retain(|t| tool_names.contains(t));
+            entry.disabled_tools.retain(|t| tool_names.contains(t));
+            entry.approved_tools.retain(|t| tool_names.contains(t));
+
+            let _ = self.mcp_settings.save();
+        }
+    }
+
     /// Bump the tool version counter and notify SSE subscribers.
     /// Call this after any change that affects the MCP tool list.
     pub fn notify_tools_changed(&self) {
@@ -410,6 +441,10 @@ impl PluginManager {
         self.update_plugin_auth_details(&plugin.manifest.id, &plugin.oauth_client_id);
 
         self.storage.add(plugin.clone())?;
+
+        // Reconcile MCP settings so new tools are registered immediately
+        self.reconcile_mcp_settings(&plugin.manifest.id, &plugin.manifest);
+
         Ok(plugin)
     }
 
@@ -856,6 +891,10 @@ impl PluginManager {
         }
 
         self.storage.save()?;
+
+        // Reconcile MCP settings so new/removed tools are reflected immediately
+        self.reconcile_mcp_settings(&updated_plugin.manifest.id, &updated_plugin.manifest);
+
         log::info!(
             "Updated plugin {} to version {}",
             updated_plugin.manifest.id,
@@ -1401,5 +1440,229 @@ mod tests {
         assert!(call_types.contains(&"remove_container"));
         assert!(call_types.contains(&"remove_image"));
         assert!(call_types.contains(&"remove_volume"));
+    }
+
+    // -- MCP settings reconciliation (#13) --
+
+    fn test_manifest_with_mcp(id: &str, tool_names: &[&str]) -> manifest::PluginManifest {
+        let mut m = test_manifest(id);
+        m.mcp = Some(manifest::McpConfig {
+            tools: tool_names
+                .iter()
+                .map(|name| manifest::McpToolDef {
+                    name: name.to_string(),
+                    description: format!("Tool {}", name),
+                    permissions: vec![],
+                    input_schema: serde_json::json!({"type": "object"}),
+                    requires_approval: false,
+                })
+                .collect(),
+            server: None,
+        });
+        m
+    }
+
+    #[tokio::test]
+    async fn install_populates_mcp_settings_for_new_tools() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest_with_mcp("com.test.mcp", &["read_file", "write_file"]);
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        let entry = mgr.mcp_settings.plugins.get("com.test.mcp");
+        assert!(entry.is_some(), "mcp_settings should have an entry for the plugin");
+        let entry = entry.unwrap();
+        assert!(entry.enabled_tools.contains(&"read_file".to_string()));
+        assert!(entry.enabled_tools.contains(&"write_file".to_string()));
+        assert!(entry.disabled_tools.is_empty());
+    }
+
+    #[tokio::test]
+    async fn reinstall_adds_new_tools_and_removes_stale() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        // Install with tools A and B
+        let m = test_manifest_with_mcp("com.test.mcp2", &["tool_a", "tool_b"]);
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        let entry = mgr.mcp_settings.plugins.get("com.test.mcp2").unwrap();
+        assert_eq!(entry.enabled_tools.len(), 2);
+
+        // Reinstall with tools B and C (A removed, C added)
+        let m2 = test_manifest_with_mcp("com.test.mcp2", &["tool_b", "tool_c"]);
+        mgr.install(m2, vec![], vec![], None, None).await.unwrap();
+
+        let entry = mgr.mcp_settings.plugins.get("com.test.mcp2").unwrap();
+        assert!(!entry.enabled_tools.contains(&"tool_a".to_string()), "stale tool_a should be removed");
+        assert!(entry.enabled_tools.contains(&"tool_b".to_string()), "tool_b should be preserved");
+        assert!(entry.enabled_tools.contains(&"tool_c".to_string()), "new tool_c should be added");
+    }
+
+    #[tokio::test]
+    async fn reinstall_preserves_user_disabled_tools() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        // Install with tools A and B
+        let m = test_manifest_with_mcp("com.test.mcp3", &["tool_a", "tool_b"]);
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        // Simulate user disabling tool_a
+        if let Some(entry) = mgr.mcp_settings.plugins.get_mut("com.test.mcp3") {
+            entry.enabled_tools.retain(|t| t != "tool_a");
+            entry.disabled_tools.push("tool_a".to_string());
+        }
+
+        // Reinstall with same tools — tool_a should stay disabled, not re-added to enabled
+        let m2 = test_manifest_with_mcp("com.test.mcp3", &["tool_a", "tool_b"]);
+        mgr.install(m2, vec![], vec![], None, None).await.unwrap();
+
+        let entry = mgr.mcp_settings.plugins.get("com.test.mcp3").unwrap();
+        assert!(!entry.enabled_tools.contains(&"tool_a".to_string()), "user-disabled tool_a should stay disabled");
+        assert!(entry.disabled_tools.contains(&"tool_a".to_string()), "tool_a should remain in disabled list");
+        assert!(entry.enabled_tools.contains(&"tool_b".to_string()));
+    }
+
+    #[tokio::test]
+    async fn update_plugin_reconciles_mcp_settings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        // Install v1 with tools A and B
+        let m = test_manifest_with_mcp("com.test.mcp4", &["tool_a", "tool_b"]);
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        // Update to v2 with tools B and C
+        let mut m2 = test_manifest_with_mcp("com.test.mcp4", &["tool_b", "tool_c"]);
+        m2.version = "2.0.0".into();
+        mgr.update_plugin(m2, None, None).await.unwrap();
+
+        let entry = mgr.mcp_settings.plugins.get("com.test.mcp4").unwrap();
+        assert!(!entry.enabled_tools.contains(&"tool_a".to_string()), "stale tool_a should be removed after update");
+        assert!(entry.enabled_tools.contains(&"tool_b".to_string()), "tool_b should be preserved");
+        assert!(entry.enabled_tools.contains(&"tool_c".to_string()), "new tool_c should be added");
+    }
+
+    #[tokio::test]
+    async fn install_without_mcp_does_not_create_settings_entry() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mut mgr = test_manager(tmp.path(), mock);
+
+        let m = test_manifest("com.test.nomcp");
+        mgr.install(m, vec![], vec![], None, None).await.unwrap();
+
+        assert!(
+            mgr.mcp_settings.plugins.get("com.test.nomcp").is_none(),
+            "plugin with no MCP config should not create an mcp_settings entry"
+        );
+    }
+
+    // -- sync_plugin_states (#10) --
+
+    #[tokio::test]
+    async fn sync_detects_externally_stopped_container() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let state = Arc::new(tokio::sync::RwLock::new(
+            test_manager(tmp.path(), mock),
+        ));
+
+        // Install and start a plugin
+        {
+            let mut mgr = state.write().await;
+            let m = test_manifest("com.test.sync");
+            mgr.install(m, vec![], vec![], None, None).await.unwrap();
+            mgr.start("com.test.sync").await.unwrap();
+            assert_eq!(
+                mgr.storage.get("com.test.sync").unwrap().status,
+                PluginStatus::Running
+            );
+        }
+
+        // Simulate external stop (Docker stop outside Nexus)
+        {
+            let mgr = state.read().await;
+            let cid = mgr.storage.get("com.test.sync").unwrap().container_id.clone().unwrap();
+            mock_ref.stop_container(&cid).await.unwrap();
+        }
+
+        // Run sync — should detect the change
+        let changed = health::sync_plugin_states(&state, None).await;
+        assert!(changed, "sync should detect the state change");
+
+        let mgr = state.read().await;
+        assert_eq!(
+            mgr.storage.get("com.test.sync").unwrap().status,
+            PluginStatus::Stopped,
+            "plugin should be Stopped after sync detects external stop"
+        );
+    }
+
+    #[tokio::test]
+    async fn sync_detects_disappeared_container() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let mock_ref = Arc::clone(&mock);
+        let state = Arc::new(tokio::sync::RwLock::new(
+            test_manager(tmp.path(), mock),
+        ));
+
+        // Install and start a plugin
+        {
+            let mut mgr = state.write().await;
+            let m = test_manifest("com.test.gone");
+            mgr.install(m, vec![], vec![], None, None).await.unwrap();
+            mgr.start("com.test.gone").await.unwrap();
+        }
+
+        // Simulate container disappearing (removed externally)
+        {
+            let mgr = state.read().await;
+            let cid = mgr.storage.get("com.test.gone").unwrap().container_id.clone().unwrap();
+            mock_ref.remove_container(&cid).await.unwrap();
+        }
+
+        // Run sync — should detect gone container and set Error
+        let changed = health::sync_plugin_states(&state, None).await;
+        assert!(changed);
+
+        let mgr = state.read().await;
+        let plugin = mgr.storage.get("com.test.gone").unwrap();
+        assert_eq!(
+            plugin.status,
+            PluginStatus::Error,
+            "plugin should be Error when container disappears while Running"
+        );
+        assert!(
+            plugin.container_id.is_none(),
+            "container_id should be cleared when container is gone"
+        );
+    }
+
+    #[tokio::test]
+    async fn sync_no_change_returns_false() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mock = Arc::new(MockRuntime::new());
+        let state = Arc::new(tokio::sync::RwLock::new(
+            test_manager(tmp.path(), mock),
+        ));
+
+        // Install a plugin (Stopped, container exists but not running — consistent)
+        {
+            let mut mgr = state.write().await;
+            let m = test_manifest("com.test.stable");
+            mgr.install(m, vec![], vec![], None, None).await.unwrap();
+        }
+
+        let changed = health::sync_plugin_states(&state, None).await;
+        assert!(!changed, "sync should return false when no state changed");
     }
 }

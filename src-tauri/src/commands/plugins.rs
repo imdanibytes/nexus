@@ -57,35 +57,41 @@ pub async fn plugin_install(
     deferred_permissions: Option<Vec<Permission>>,
     build_context: Option<String>,
 ) -> Result<InstalledPlugin, String> {
-    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalling {
-        message: "Installing plugin...".into(),
-    });
-
     let manifest = registry::fetch_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
 
-    // If a build_context is provided (local registry), build the image from source.
-    // Always rebuild so local dev changes are picked up on every install/update.
-    if let Some(ref ctx) = build_context {
-        let ctx_path = Path::new(ctx);
-        if ctx_path.join("Dockerfile").exists() {
-            log::info!(
-                "Building image {} from {}",
-                manifest.image,
-                ctx_path.display()
-            );
-            let runtime = { state.read().await.runtime.clone() };
-            runtime
-                .build_image(ctx_path, &manifest.image)
-                .await
-                .map_err(|e| format!("Docker build failed: {}", e))?;
-        }
-    }
-
     let plugin_id = manifest.id.clone();
-    let mut mgr = state.write().await;
-    match mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url), None).await {
+
+    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalling {
+        message: "Installing plugin...".into(),
+    });
+
+    // Everything after PluginInstalling must emit PluginError on failure
+    let result = async {
+        if let Some(ref ctx) = build_context {
+            let ctx_path = Path::new(ctx);
+            if ctx_path.join("Dockerfile").exists() {
+                log::info!(
+                    "Building image {} from {}",
+                    manifest.image,
+                    ctx_path.display()
+                );
+                let runtime = { state.read().await.runtime.clone() };
+                runtime
+                    .build_image(ctx_path, &manifest.image)
+                    .await
+                    .map_err(|e| format!("Docker build failed: {}", e))?;
+            }
+        }
+
+        let mut mgr = state.write().await;
+        mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), Some(&manifest_url), None)
+            .await
+            .map_err(|e| e.to_string())
+    }.await;
+
+    match result {
         Ok(plugin) => {
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalled {
                 plugin: plugin.clone(),
@@ -98,7 +104,7 @@ pub async fn plugin_install(
                 action: "installing".into(),
                 message: e.to_string(),
             });
-            Err(e.to_string())
+            Err(e)
         }
     }
 }
@@ -111,10 +117,7 @@ pub async fn plugin_install_local(
     approved_permissions: Vec<Permission>,
     deferred_permissions: Option<Vec<Permission>>,
 ) -> Result<InstalledPlugin, String> {
-    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalling {
-        message: "Installing plugin from local path...".into(),
-    });
-
+    // Parse manifest before emitting PluginInstalling so we have the plugin_id for errors
     let data = std::fs::read_to_string(&manifest_path)
         .map_err(|e| format!("Failed to read manifest: {}", e))?;
     let manifest: PluginManifest =
@@ -125,27 +128,36 @@ pub async fn plugin_install_local(
 
     let plugin_id = manifest.id.clone();
 
-    // Auto-build: if a Dockerfile sits next to the manifest, always rebuild.
-    // Local installs are a dev workflow — always pick up the latest code.
-    let manifest_dir = Path::new(&manifest_path)
-        .parent()
-        .ok_or("Invalid manifest path")?;
-    let dockerfile = manifest_dir.join("Dockerfile");
-    if dockerfile.exists() {
-        log::info!(
-            "Building image {} from {}",
-            manifest.image,
-            manifest_dir.display()
-        );
-        let runtime = { state.read().await.runtime.clone() };
-        runtime
-            .build_image(manifest_dir, &manifest.image)
-            .await
-            .map_err(|e| format!("Docker build failed: {}", e))?;
-    }
+    lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalling {
+        message: "Installing plugin from local path...".into(),
+    });
 
-    let mut mgr = state.write().await;
-    match mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), None, Some(manifest_path)).await {
+    // Everything after PluginInstalling must emit PluginError on failure
+    let result = async {
+        let manifest_dir = Path::new(&manifest_path)
+            .parent()
+            .ok_or_else(|| "Invalid manifest path".to_string())?;
+        let dockerfile = manifest_dir.join("Dockerfile");
+        if dockerfile.exists() {
+            log::info!(
+                "Building image {} from {}",
+                manifest.image,
+                manifest_dir.display()
+            );
+            let runtime = { state.read().await.runtime.clone() };
+            runtime
+                .build_image(manifest_dir, &manifest.image)
+                .await
+                .map_err(|e| format!("Docker build failed: {}", e))?;
+        }
+
+        let mut mgr = state.write().await;
+        mgr.install(manifest, approved_permissions, deferred_permissions.unwrap_or_default(), None, Some(manifest_path))
+            .await
+            .map_err(|e| e.to_string())
+    }.await;
+
+    match result {
         Ok(plugin) => {
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalled {
                 plugin: plugin.clone(),
@@ -158,7 +170,7 @@ pub async fn plugin_install_local(
                 action: "installing".into(),
                 message: e.to_string(),
             });
-            Err(e.to_string())
+            Err(e)
         }
     }
 }
@@ -276,8 +288,9 @@ pub async fn check_image_available(
 #[tauri::command]
 pub async fn plugin_sync_status(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
 ) -> Result<Vec<InstalledPlugin>, String> {
-    health::sync_plugin_states(&state).await;
+    health::sync_plugin_states(&state, Some(&app)).await;
     let mgr = state.read().await;
     Ok(mgr.list().into_iter().cloned().collect())
 }

@@ -1,10 +1,13 @@
 use std::path::Path;
 
 use crate::extensions::storage::InstalledExtension;
+use crate::lifecycle_events::{self, LifecycleEvent};
 use crate::plugin_manager::registry;
-use crate::plugin_manager::storage::InstalledPlugin;
+use crate::plugin_manager::storage::{InstalledPlugin, PluginStatus};
 use crate::update_checker::{self, AvailableUpdate};
 use crate::AppState;
+
+use super::extensions::build_extension_status;
 
 /// Check all installed plugins and extensions for available updates.
 #[tauri::command]
@@ -75,6 +78,8 @@ pub async fn update_plugin(
         .await
         .map_err(|e| e.to_string())?;
 
+    let plugin_id = manifest.id.clone();
+
     if let Some(ref ctx) = build_context {
         let ctx_path = Path::new(ctx);
         if ctx_path.join("Dockerfile").exists() {
@@ -88,45 +93,95 @@ pub async fn update_plugin(
     }
 
     let mut mgr = state.write().await;
-    let result = mgr
-        .update_plugin(manifest, expected_digest, Some(&app))
-        .await
-        .map_err(|e| e.to_string())?;
-
-    mgr.notify_tools_changed();
-    Ok(result)
+    match mgr.update_plugin(manifest, expected_digest, Some(&app)).await {
+        Ok(result) => {
+            mgr.notify_tools_changed();
+            if result.status == PluginStatus::Running {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStarted {
+                    plugin: result.clone(),
+                });
+            } else {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStopped {
+                    plugin: result.clone(),
+                });
+            }
+            Ok(result)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
+                plugin_id,
+                action: "updating".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Update an extension to a new version. Rejects key changes.
 #[tauri::command]
 pub async fn update_extension(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     manifest_url: String,
 ) -> Result<InstalledExtension, String> {
     let manifest = registry::fetch_extension_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
 
+    let ext_id = manifest.id.clone();
     let mut mgr = state.write().await;
-    mgr.update_extension(manifest, false, Some(&manifest_url))
-        .await
-        .map_err(|e| e.to_string())
+    match mgr.update_extension(manifest, false, Some(&manifest_url)).await {
+        Ok(installed) => {
+            if let Some(status) = build_extension_status(&mgr, &ext_id) {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
+                    extension: status,
+                });
+            }
+            Ok(installed)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                ext_id,
+                action: "updating".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Update an extension, accepting author key changes (force rotate).
 #[tauri::command]
 pub async fn update_extension_force_key(
     state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     manifest_url: String,
 ) -> Result<InstalledExtension, String> {
     let manifest = registry::fetch_extension_manifest(&manifest_url)
         .await
         .map_err(|e| e.to_string())?;
 
+    let ext_id = manifest.id.clone();
     let mut mgr = state.write().await;
-    mgr.update_extension(manifest, true, Some(&manifest_url))
-        .await
-        .map_err(|e| e.to_string())
+    match mgr.update_extension(manifest, true, Some(&manifest_url)).await {
+        Ok(installed) => {
+            if let Some(status) = build_extension_status(&mgr, &ext_id) {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
+                    extension: status,
+                });
+            }
+            Ok(installed)
+        }
+        Err(e) => {
+            lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                ext_id,
+                action: "updating".into(),
+                message: e.to_string(),
+            });
+            Err(e.to_string())
+        }
+    }
 }
 
 /// Return the last time updates were checked (ISO 8601).

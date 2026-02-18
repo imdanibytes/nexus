@@ -105,13 +105,27 @@ export class NexusServer {
   /**
    * Fetch with automatic auth. Relative paths resolve against `apiUrl`.
    * Low-level escape hatch for endpoints not yet wrapped as typed methods.
+   * Retries once on 401 (stale token after host restart).
    */
   async fetch(path: string, init?: RequestInit): Promise<Response> {
     const token = await this.getAccessToken();
     const url = path.startsWith("http") ? path : `${this.apiUrl}${path}`;
     const headers = new Headers(init?.headers);
     headers.set("Authorization", `Bearer ${token}`);
-    return globalThis.fetch(url, { ...init, headers });
+    const res = await globalThis.fetch(url, { ...init, headers });
+
+    if (res.status === 401) {
+      // Token may be stale (host restarted). Invalidate and retry once.
+      this.accessToken = null;
+      this.expiresAt = 0;
+      this.refreshToken = null;
+      const freshToken = await this.getAccessToken();
+      const retryHeaders = new Headers(init?.headers);
+      retryHeaders.set("Authorization", `Bearer ${freshToken}`);
+      return globalThis.fetch(url, { ...init, headers: retryHeaders });
+    }
+
+    return res;
   }
 
   // ── Typed API methods ─────────────────────────────────────

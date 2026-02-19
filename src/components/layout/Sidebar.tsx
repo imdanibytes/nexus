@@ -102,7 +102,7 @@ function NavItem({
 /* ─── Surface layer — each section is its own card ─── */
 function Surface({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5 p-2", className)}>
+    <div className={cn("rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50 p-2", className)}>
       {children}
     </div>
   );

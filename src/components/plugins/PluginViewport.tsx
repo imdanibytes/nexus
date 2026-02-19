@@ -126,7 +126,7 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
   return (
     <>
       <div
-        className="flex items-center gap-0 mx-2 mt-2 px-1 h-8 rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5"
+        className="flex items-center gap-0 mx-2 mt-2 px-1 h-8 rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50"
       >
         {/* App menu */}
         <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
@@ -314,7 +314,7 @@ function SchemaBlock({ label, schema }: { label: string; schema: Record<string, 
       <p className="text-[11px] font-semibold text-default-500 uppercase tracking-wider mb-1.5">
         {label}
       </p>
-      <pre className="text-[11px] font-mono text-default-500 bg-background border border-divider rounded-[6px] p-3 overflow-x-auto whitespace-pre-wrap break-words">
+      <pre className="text-[11px] font-mono text-default-500 bg-background border border-default-200/50 rounded-[6px] p-3 overflow-x-auto whitespace-pre-wrap break-words">
         {JSON.stringify(schema, null, 2)}
       </pre>
     </div>
@@ -510,7 +510,7 @@ function BusyOverlay({ action, pluginName }: { action: PluginAction; pluginName:
   const Icon = config.icon;
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm">
+    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/60 backdrop-blur-xl">
       <div className="flex flex-col items-center gap-4">
         <div className={`w-16 h-16 rounded-[14px] ${config.bg} flex items-center justify-center`}>
           <Icon size={28} strokeWidth={1.5} className={config.color} />

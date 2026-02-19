@@ -87,7 +87,7 @@ export function SettingsPage() {
   return (
     <div className="flex h-full gap-3 p-3">
       {/* Nav surface */}
-      <div className="w-[200px] flex-shrink-0 rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5 p-4">
+      <div className="w-[200px] flex-shrink-0 rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50 p-4">
         <h2 className="text-lg font-bold mb-1 px-3">{t("title")}</h2>
         <p className="text-xs text-default-400 mb-4 px-3">{t("subtitle")}</p>
 
@@ -125,7 +125,7 @@ export function SettingsPage() {
       </div>
 
       {/* Content surface — animated transitions */}
-      <div className="flex-1 rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5 overflow-y-auto p-8">
+      <div className="flex-1 rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50 overflow-y-auto p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={active}

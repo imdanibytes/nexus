@@ -685,6 +685,7 @@ function FieldInput({
   onChange,
   placeholder,
   error,
+  mono,
 }: {
   label: string;
   value: string;

@@ -7,8 +7,7 @@ import { usePlugins } from "../../hooks/usePlugins";
 import { checkImageAvailable } from "../../lib/tauri";
 import { ArrowLeft, Download, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale, Hammer, RefreshCw, HardDrive, Cloud } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Button, Card, CardBody, Chip } from "@heroui/react";
 
 interface Props {
   entry: RegistryEntry;
@@ -57,40 +56,40 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className="text-nx-text-muted hover:text-nx-text mb-6"
+        onPress={onBack}
+        className="mb-6"
       >
         <ArrowLeft size={14} strokeWidth={1.5} />
         {t("marketplace.backToMarketplace")}
       </Button>
 
-      <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-6">
+      <Card><CardBody className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h2 className="text-[18px] font-bold text-nx-text">{entry.name}</h2>
-            <p className="text-[12px] text-nx-text-muted mt-1 font-mono">
+            <h2 className="text-[18px] font-bold">{entry.name}</h2>
+            <p className="text-[12px] text-default-500 mt-1 font-mono">
               v{entry.version} &middot; {entry.id}
             </p>
           </div>
           {isInstalled ? (
             <div className="flex items-center gap-2">
-              <Badge variant={isLocalSource ? "warning" : "accent"} className="gap-1">
-                {isLocalSource ? <HardDrive size={10} strokeWidth={1.5} /> : <Cloud size={10} strokeWidth={1.5} />}
+              <Chip
+                size="sm"
+                variant="flat"
+                color={isLocalSource ? "warning" : "primary"}
+                startContent={isLocalSource ? <HardDrive size={10} strokeWidth={1.5} /> : <Cloud size={10} strokeWidth={1.5} />}
+              >
                 {isLocalSource ? t("marketplace.localDev") : t("common:status.registry")}
-              </Badge>
+              </Chip>
               {imageAvailable === false ? (
-                <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[8px] bg-danger-50 text-danger">
                   <AlertTriangle size={12} strokeWidth={1.5} />
                   {t("marketplace.imageUnavailable")}
                 </span>
               ) : (
                 <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleInstallClick}
-                  disabled={loading || imageAvailable === null}
+                  onPress={handleInstallClick}
+                  isDisabled={loading || imageAvailable === null}
                 >
                   {loading || imageAvailable === null ? (
                     <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
@@ -102,14 +101,14 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
               )}
             </div>
           ) : imageAvailable === false ? (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[8px] bg-danger-50 text-danger">
               <AlertTriangle size={12} strokeWidth={1.5} />
               {t("marketplace.imageUnavailable")}
             </span>
           ) : (
             <Button
-              onClick={handleInstallClick}
-              disabled={loading || imageAvailable === null}
+              onPress={handleInstallClick}
+              isDisabled={loading || imageAvailable === null}
             >
               {loading || imageAvailable === null ? (
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
@@ -124,7 +123,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
         </div>
 
         {/* Metadata row */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4 text-[11px] text-nx-text-muted">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4 text-[11px] text-default-500">
           {entry.author && (
             <span className="flex items-center gap-1">
               <User size={11} strokeWidth={1.5} />
@@ -133,7 +132,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
                   href={entry.author_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-nx-text transition-colors duration-150"
+                  className="transition-colors duration-150"
                 >
                   {entry.author}
                 </a>
@@ -159,7 +158,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
               href={entry.homepage}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:text-nx-text transition-colors duration-150"
+              className="flex items-center gap-1 transition-colors duration-150"
             >
               <ExternalLink size={11} strokeWidth={1.5} />
               {t("marketplace.repository")}
@@ -167,18 +166,18 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
           )}
         </div>
 
-        <p className="text-nx-text-secondary text-[13px] mb-6 leading-relaxed">{entry.description}</p>
+        <p className="text-default-500 text-[13px] mb-6 leading-relaxed">{entry.description}</p>
 
         <div className="space-y-4">
           <div>
-            <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
+            <h4 className="text-[10px] font-semibold text-default-500 uppercase tracking-wider mb-2">
               {t("marketplace.containerImage")}
             </h4>
-            <code className="text-[12px] bg-nx-deep text-nx-text-secondary px-2.5 py-1 rounded-[var(--radius-tag)] font-mono">
+            <code className="text-[12px] bg-background text-default-500 px-2.5 py-1 rounded-[6px] font-mono">
               {entry.image}
             </code>
             {canBuild && (
-              <span className="ml-2 text-[10px] text-nx-text-muted">
+              <span className="ml-2 text-[10px] text-default-500">
                 {t("marketplace.builtFromSource")}
               </span>
             )}
@@ -186,10 +185,10 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
 
           {entry.image_digest && (
             <div>
-              <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
+              <h4 className="text-[10px] font-semibold text-default-500 uppercase tracking-wider mb-2">
                 {t("marketplace.imageDigest")}
               </h4>
-              <code className="text-[12px] bg-nx-deep text-nx-text-secondary px-2.5 py-1 rounded-[var(--radius-tag)] font-mono break-all">
+              <code className="text-[12px] bg-background text-default-500 px-2.5 py-1 rounded-[6px] font-mono break-all">
                 {entry.image_digest}
               </code>
             </div>
@@ -197,23 +196,20 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
 
           {entry.categories.length > 0 && (
             <div>
-              <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
+              <h4 className="text-[10px] font-semibold text-default-500 uppercase tracking-wider mb-2">
                 {t("marketplace.categories")}
               </h4>
               <div className="flex gap-2 flex-wrap">
                 {entry.categories.map((cat) => (
-                  <span
-                    key={cat}
-                    className="text-[11px] px-2 py-1 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary"
-                  >
+                  <Chip key={cat} size="sm" variant="flat">
                     {cat}
-                  </span>
+                  </Chip>
                 ))}
               </div>
             </div>
           )}
         </div>
-      </div>
+      </CardBody></Card>
 
       {pendingManifest && (
         <PermissionDialog

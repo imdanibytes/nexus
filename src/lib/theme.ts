@@ -1,43 +1,53 @@
 import { broadcastToPlugins } from "./pluginBridge";
-import { setTheme as persistTheme } from "./tauri";
 
-const STORAGE_KEY = "nexus-theme";
+const MODE_KEY = "nexus-color-mode";
 
-export type ThemeId = "default" | "nebula";
+export type ColorMode = "light" | "dark" | "system";
 
-export const THEMES: { id: ThemeId; labelKey: string; accent: string }[] = [
-  { id: "default", labelKey: "general.themeDefault", accent: "#2DD4A8" },
-  { id: "nebula", labelKey: "general.themeNebula", accent: "#8b8bf5" },
-];
-
-/** Read the persisted theme (falls back to "default"). */
-export function getTheme(): ThemeId {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "nebula") return "nebula";
-  return "default";
+function resolveMode(mode: ColorMode): "light" | "dark" {
+  if (mode !== "system") return mode;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
-/** Apply a theme: update DOM, persist to localStorage + backend, notify plugins. */
-export function applyTheme(theme: ThemeId): void {
-  // Apply to DOM
-  if (theme === "default") {
-    document.documentElement.removeAttribute("data-theme");
+function applyDarkClass(effective: "light" | "dark") {
+  if (effective === "dark") {
+    document.documentElement.classList.add("dark");
+    document.documentElement.classList.remove("light");
   } else {
-    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("light");
   }
-
-  // Persist
-  localStorage.setItem(STORAGE_KEY, theme);
-  persistTheme(theme).catch(() => {});
-
-  // Notify plugins
-  broadcastToPlugins("theme_changed", { theme });
 }
 
-/** Apply the saved theme on startup (call once from main). */
-export function initTheme(): void {
-  const theme = getTheme();
-  if (theme !== "default") {
-    document.documentElement.setAttribute("data-theme", theme);
-  }
+export function getColorMode(): ColorMode {
+  const stored = localStorage.getItem(MODE_KEY) as ColorMode | null;
+  if (stored === "light" || stored === "dark" || stored === "system")
+    return stored;
+  return "dark";
+}
+
+export function applyColorMode(mode: ColorMode): void {
+  localStorage.setItem(MODE_KEY, mode);
+  applyDarkClass(resolveMode(mode));
+  broadcastToPlugins("color_mode_changed", {
+    mode,
+    effective: resolveMode(mode),
+  });
+}
+
+/** Call once at startup. Returns cleanup function. */
+export function initColorMode(): () => void {
+  const mode = getColorMode();
+  applyDarkClass(resolveMode(mode));
+
+  const mql = window.matchMedia("(prefers-color-scheme: dark)");
+  const handler = () => {
+    if (getColorMode() === "system") {
+      applyDarkClass(resolveMode("system"));
+    }
+  };
+  mql.addEventListener("change", handler);
+  return () => mql.removeEventListener("change", handler);
 }

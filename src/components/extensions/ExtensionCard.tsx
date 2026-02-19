@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { ExtensionRegistryEntry } from "../../types/extension";
 import { timeAgo } from "../../lib/timeAgo";
+import { Card, CardBody, Chip } from "@heroui/react";
 
 interface Props {
   entry: ExtensionRegistryEntry;
@@ -11,16 +12,18 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
   const { t } = useTranslation("plugins");
 
   return (
-    <div
-      onClick={onSelect}
-      className="p-4 rounded-[var(--radius-card)] border border-nx-border bg-nx-surface hover:border-nx-border-strong hover:shadow-[var(--shadow-card-hover)] cursor-pointer transition-all duration-200"
+    <Card
+      isPressable
+      onPress={onSelect}
+      className="cursor-pointer transition-all duration-200"
     >
+      <CardBody className="p-4">
       <div className="flex items-start justify-between mb-2">
         <div>
-          <h3 className="text-[13px] font-semibold text-nx-text">
+          <h3 className="text-[13px] font-semibold">
             {entry.name}
           </h3>
-          <p className="text-[11px] text-nx-text-muted font-mono">
+          <p className="text-[11px] text-default-500 font-mono">
             v{entry.version}
             {entry.author_url ? (
               <a
@@ -28,7 +31,7 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="font-sans ml-1.5 text-nx-accent hover:underline"
+                className="font-sans ml-1.5 text-primary hover:underline"
               >
                 {entry.author}
               </a>
@@ -38,42 +41,37 @@ export function ExtensionRegistryCard({ entry, onSelect }: Props) {
           </p>
         </div>
         {entry.status === "deprecated" && (
-          <span className="text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-medium bg-nx-warning-muted text-nx-warning flex-shrink-0">
+          <Chip size="sm" variant="flat" color="warning">
             {t("common:status.deprecated")}
-          </span>
+          </Chip>
         )}
       </div>
-      <p className="text-[11px] text-nx-text-secondary line-clamp-2">
+      <p className="text-[11px] text-default-500 line-clamp-2">
         {entry.description}
       </p>
       <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
         {entry.source && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-accent-muted text-nx-accent font-medium">
+          <Chip size="sm" variant="flat">
             {entry.source}
-          </span>
+          </Chip>
         )}
         {entry.platforms?.map((platform) => (
-          <span
-            key={platform}
-            className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-info-muted text-nx-info font-medium"
-          >
+          <Chip key={platform} size="sm" variant="flat">
             {t(`card.platforms.${platform}`, { defaultValue: platform })}
-          </span>
+          </Chip>
         ))}
         {entry.categories.map((cat) => (
-          <span
-            key={cat}
-            className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary"
-          >
+          <Chip key={cat} size="sm" variant="flat">
             {cat}
-          </span>
+          </Chip>
         ))}
         {entry.created_at && (
-          <span className="text-[10px] text-nx-text-ghost ml-auto">
+          <span className="text-[10px] text-default-400 ml-auto">
             {timeAgo(entry.created_at)}
           </span>
         )}
       </div>
-    </div>
+      </CardBody>
+    </Card>
   );
 }

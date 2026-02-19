@@ -1,19 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Copy, Check, Loader2, X } from "lucide-react";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Drawer, DrawerContent, DrawerHeader, DrawerBody } from "@heroui/react";
+import { Button } from "@heroui/react";
+import { Chip } from "@heroui/react";
 
 interface Props {
-  pluginId: string;
+  pluginId: string | null;
   getLogs: (pluginId: string, tail?: number) => Promise<string[]>;
   onClose: () => void;
 }
@@ -25,11 +18,14 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const isOpen = pluginId !== null;
+
   useEffect(() => {
+    if (!pluginId) return;
     let active = true;
 
     async function fetchLogs() {
-      const lines = await getLogs(pluginId, 200);
+      const lines = await getLogs(pluginId!, 200);
       if (active) {
         setLogs(lines);
         setLoading(false);
@@ -58,56 +54,59 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
   }
 
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="bottom" showCloseButton={false} className="h-96 max-w-4xl mx-auto rounded-t-[var(--radius-modal)] p-0 flex flex-col">
-        <SheetHeader className="px-4 py-2.5 border-b border-nx-border-subtle flex-row items-center gap-2 shrink-0">
-          <SheetTitle className="text-[12px] font-semibold text-nx-text-secondary flex items-center gap-2 flex-1">
+    <Drawer
+      isOpen={isOpen}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      placement="bottom"
+      hideCloseButton
+    >
+      <DrawerContent>
+        <DrawerHeader className="px-4 py-2.5 border-b border-default-100 flex items-center gap-2 shrink-0">
+          <div className="text-[12px] font-semibold text-default-500 flex items-center gap-2 flex-1">
             {t("logs.title")}
-            <Badge variant="secondary" className="text-[10px] font-mono">
+            <Chip size="sm" variant="flat">
               {pluginId}
-            </Badge>
-          </SheetTitle>
+            </Chip>
+          </div>
           <Button
-            variant="ghost"
-            size="xs"
-            onClick={handleCopy}
-            disabled={logs.length === 0}
-            className="text-nx-text-muted"
+            onPress={handleCopy}
+            isDisabled={logs.length === 0}
           >
             {copied ? (
-              <Check size={12} strokeWidth={1.5} className="text-nx-success" />
+              <Check size={12} strokeWidth={1.5} className="text-success" />
             ) : (
               <Copy size={12} strokeWidth={1.5} />
             )}
             {copied ? t("common:action.copied") : t("common:action.copy")}
           </Button>
-          <SheetClose asChild>
-            <Button variant="ghost" size="xs" className="text-nx-text-muted">
-              <X size={14} strokeWidth={1.5} />
-            </Button>
-          </SheetClose>
-        </SheetHeader>
+          <Button
+            isIconOnly
+            onPress={onClose}
+          >
+            <X size={14} strokeWidth={1.5} />
+          </Button>
+        </DrawerHeader>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <DrawerBody className="p-0 overflow-y-auto">
           <div className="p-4 font-mono text-[11px] leading-5">
             {loading && logs.length === 0 ? (
-              <div className="flex items-center gap-2 text-nx-text-ghost">
+              <div className="flex items-center gap-2 text-default-400">
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
                 {t("logs.loadingLogs")}
               </div>
             ) : logs.length === 0 ? (
-              <p className="text-nx-text-ghost">{t("logs.noLogs")}</p>
+              <p className="text-default-400">{t("logs.noLogs")}</p>
             ) : (
               logs.map((line, i) => (
-                <div key={i} className="text-nx-text-secondary whitespace-pre-wrap hover:bg-nx-surface/40 px-1 -mx-1 rounded-sm">
+                <div key={i} className="text-default-500 whitespace-pre-wrap hover:bg-default-100 px-1 -mx-1 rounded-sm">
                   {line}
                 </div>
               ))
             )}
             <div ref={bottomRef} />
           </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+        </DrawerBody>
+      </DrawerContent>
+    </Drawer>
   );
 }

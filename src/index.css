@@ -1,73 +1,24 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* ============================================
-   Geist Font Faces
-   ============================================ */
+/* HeroUI theme plugin — MUST be in root CSS, not in imported files */
+@plugin "./hero.ts";
 
-@font-face {
-  font-family: "Geist";
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-  src: url("/fonts/Geist-Regular.woff2") format("woff2");
-}
+/* HeroUI class scanning */
+@source "../node_modules/@heroui/theme/dist/**/*.{js,ts}";
 
-@font-face {
-  font-family: "Geist";
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-  src: url("/fonts/Geist-Medium.woff2") format("woff2");
-}
+/* Dark mode variant */
+@custom-variant dark (&:is(.dark *));
 
-@font-face {
-  font-family: "Geist";
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-  src: url("/fonts/Geist-SemiBold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Geist";
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-  src: url("/fonts/Geist-Bold.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-  src: url("/fonts/GeistMono-Regular.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-  src: url("/fonts/GeistMono-Medium.woff2") format("woff2");
-}
-
-/* ============================================
-   Nexus Design Tokens + shadcn Bridge
-   Single source: packages/tokens/
-   ============================================ */
-
-@import "@nexus-dashboard/tokens/tokens.css";
-@import "@nexus-dashboard/tokens/theme.css";
-@import "@nexus-dashboard/tokens/bridge.css";
+/* Geist fonts from nexus-ui */
+@import "@imdanibytes/nexus-ui/styles";
 
 /* ============================================
    Base Styles
    ============================================ */
 
 :root {
-  font-family: var(--font-sans);
+  font-family: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -77,8 +28,6 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--color-nx-deep);
-  color: var(--color-nx-text);
 }
 
 #root {
@@ -99,12 +48,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-nx-wash);
+  background: hsl(var(--heroui-default-300));
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-nx-text-muted);
+  background: hsl(var(--heroui-default-400));
 }
 
 /* ============================================
@@ -127,6 +76,35 @@ body {
   }
 }
 
+/* Drifting gradient blobs — each one takes a different path */
+@keyframes drift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(15vw, 20vh) scale(1.1); }
+  50% { transform: translate(5vw, 40vh) scale(0.9); }
+  75% { transform: translate(-10vw, 15vh) scale(1.05); }
+}
+
+@keyframes drift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-20vw, -10vh) scale(0.95); }
+  50% { transform: translate(-10vw, 15vh) scale(1.1); }
+  75% { transform: translate(10vw, -20vh) scale(1); }
+}
+
+@keyframes drift3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(10vw, -25vh) scale(1.05); }
+  50% { transform: translate(-15vw, -10vh) scale(0.95); }
+  75% { transform: translate(5vw, 10vh) scale(1.1); }
+}
+
+@keyframes drift4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-10vw, 10vh) scale(1.1); }
+  50% { transform: translate(20vw, -15vh) scale(0.9); }
+  75% { transform: translate(-5vw, -25vh) scale(1.05); }
+}
+
 /* ============================================
    Release Notes Markdown
    ============================================ */
@@ -135,7 +113,6 @@ body {
 .release-notes h2,
 .release-notes h3 {
   font-weight: 600;
-  color: var(--color-nx-text);
   margin-top: 0.75em;
   margin-bottom: 0.375em;
 }
@@ -165,21 +142,17 @@ body {
 
 .release-notes strong {
   font-weight: 600;
-  color: var(--color-nx-text);
 }
 
 .release-notes code {
-  font-family: var(--font-mono);
+  font-family: "Geist Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
   font-size: 0.875em;
-  background: var(--color-nx-overlay);
   padding: 0.1em 0.35em;
   border-radius: 3px;
 }
 
 .release-notes pre {
-  background: var(--color-nx-deep);
-  border: 1px solid var(--color-nx-border);
-  border-radius: var(--radius-tag);
+  border-radius: 6px;
   padding: 0.625em 0.75em;
   overflow-x: auto;
   margin: 0.5em 0;
@@ -190,7 +163,6 @@ body {
 }
 
 .release-notes a {
-  color: var(--color-nx-accent);
   text-decoration: none;
 }
 .release-notes a:hover {
@@ -198,9 +170,6 @@ body {
 }
 
 .release-notes blockquote {
-  border-left: 2px solid var(--color-nx-border-strong);
   padding-left: 0.75em;
   margin: 0.5em 0;
-  color: var(--color-nx-text-muted);
 }
-

@@ -26,15 +26,7 @@ import {
   ShieldX,
   Clock,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Button, Chip, Card, CardBody, Select, SelectItem } from "@heroui/react";
 
 function useCheckIntervalOptions() {
   const { t } = useTranslation("settings");
@@ -50,15 +42,15 @@ function useCheckIntervalOptions() {
 
 const SECURITY_BADGE_STYLES: Record<
   string,
-  { variant: "success" | "warning" | "error"; icon: typeof ShieldCheck }
+  { color: "success" | "warning" | "danger"; icon: typeof ShieldCheck }
 > = {
-  verified: { variant: "success", icon: ShieldCheck },
-  key_match: { variant: "success", icon: ShieldCheck },
-  digest_available: { variant: "success", icon: ShieldCheck },
-  no_digest: { variant: "warning", icon: ShieldAlert },
-  untrusted_source: { variant: "warning", icon: ShieldAlert },
-  key_changed: { variant: "error", icon: ShieldX },
-  manifest_domain_changed: { variant: "error", icon: ShieldAlert },
+  verified: { color: "success", icon: ShieldCheck },
+  key_match: { color: "success", icon: ShieldCheck },
+  digest_available: { color: "success", icon: ShieldCheck },
+  no_digest: { color: "warning", icon: ShieldAlert },
+  untrusted_source: { color: "warning", icon: ShieldAlert },
+  key_changed: { color: "danger", icon: ShieldX },
+  manifest_domain_changed: { color: "danger", icon: ShieldAlert },
 };
 
 function humanize(flag: string): string {
@@ -72,10 +64,15 @@ function SecurityBadges({ security }: { security: UpdateSecurity[] }) {
         const style = SECURITY_BADGE_STYLES[flag] ?? SECURITY_BADGE_STYLES.no_digest;
         const Icon = style.icon;
         return (
-          <Badge key={flag} variant={style.variant} className="text-[9px]">
-            <Icon size={10} strokeWidth={1.5} />
+          <Chip
+            key={flag}
+            size="sm"
+            variant="flat"
+            color={style.color}
+            startContent={<Icon size={10} strokeWidth={1.5} />}
+          >
             {humanize(flag)}
-          </Badge>
+          </Chip>
         );
       })}
     </div>
@@ -87,9 +84,11 @@ function RegistryBadge({ source }: { source: string }) {
   const isOfficial =
     source.toLowerCase() === "official" || source.toLowerCase() === "nexus";
   return (
-    <Badge variant={isOfficial ? "secondary" : "warning"}>
+    <Chip
+      size="sm"
+    >
       {isOfficial ? t("common:status.official") : t("common:status.community")}
-    </Badge>
+    </Chip>
   );
 }
 
@@ -217,32 +216,31 @@ export function UpdatesTab() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card><CardBody className="p-5">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <ArrowUpCircle
                 size={15}
                 strokeWidth={1.5}
-                className="text-nx-text-muted"
+                className="text-default-500"
               />
-              <h3 className="text-[14px] font-semibold text-nx-text">
+              <h3 className="text-[14px] font-semibold">
                 {t("updates.availableUpdates")}
               </h3>
             </div>
-            <p className="text-[11px] text-nx-text-ghost">
+            <p className="text-[11px] text-default-400">
               {t("updates.lastChecked", { time: formattedTime })}
             </p>
             <div className="mt-3 flex items-center gap-2">
-              <span className="text-[11px] text-nx-text-muted font-medium">
+              <span className="text-[11px] text-default-500 font-medium">
                 {t("updates.updatesCount", { count: availableUpdates.length })}
               </span>
             </div>
           </div>
           <Button
-            onClick={handleCheck}
-            disabled={checking}
-            size="sm"
+            onPress={handleCheck}
+            isDisabled={checking}
             className="flex-shrink-0 ml-4"
           >
             {checking ? (
@@ -253,47 +251,50 @@ export function UpdatesTab() {
             {checking ? t("common:action.checking") : t("updates.checkNow")}
           </Button>
         </div>
-      </section>
+      </CardBody></Card>
 
       {/* Auto-check frequency */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card><CardBody className="p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Clock size={15} strokeWidth={1.5} className="text-nx-text-muted" />
+            <Clock size={15} strokeWidth={1.5} className="text-default-500" />
             <div>
-              <h3 className="text-[13px] font-semibold text-nx-text">
+              <h3 className="text-[13px] font-semibold">
                 {t("updates.autoCheckFrequency")}
               </h3>
-              <p className="text-[11px] text-nx-text-ghost">
+              <p className="text-[11px] text-default-400">
                 {t("updates.autoCheckDesc")}
               </p>
             </div>
           </div>
-          <Select value={String(updateCheckInterval)} onValueChange={(v) => handleIntervalChange(Number(v))}>
-            <SelectTrigger className="w-auto text-[11px] font-medium">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CHECK_INTERVALS.map((opt) => (
-                <SelectItem key={opt.value} value={String(opt.value)}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
+          <Select
+            selectedKeys={[String(updateCheckInterval)]}
+            onSelectionChange={(keys) => {
+              const selected = Array.from(keys)[0];
+              if (selected) handleIntervalChange(Number(selected));
+            }}
+            variant="bordered"
+            className="w-[180px]"
+          >
+            {CHECK_INTERVALS.map((opt) => (
+              <SelectItem key={String(opt.value)}>
+                {opt.label}
+              </SelectItem>
+            ))}
           </Select>
         </div>
-      </section>
+      </CardBody></Card>
 
       {/* Empty state */}
       {availableUpdates.length === 0 && (
-        <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+        <Card><CardBody className="p-5">
           <div className="flex items-center gap-2">
-            <Check size={14} strokeWidth={1.5} className="text-nx-success" />
-            <p className="text-[12px] text-nx-text-ghost">
+            <Check size={14} strokeWidth={1.5} className="text-success" />
+            <p className="text-[12px] text-default-400">
               {t("updates.allUpToDate")}
             </p>
           </div>
-        </section>
+        </CardBody></Card>
       )}
 
       {/* Update list */}
@@ -302,25 +303,25 @@ export function UpdatesTab() {
         const hasKeyChange = update.security.includes("key_changed");
 
         return (
-          <section
+          <Card
             key={update.item_id}
-            className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5"
           >
+            <CardBody className="p-5">
             <div className="flex items-start justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h4 className="text-[13px] font-semibold text-nx-text">
+                  <h4 className="text-[13px] font-semibold">
                     {update.item_name}
                   </h4>
-                  <span className="text-[10px] text-nx-text-ghost font-mono">
+                  <span className="text-[10px] text-default-400 font-mono">
                     {update.item_type}
                   </span>
                   <RegistryBadge source={update.registry_source} />
                 </div>
-                <p className="text-[11px] text-nx-text-muted">
+                <p className="text-[11px] text-default-500">
                   {update.installed_version}{" "}
-                  <span className="text-nx-text-ghost mx-1">&rarr;</span>{" "}
-                  <span className="text-nx-accent font-medium">
+                  <span className="text-default-400 mx-1">&rarr;</span>{" "}
+                  <span className="text-primary font-medium">
                     {update.available_version}
                   </span>
                 </p>
@@ -329,30 +330,25 @@ export function UpdatesTab() {
 
               <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                 <Button
-                  onClick={() => handleDismiss(update)}
-                  disabled={isBusy}
-                  variant="secondary"
-                  size="sm"
+                  onPress={() => handleDismiss(update)}
+                  isDisabled={isBusy}
                 >
                   <X size={12} strokeWidth={1.5} />
                   {t("common:action.dismiss")}
                 </Button>
                 {hasKeyChange ? (
                   <Button
-                    onClick={() => setKeyChangeUpdate(update)}
-                    disabled={isBusy}
-                    variant="outline"
-                    size="sm"
-                    className="border-nx-error text-nx-error hover:bg-nx-error-muted"
+                    onPress={() => setKeyChangeUpdate(update)}
+                    isDisabled={isBusy}
+                    color="danger"
                   >
                     <ShieldX size={12} strokeWidth={1.5} />
                     {t("updates.reviewKeyChange")}
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => handleUpdate(update)}
-                    disabled={isBusy}
-                    size="sm"
+                    onPress={() => handleUpdate(update)}
+                    isDisabled={isBusy}
                   >
                     {isBusy ? (
                       <Loader2
@@ -368,7 +364,8 @@ export function UpdatesTab() {
                 )}
               </div>
             </div>
-          </section>
+            </CardBody>
+          </Card>
         );
       })}
 

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { HelpCircle, Monitor, Blocks } from "lucide-react";
+import { Card, CardBody } from "@heroui/react";
 
 function StatusDot({ color, animation }: { color: string; animation?: string }) {
   return (
@@ -23,31 +24,31 @@ export function HelpTab() {
 
   const pluginIndicators = [
     {
-      color: "bg-nx-success",
+      color: "bg-success",
       animation: undefined,
       label: t("help.runningLoaded"),
       description: t("help.runningLoadedDesc"),
     },
     {
-      color: "bg-nx-success",
+      color: "bg-success",
       animation: "pulse-status 2s ease-in-out infinite",
       label: t("help.runningUnloaded"),
       description: t("help.runningUnloadedDesc"),
     },
     {
-      color: "bg-nx-text-muted",
+      color: "bg-default-400",
       animation: undefined,
       label: t("help.stoppedLabel"),
       description: t("help.stoppedDesc"),
     },
     {
-      color: "bg-nx-error",
+      color: "bg-danger",
       animation: undefined,
       label: t("help.errorLabel"),
       description: t("help.errorDesc"),
     },
     {
-      color: "bg-nx-warning",
+      color: "bg-warning",
       animation: undefined,
       label: t("help.installingLabel"),
       description: t("help.installingDesc"),
@@ -56,12 +57,12 @@ export function HelpTab() {
 
   const extensionIndicators = [
     {
-      color: "bg-nx-success",
+      color: "bg-success",
       label: t("help.enabledLabel"),
       description: t("help.enabledDesc"),
     },
     {
-      color: "bg-nx-text-muted",
+      color: "bg-default-400",
       label: t("help.disabledLabel"),
       description: t("help.disabledDesc"),
     },
@@ -70,85 +71,85 @@ export function HelpTab() {
   return (
     <div className="space-y-6">
       {/* Plugin status indicators */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card><CardBody className="p-5">
         <div className="flex items-center gap-2 mb-2">
-          <Monitor size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
+          <Monitor size={15} strokeWidth={1.5} className="text-default-500" />
+          <h3 className="text-[14px] font-semibold">
             {t("help.pluginStatusIndicators")}
           </h3>
         </div>
-        <p className="text-[11px] text-nx-text-ghost mb-4">
+        <p className="text-[11px] text-default-400 mb-4">
           {t("help.pluginStatusDesc")}
         </p>
         <div className="space-y-1">
           {pluginIndicators.map((item) => (
             <div
               key={item.label}
-              className="flex items-start gap-3 px-3 py-2.5 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+              className="flex items-start gap-3 px-3 py-2.5"
             >
               <div className="pt-1">
                 <StatusDot color={item.color} animation={item.animation} />
               </div>
               <div className="min-w-0">
-                <p className="text-[12px] text-nx-text font-medium">
+                <p className="text-[12px] font-medium">
                   {item.label}
                 </p>
-                <p className="text-[11px] text-nx-text-ghost mt-0.5">
+                <p className="text-[11px] text-default-400 mt-0.5">
                   {item.description}
                 </p>
               </div>
             </div>
           ))}
         </div>
-      </section>
+      </CardBody></Card>
 
       {/* Extension status indicators */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card><CardBody className="p-5">
         <div className="flex items-center gap-2 mb-2">
-          <Blocks size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
+          <Blocks size={15} strokeWidth={1.5} className="text-default-500" />
+          <h3 className="text-[14px] font-semibold">
             {t("help.extensionStatusIndicators")}
           </h3>
         </div>
-        <p className="text-[11px] text-nx-text-ghost mb-4">
+        <p className="text-[11px] text-default-400 mb-4">
           {t("help.extensionStatusDesc")}
         </p>
         <div className="space-y-1">
           {extensionIndicators.map((item) => (
             <div
               key={item.label}
-              className="flex items-start gap-3 px-3 py-2.5 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+              className="flex items-start gap-3 px-3 py-2.5"
             >
               <div className="pt-1">
                 <StatusDot color={item.color} />
               </div>
               <div className="min-w-0">
-                <p className="text-[12px] text-nx-text font-medium">
+                <p className="text-[12px] font-medium">
                   {item.label}
                 </p>
-                <p className="text-[11px] text-nx-text-ghost mt-0.5">
+                <p className="text-[11px] text-default-400 mt-0.5">
                   {item.description}
                 </p>
               </div>
             </div>
           ))}
         </div>
-      </section>
+      </CardBody></Card>
 
       {/* Keyboard / tips */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card><CardBody className="p-5">
         <div className="flex items-center gap-2 mb-2">
-          <HelpCircle size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
+          <HelpCircle size={15} strokeWidth={1.5} className="text-default-500" />
+          <h3 className="text-[14px] font-semibold">
             {t("help.tips")}
           </h3>
         </div>
-        <div className="space-y-2 text-[12px] text-nx-text-secondary">
+        <div className="space-y-2 text-[12px] text-default-500">
           <p>{t("help.tip1")}</p>
           <p>{t("help.tip2")}</p>
           <p>{t("help.tip3")}</p>
         </div>
-      </section>
+      </CardBody></Card>
     </div>
   );
 }

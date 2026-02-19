@@ -11,7 +11,7 @@ import type { PluginManifest } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
 import { FolderOpen, RefreshCw, Package, Wand2 } from "lucide-react";
 import { McpWrapWizard } from "./McpWrapWizard";
-import { Button } from "@/components/ui/button";
+import { Button } from "@heroui/react";
 
 export function MarketplacePage() {
   const { t } = useTranslation("plugins");
@@ -67,33 +67,28 @@ export function MarketplacePage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-[18px] font-bold text-nx-text">{t("marketplace.title")}</h2>
-          <p className="text-[13px] text-nx-text-secondary">
+          <h2 className="text-[18px] font-bold">{t("marketplace.title")}</h2>
+          <p className="text-[13px] text-default-500">
             {t("marketplace.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
-            onClick={() => setShowMcpWizard(true)}
+            onPress={() => setShowMcpWizard(true)}
           >
             <Wand2 size={12} strokeWidth={1.5} />
             {t("marketplace.wrapMcp")}
           </Button>
           <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleLocalInstall}
-            disabled={installing}
+            onPress={handleLocalInstall}
+            isDisabled={installing}
           >
             <FolderOpen size={12} strokeWidth={1.5} />
             {installing ? t("common:action.installing") : t("marketplace.installLocal")}
           </Button>
           <Button
-            variant="secondary"
-            size="sm"
-            onClick={refresh}
-            disabled={isLoading}
+            onPress={refresh}
+            isDisabled={isLoading}
           >
             <RefreshCw size={12} strokeWidth={1.5} className={isLoading ? "animate-spin" : ""} />
             {isLoading ? t("common:action.refreshing") : t("common:action.refresh")}
@@ -107,22 +102,21 @@ export function MarketplacePage() {
 
       {plugins.length === 0 ? (
         <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4 mx-auto">
-            <Package size={28} strokeWidth={1.5} className="text-nx-text-ghost" />
+          <div className="w-16 h-16 rounded-[14px] bg-default-100 flex items-center justify-center mb-4 mx-auto">
+            <Package size={28} strokeWidth={1.5} className="text-default-400" />
           </div>
-          <p className="text-nx-text-secondary text-[13px] mb-1">
+          <p className="text-default-500 text-[13px] mb-1">
             {isLoading
               ? t("marketplace.loadingPlugins")
               : t("marketplace.noPluginsAvailable")}
           </p>
-          <p className="text-nx-text-muted text-[11px] mb-4">
-            {t("marketplace.localManifestHint", {
-              interpolation: { escapeValue: false },
-            })}
-          </p>
+          <p
+            className="text-default-500 text-[11px] mb-4"
+            dangerouslySetInnerHTML={{ __html: t("marketplace.localManifestHint") }}
+          />
           <Button
-            onClick={handleLocalInstall}
-            disabled={installing}
+            onPress={handleLocalInstall}
+            isDisabled={installing}
             className="mx-auto"
           >
             <FolderOpen size={14} strokeWidth={1.5} />

@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Button } from "@heroui/react";
 import i18n from "../i18n";
 
 interface Props {
@@ -35,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     if (this.props.inline) {
       return (
-        <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-nx-error bg-nx-error-muted rounded-[var(--radius-button)]">
+        <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-danger bg-danger-50 rounded-[8px]">
           <AlertTriangle size={12} strokeWidth={2} className="flex-shrink-0" />
           <span className="truncate">
             {this.props.label ? `${this.props.label}: ` : ""}
@@ -46,22 +47,23 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     return (
-      <div className="rounded-[var(--radius-card)] border border-nx-error/30 bg-nx-error-muted/30 p-5">
+      <div className="rounded-[14px] border border-danger/30 bg-danger-50/30 p-5">
         <div className="flex items-center gap-2 mb-2">
-          <AlertTriangle size={15} strokeWidth={1.5} className="text-nx-error" />
-          <h3 className="text-[13px] font-medium text-nx-error">
+          <AlertTriangle size={15} strokeWidth={1.5} className="text-danger" />
+          <h3 className="text-[13px] font-medium text-danger">
             {this.props.label ? `${this.props.label} — ` : ""}{t("common:status.error")}
           </h3>
         </div>
-        <p className="text-[12px] text-nx-text-muted font-mono break-all">
+        <p className="text-[12px] text-default-500 font-mono break-all">
           {message}
         </p>
-        <button
-          onClick={() => this.setState({ error: null })}
-          className="mt-3 px-3 py-1.5 text-[11px] font-medium bg-nx-overlay text-nx-text rounded-[var(--radius-button)] hover:bg-nx-wash transition-colors duration-150"
+        <Button
+          variant="flat"
+          onPress={() => this.setState({ error: null })}
+          className="mt-3"
         >
           {t("common:action.retry")}
-        </button>
+        </Button>
       </div>
     );
   }

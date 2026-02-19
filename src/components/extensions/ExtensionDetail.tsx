@@ -22,12 +22,12 @@ import {
   Clock,
 } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
-import { Button } from "@/components/ui/button";
+import { Button, Card, CardBody, Chip } from "@heroui/react";
 
-const RISK_STYLES: Record<string, { bg: string; text: string }> = {
-  low: { bg: "bg-nx-success-muted", text: "text-nx-success" },
-  medium: { bg: "bg-nx-warning-muted", text: "text-nx-warning" },
-  high: { bg: "bg-nx-error-muted", text: "text-nx-error" },
+const RISK_CHIP_COLORS: Record<string, "success" | "warning" | "danger"> = {
+  low: "success",
+  medium: "warning",
+  high: "danger",
 };
 
 function capabilityIcon(cap: Capability) {
@@ -107,33 +107,31 @@ export function ExtensionDetail({ entry, onBack }: Props) {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className="text-nx-text-muted hover:text-nx-text mb-6"
+        onPress={onBack}
+        className="mb-6"
       >
         <ArrowLeft size={14} strokeWidth={1.5} />
         {t("extensions.backToExtensions")}
       </Button>
 
-      <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-6">
+      <Card><CardBody className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h2 className="text-[18px] font-bold text-nx-text">{entry.name}</h2>
-            <p className="text-[12px] text-nx-text-muted mt-1 font-mono">
+            <h2 className="text-[18px] font-bold">{entry.name}</h2>
+            <p className="text-[12px] text-default-500 mt-1 font-mono">
               v{entry.version} &middot; {entry.id}
             </p>
           </div>
           {!manifest ? (
             manifestReachable === false ? (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-error-muted text-nx-error">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[8px] bg-danger-50 text-danger">
                 <AlertTriangle size={12} strokeWidth={1.5} />
                 {t("extensions.unavailable")}
               </span>
             ) : (
               <Button
-                onClick={handlePreview}
-                disabled={loading || manifestReachable === null}
+                onPress={handlePreview}
+                isDisabled={loading || manifestReachable === null}
               >
                 {loading || manifestReachable === null ? (
                   <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
@@ -145,8 +143,8 @@ export function ExtensionDetail({ entry, onBack }: Props) {
             )
           ) : (
             <Button
-              onClick={handleInstall}
-              disabled={installing}
+              onPress={handleInstall}
+              isDisabled={installing}
             >
               {installing ? (
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
@@ -159,7 +157,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
         </div>
 
         {/* Metadata row */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4 text-[11px] text-nx-text-muted">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-4 text-[11px] text-default-500">
           {entry.author && (
             <span className="flex items-center gap-1">
               <User size={11} strokeWidth={1.5} />
@@ -168,7 +166,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                   href={entry.author_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-nx-text transition-colors duration-150"
+                  className="transition-colors duration-150"
                 >
                   {entry.author}
                 </a>
@@ -185,85 +183,79 @@ export function ExtensionDetail({ entry, onBack }: Props) {
           )}
         </div>
 
-        <p className="text-nx-text-secondary text-[13px] mb-6 leading-relaxed">
+        <p className="text-default-500 text-[13px] mb-6 leading-relaxed">
           {entry.description}
         </p>
 
         {entry.categories.length > 0 && (
           <div className="mb-6">
-            <h4 className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
+            <h4 className="text-[10px] font-semibold text-default-500 uppercase tracking-wider mb-2">
               {t("marketplace.categories")}
             </h4>
             <div className="flex gap-2">
               {entry.categories.map((cat) => (
-                <span
-                  key={cat}
-                  className="text-[11px] px-2 py-1 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary"
-                >
+                <Chip key={cat} size="sm" variant="flat">
                   {cat}
-                </span>
+                </Chip>
               ))}
             </div>
           </div>
         )}
-      </div>
+      </CardBody></Card>
 
       {/* Manifest preview -- shown after clicking "Review & Install" */}
       {manifest && (
         <div className="mt-4 space-y-4">
           {/* Author + signature */}
-          <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+          <Card><CardBody className="p-5">
             <div className="flex items-center gap-2 mb-3">
-              <Shield size={13} strokeWidth={1.5} className="text-nx-text-muted" />
-              <h4 className="text-[12px] font-semibold text-nx-text">
+              <Shield size={13} strokeWidth={1.5} className="text-default-500" />
+              <h4 className="text-[12px] font-semibold">
                 {t("extensions.authorAndSignature")}
               </h4>
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20">{t("about.author")}</span>
-                <span className="text-[11px] text-nx-text font-medium">
+                <span className="text-[11px] text-default-500 w-20">{t("about.author")}</span>
+                <span className="text-[11px] font-medium">
                   {manifest.author}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20">{t("about.license")}</span>
-                <span className="text-[11px] text-nx-text font-medium">
+                <span className="text-[11px] text-default-500 w-20">{t("about.license")}</span>
+                <span className="text-[11px] font-medium">
                   {manifest.license ?? t("common:status.notSpecified")}
                 </span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20 flex-shrink-0">{t("extensions.publicKey")}</span>
-                <code className="text-[10px] text-nx-text-secondary bg-nx-deep px-2 py-1 rounded-[var(--radius-tag)] font-mono break-all">
+                <span className="text-[11px] text-default-500 w-20 flex-shrink-0">{t("extensions.publicKey")}</span>
+                <code className="text-[10px] text-default-500 bg-background px-2 py-1 rounded-[6px] font-mono break-all">
                   {manifest.author_public_key.slice(0, 32)}...
                 </code>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-nx-text-muted w-20">{t("extensions.platforms")}</span>
+                <span className="text-[11px] text-default-500 w-20">{t("extensions.platforms")}</span>
                 <div className="flex gap-1.5">
                   {Object.keys(manifest.binaries).map((platform) => (
-                    <span
-                      key={platform}
-                      className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-secondary font-mono"
-                    >
+                    <Chip key={platform} size="sm" variant="flat">
                       {platform}
-                    </span>
+                    </Chip>
                   ))}
                 </div>
               </div>
             </div>
-          </div>
+          </CardBody></Card>
 
           {/* Capabilities */}
           {manifest.capabilities.length > 0 && (
-            <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+            <Card><CardBody className="p-5">
               <div className="flex items-center gap-2 mb-3">
-                <Shield size={13} strokeWidth={1.5} className="text-nx-warning" />
-                <h4 className="text-[12px] font-semibold text-nx-text">
+                <Shield size={13} strokeWidth={1.5} className="text-warning" />
+                <h4 className="text-[12px] font-semibold">
                   {t("extensions.declaredCapabilities")}
                 </h4>
               </div>
-              <p className="text-[10px] text-nx-text-ghost mb-3">
+              <p className="text-[10px] text-default-400 mb-3">
                 {t("extensions.capabilitiesWarning")}
               </p>
               <div className="space-y-1">
@@ -273,14 +265,14 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                   return (
                     <div
                       key={i}
-                      className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+                      className="flex items-center gap-3 px-3 py-2 rounded-[8px] bg-background border border-default-100"
                     >
-                      <Icon size={13} strokeWidth={1.5} className="text-nx-text-muted flex-shrink-0" />
-                      <span className="text-[11px] text-nx-text font-medium flex-shrink-0">
+                      <Icon size={13} strokeWidth={1.5} className="text-default-500 flex-shrink-0" />
+                      <span className="text-[11px] font-medium flex-shrink-0">
                         {capabilityLabel(cap, t)}
                       </span>
                       {detail && (
-                        <span className="text-[10px] text-nx-text-ghost truncate font-mono">
+                        <span className="text-[10px] text-default-400 truncate font-mono">
                           {detail}
                         </span>
                       )}
@@ -288,46 +280,43 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                   );
                 })}
               </div>
-            </div>
+          </CardBody></Card>
           )}
 
           {/* Operations */}
-          <div className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+          <Card><CardBody className="p-5">
             <div className="flex items-center gap-2 mb-3">
-              <Blocks size={13} strokeWidth={1.5} className="text-nx-text-muted" />
-              <h4 className="text-[12px] font-semibold text-nx-text">
+              <Blocks size={13} strokeWidth={1.5} className="text-default-500" />
+              <h4 className="text-[12px] font-semibold">
                 {t("extensions.operations", { count: manifest.operations.length })}
               </h4>
             </div>
             <div className="space-y-1">
               {manifest.operations.map((op) => {
-                const risk = RISK_STYLES[op.risk_level] ?? RISK_STYLES.medium;
                 return (
                   <div
                     key={op.name}
-                    className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+                    className="flex items-center gap-3 px-3 py-2 rounded-[8px] bg-background border border-default-100"
                   >
-                    <span className="text-[12px] text-nx-text font-mono flex-shrink-0">
+                    <span className="text-[12px] font-mono flex-shrink-0">
                       {op.name}
                     </span>
-                    <span
-                      className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-[var(--radius-tag)] flex-shrink-0 ${risk.bg} ${risk.text}`}
-                    >
+                    <Chip size="sm" variant="flat" color={RISK_CHIP_COLORS[op.risk_level] ?? "warning"}>
                       {op.risk_level}
-                    </span>
+                    </Chip>
                     {op.scope_key && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-muted font-mono flex-shrink-0">
+                      <Chip size="sm">
                         {t("extensions.scope", { key: op.scope_key })}
-                      </span>
+                      </Chip>
                     )}
-                    <span className="text-[11px] text-nx-text-ghost truncate flex-1">
+                    <span className="text-[11px] text-default-400 truncate flex-1">
                       {op.description}
                     </span>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </CardBody></Card>
         </div>
       )}
     </div>

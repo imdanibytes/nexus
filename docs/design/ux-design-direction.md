@@ -1,545 +1,407 @@
-# Nexus UX Design Direction
+# Nexus Visual Language
 
-## Current State Analysis
+This is the authoritative spec for how Nexus and its plugins look. If you're building a plugin UI that renders inside a Nexus viewport iframe, follow this document exactly.
 
-Nexus currently uses a **Tailwind slate dark theme** with indigo-500 accents. Here is what is in play:
+## Stack
 
-| Element | Current Value | Assessment |
-|---------|---------------|------------|
-| Body background | `#0f172a` (slate-900) | Fine but generic |
-| Sidebar background | slate-800 | Flat, no depth hierarchy |
-| Card backgrounds | slate-800 + slate-700 borders | Standard Tailwind starter kit |
-| Accent color | indigo-500 | The default "I didn't pick a color" color |
-| Text primary | `#e2e8f0` (slate-200) | Good readability |
-| Text secondary | slate-400 | Decent hierarchy |
-| Text muted | slate-500 | Gets lost on dark backgrounds |
-| Status: running | green-500 | Fine |
-| Status: error | red-500 | Fine |
-| Status: installing | yellow-500 | Fine |
-| Border radius | `rounded-lg` / `rounded-xl` | Inconsistent between components |
-| Font | Inter + system-ui fallback | Solid but could be more intentional |
-| Scrollbar | slate-700 thumb | Functional but invisible |
+| Layer | What | Package |
+|-------|------|---------|
+| Components | HeroUI | `@heroui/react` |
+| Styling | Tailwind CSS v4 | `tailwindcss` + `@tailwindcss/vite` |
+| Theme | HeroUI plugin | `heroui()` in `hero.ts` |
+| Animation | Framer Motion | `framer-motion` (>= 11.9) |
+| Icons | Lucide | `lucide-react` |
+| Font | Geist Sans + Geist Mono | `@imdanibytes/nexus-ui/styles` |
+| Shared provider | NexusProvider | `@imdanibytes/nexus-ui` |
 
-**The core problem:** This looks like every Tailwind dark mode tutorial. There is no visual identity. If you screenshot this and put it next to 20 other developer tool dashboards, you could not pick it out.
+Plugins MUST wrap their root in `<NexusProvider>` from `@imdanibytes/nexus-ui`. This sets up HeroUI, dark mode, fonts, and the theme bridge.
 
 ---
 
-## 1. Color Palette
+## Core Concept: Layers of Glass
 
-### Design Philosophy
+The entire UI is built on a single metaphor: **translucent paper layers floating over an animated gradient background.** Every visible surface is a frosted-glass panel. There are no opaque containers.
 
-Nexus is a **power user's control center** --- it manages Docker containers, plugins, permissions, system resources. The palette should feel:
+```
+┌─────────────────────────────────────────────┐
+│  Gradient Background (fixed, -z-10)         │
+│  ┌──────┐ ┌──────────────────────────────┐  │
+│  │Sidebar│ │ Main Content                 │  │
+│  │ glass │ │  glass                       │  │
+│  │  ┌──┐ │ │  ┌─────────────────────┐    │  │
+│  │  │S1│ │ │  │ Surface panel (menu) │    │  │
+│  │  └──┘ │ │  └─────────────────────┘    │  │
+│  │  ┌──┐ │ │                             │  │
+│  │  │S2│ │ │  Plugin iframe content      │  │
+│  │  └──┘ │ │                             │  │
+│  │  ┌──┐ │ │                             │  │
+│  │  │S3│ │ │                             │  │
+│  │  └──┘ │ │                             │  │
+│  └──────┘ └──────────────────────────────┘  │
+└─────────────────────────────────────────────┘
+```
 
-- **Authoritative** --- this is a command bridge, not a toy
-- **Warm-dark** --- not cold blue-gray, not sterile, not oppressive
-- **High-signal** --- accent colors mean something, they are not decorative
+### Background
 
-The strategy: shift from Tailwind's **slate** (blue-gray) to a **custom neutral with warm undertones**, and replace indigo with a distinctive **teal-cyan accent** that feels technical and alive without being cold.
+Five large radial-gradient blobs (teal, violet, pink, blue, amber) drift slowly behind everything. Each blob is 700-900px, `blur-[160px]`, animating on 25-35s loops. Opacity adapts: `opacity-15 dark:opacity-60` (range).
 
-### Surface / Background Scale
+Plugins don't render this — the shell does. But plugins should assume their background is **not solid black** — it's a dark translucent surface with color bleeding through.
 
-Moving away from slate's blue cast toward a warmer, more neutral dark palette. These are based on a near-neutral base with a subtle warm-green undertone (think matte black dashboard, not blue terminal).
+### Glass Panels
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `bg-deep` | `#0C0E12` | App background, deepest layer |
-| `bg-base` | `#12141A` | Main content area background |
-| `bg-surface` | `#1A1D25` | Cards, panels, elevated containers |
-| `bg-raised` | `#222631` | Sidebar, headers, secondary surfaces |
-| `bg-overlay` | `#2A2E3A` | Dropdowns, popovers, hover states on cards |
-| `bg-wash` | `#323744` | Input fields, well backgrounds, inset areas |
+Every container uses the same frosted-glass treatment:
 
-These have ~3-4% brightness steps between them, enough for the eye to distinguish layers without looking stripey.
+```
+rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5
+```
 
-### Accent Colors
+That's it. One recipe. Used for:
+- Sidebar section groups
+- Plugin menu bar
+- Settings card groups
+- Any elevated container
 
-The primary accent is a **teal-cyan** --- technical, energetic, distinct from the indigo/violet that every developer tool and its dog uses now. A secondary **amber** provides warmth and draws attention for interactive elements.
+**Do not** use opaque backgrounds (`bg-default-50`, `bg-default-100`) for containers. Always use the translucent `bg-default-50/40` with backdrop blur.
 
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `accent` | `#2DD4A8` | Primary accent: active nav, selected states, primary buttons |
-| `accent-hover` | `#22B893` | Hover state for primary accent |
-| `accent-muted` | `#2DD4A8` at 15% opacity | Active nav backgrounds, badge backgrounds |
-| `accent-subtle` | `#2DD4A8` at 8% opacity | Large selected area backgrounds |
-| `highlight` | `#F0AB3A` | Secondary accent: attention-drawing, badges, new indicators |
-| `highlight-muted` | `#F0AB3A` at 15% opacity | Background for highlights |
+### Shell Panels
 
-### Text Colors
-
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `text-primary` | `#E8ECF2` | Headings, primary content, names |
-| `text-secondary` | `#9BA3B2` | Body text, descriptions |
-| `text-muted` | `#5E6778` | Metadata, timestamps, helper text |
-| `text-ghost` | `#3D4452` | Disabled text, placeholders |
-| `text-on-accent` | `#0C0E12` | Text on accent-colored backgrounds |
-| `text-link` | `#2DD4A8` | Interactive text links |
-
-### Status Colors
-
-These stay close to universal conventions but are tuned for the dark background and slightly desaturated so they do not scream.
-
-| Token | Hex | Tinted BG | Usage |
-|-------|-----|-----------|-------|
-| `status-success` | `#34D399` | `rgba(52,211,153,0.12)` | Running, healthy, approved |
-| `status-warning` | `#FBBF24` | `rgba(251,191,36,0.12)` | Installing, caution, pending |
-| `status-error` | `#F87171` | `rgba(248,113,113,0.12)` | Error, failed, denied |
-| `status-info` | `#60A5FA` | `rgba(96,165,250,0.12)` | Informational, neutral status |
-
-### Border Colors
-
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `border-default` | `#2A2E3A` | Card borders, dividers |
-| `border-subtle` | `#222631` | Very faint separation lines |
-| `border-strong` | `#3D4452` | Input borders, focused dividers |
-| `border-accent` | `#2DD4A8` at 50% opacity | Selected card borders, focus rings |
-
----
-
-## 2. Typography
-
-### Font Stack
-
-**UI / Sans-serif: Geist Sans**
-
-Geist (by Vercel/Basement Studio) is the right call here. It was designed for exactly this kind of interface --- developer tools, dashboards, dense information display. It has tighter letter-spacing than Inter at small sizes, which matters when you are showing plugin names, version numbers, Docker image tags, and permission labels in constrained sidebar space.
-
-- Excellent legibility at 11-14px (the range this app lives in)
-- Designed for screen rendering, not print
-- Distinctive enough to not look like "generic sans-serif" but neutral enough to not distract
-- Available on Google Fonts and as an npm package (`geist`)
-
-If Geist is not available or creates bundling issues, fall back to Inter. It is still good. But Geist is better for this use case.
-
-**Monospace: Geist Mono**
-
-For code elements (Docker image names, version strings, log output, JSON manifests), Geist Mono pairs naturally with Geist Sans. If not available, JetBrains Mono is the fallback.
+The sidebar and main content area are larger glass panels:
 
 ```css
-:root {
-  --font-sans: 'Geist', 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Geist Mono', 'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace;
-}
+/* Sidebar */
+backdrop-blur-2xl bg-background/40 p-3 gap-2
+
+/* Main content */
+backdrop-blur-2xl bg-background/40 border-l border-white/5
 ```
-
-### Type Scale
-
-The current app uses `text-xs`, `text-sm`, `text-lg` somewhat arbitrarily. Here is a deliberate scale:
-
-| Token | Size | Weight | Line Height | Usage |
-|-------|------|--------|-------------|-------|
-| `heading-lg` | 18px | 700 | 1.3 | Page titles ("Settings", "Add Plugins") |
-| `heading-sm` | 14px | 600 | 1.4 | Section headers ("Docker", "About") |
-| `body` | 13px | 400 | 1.5 | Primary body text, descriptions |
-| `label` | 12px | 500 | 1.4 | Input labels, nav items, plugin names |
-| `caption` | 11px | 400 | 1.4 | Metadata, timestamps, version numbers |
-| `overline` | 10px | 600 | 1.2 | Section overlines ("INSTALLED"), tracking-wider, uppercase |
-| `code` | 12px | 400 | 1.5 | Code/mono elements (image names, paths, logs) |
-
-Key change: the current `text-lg font-bold` headings (18px) are fine, but the body text hovers between `text-xs` (12px) and `text-sm` (14px) without consistency. Pin body to 13px, metadata to 11px, labels to 12px.
 
 ---
 
-## 3. Design Language
+## Color System
 
-### Border Radius
+We use **HeroUI semantic tokens** exclusively. No custom hex values, no Tailwind color palette (`slate-800`, `gray-700`, etc).
 
-**Philosophy: Softened, not bubbly.**
+### Semantic Colors
 
-The current codebase mixes `rounded-lg` (8px) and `rounded-xl` (12px). Pick a system and commit:
+| Token | Usage |
+|-------|-------|
+| `primary` | Brand accent. Active states, links, CTAs. HeroUI default teal. |
+| `success` | Running, healthy, approved. Green. |
+| `warning` | Installing, caution, pending. Amber. |
+| `danger` | Error, failed, denied. Red. |
+| `default` | Neutral. Backgrounds, borders, muted elements. |
+| `foreground` | Primary text color. |
+| `background` | Base background (used with opacity for glass). |
 
-| Element | Radius | Rationale |
-|---------|--------|-----------|
-| Cards, panels, sections | 10px (`rounded-[10px]` or define custom `rounded-card`) | Main container shape |
-| Buttons, inputs, badges | 8px (`rounded-lg`) | Interactive elements, slightly tighter |
-| Status dots | 9999px (`rounded-full`) | Circles stay circles |
-| Modals / dialogs | 14px | Larger elements get slightly softer corners |
-| Toast notifications | 10px | Matches cards |
-| Category tags, pills | 6px (`rounded-md`) | Small inline elements |
+### Text Hierarchy
 
-Do NOT use `rounded-2xl` (16px) or `rounded-3xl` anywhere. This is a power tool, not a social media app.
+| Class | Usage |
+|-------|-------|
+| `text-foreground` | Primary text. Headings, names, active labels. |
+| `text-foreground font-medium` | Emphasized primary text. Active nav items. |
+| `text-default-500` | Secondary text. Descriptions, inactive labels, body text. |
+| `text-default-400` | Muted text. Metadata, timestamps, helper text, icons at rest. |
+| `text-primary` | Accent text. Links, brand dot, status highlights. |
 
-### Spacing Rhythm
+### Backgrounds
 
-Base unit: **4px**. Every spacing value should be a multiple of 4.
+| Class | Usage |
+|-------|-------|
+| `bg-default-50/40` | Glass panel fill (with `backdrop-blur-xl border border-white/5`) |
+| `bg-default-100` | Active/selected state (expanded nav items) |
+| `bg-default-50` | Hover state on interactive elements |
+| `bg-primary/15` | Active/selected state (collapsed sidebar items) |
+| `bg-background/40` | Shell-level glass (sidebar, main content) |
 
-| Usage | Value | Tailwind |
-|-------|-------|----------|
-| Tight inline gap | 4px | `gap-1` |
-| Related element gap | 8px | `gap-2` |
-| Component internal padding | 12-16px | `p-3` / `p-4` |
-| Section padding | 20-24px | `p-5` / `p-6` |
-| Page margins | 24px | `p-6` |
-| Between sections | 24px | `space-y-6` |
-| Sidebar internal | 12px horizontal, 12px vertical | `px-3 py-3` |
+### Borders
 
-The current spacing is already mostly on this grid. The main fix is consistency --- some cards use `p-4`, some `p-5`, some `p-6`.
+Always `border-white/5`. Never `border-divider` or `border-default`. The white/5 treatment ensures the border is visible in both light and dark mode as a subtle edge on the glass panel.
 
-### Shadows and Depth
+---
 
-**Philosophy: Minimal shadows, use brightness for hierarchy.**
+## Typography
 
-In a dark UI, traditional box-shadows are nearly invisible. Instead, depth comes from background brightness differences (the surface scale above) and subtle borders.
+### Fonts
 
-| Element | Shadow | Notes |
-|---------|--------|-------|
-| Cards at rest | None | Use `bg-surface` + `border-default` for separation |
-| Cards on hover | `0 0 0 1px rgba(45,212,168,0.15)` | Faint accent glow border, not a shadow |
-| Dropdowns / popovers | `0 8px 24px rgba(0,0,0,0.4)` | Real shadow for floating elements |
-| Modals | `0 16px 48px rgba(0,0,0,0.5)` | Heavier shadow + backdrop blur |
-| Toasts | `0 4px 16px rgba(0,0,0,0.3)` | Moderate lift |
-| Focused inputs | `0 0 0 2px rgba(45,212,168,0.3)` | Accent ring, not shadow |
+**Sans:** Geist → Inter → system-ui (fallback chain)
+**Mono:** Geist Mono → JetBrains Mono → SF Mono → ui-monospace
 
-### Glass / Blur Effects
-
-**Use sparingly. One or two surfaces, max.**
-
-Good candidates:
-- **Modal backdrop**: `backdrop-blur-sm` (4px) on the dark overlay --- makes the modal feel like it floats above the content
-- **Sidebar**: A very subtle `backdrop-blur-md` (12px) with `bg-raised/80` opacity can add dimension if the main content behind it is visually active (like an embedded plugin UI in an iframe)
-
-Bad candidates:
-- Cards (too many blur layers kills performance, especially in a Tauri webview)
-- Toast notifications (they are temporary and do not need frosted glass)
-- Every elevated surface (that is just a blurry mess)
+Plugins get these fonts automatically via `@imdanibytes/nexus-ui/styles`. If building standalone, install the `geist` npm package.
 
 ```css
-/* Sidebar with subtle glass effect */
-.sidebar-glass {
-  background: rgba(34, 38, 49, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Modal backdrop */
-.modal-backdrop {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-}
+font-family: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 ```
 
-### Micro-interactions
+### Scale
 
-| Interaction | Duration | Easing | Properties |
-|-------------|----------|--------|------------|
-| Button hover | 150ms | ease-out | background-color, border-color |
-| Card hover | 200ms | ease-out | border-color, box-shadow |
-| Nav item active | 150ms | ease-out | background-color, color |
-| Modal open | 200ms | ease-out | opacity, transform (scale 0.98 -> 1) |
-| Modal close | 150ms | ease-in | opacity, transform |
-| Toast enter | 300ms | cubic-bezier(0.16,1,0.3,1) | transform (translateY 100% -> 0), opacity |
-| Toast exit | 200ms | ease-in | opacity, transform |
-| Status dot pulse | 2s | ease-in-out, infinite | opacity (0.5 -> 1 -> 0.5) |
-| Focus ring | 150ms | ease-out | box-shadow |
-| Sidebar collapse | 200ms | ease-out | width |
+| Size | Class | Usage |
+|------|-------|-------|
+| 18px | `text-lg` | Page titles |
+| 16px | `text-base` | Section headings, modal titles |
+| 14px | `text-sm` | Nav items, plugin names, body text (default) |
+| 13px | `text-[13px]` | Menu bar items, compact body text, descriptions |
+| 12px | `text-xs` | Metadata, version numbers, badge text |
+| 11px | `text-[11px]` | Captions, overlines, parameter labels |
+| 10px | `text-[10px]` | Tiny indicators (e.g. "ON" badge) |
 
-Current state: the app uses `transition-colors` everywhere, which is fine for the basics. The missing pieces are:
-- No entrance/exit animations on modals or toasts
-- No hover feedback on cards beyond border color change
-- Status dots are static (a subtle pulse on `running` would add life)
+### Weights
 
-### Icon Style
-
-**Recommendation: Lucide (outline, 1.5px stroke)**
-
-The current codebase uses inline SVG with `stroke="currentColor"` and `strokeWidth={2}`. This is the right approach (outline icons), but the stroke weight of 2 feels heavy at 16x16px.
-
-Switch to [Lucide](https://lucide.dev/) icons:
-- Same icon language as Heroicons (which the current SVGs approximate) but more complete
-- Default 1.5px stroke looks cleaner at small sizes
-- React package: `lucide-react` --- tree-shakeable, no bundle bloat
-- Consistent 24x24 viewBox with optical adjustments for each icon
-
-For status indicators and small badges, consider **dual-tone**: outline icon with a filled accent element. Example: a container icon (outline) with a green-filled circle overlay for "running."
+| Weight | Class | Usage |
+|--------|-------|-------|
+| 700 | `font-bold` | Brand wordmark only |
+| 600 | `font-semibold` | Page headings, section headers, active plugin name in menu bar |
+| 500 | `font-medium` | Active nav items, emphasized labels |
+| 400 | (default) | Everything else |
 
 ---
 
-## 4. Inspiration References
+## Icons
 
-### Primary Inspirations
+**Library:** Lucide React (`lucide-react`)
 
-**1. Warp Terminal** (warp.dev)
-- Why: Dark developer tool with an opinionated, non-generic aesthetic. Their teal/cyan accent on dark neutral backgrounds is close to what Nexus should aim for. The way they handle "UI surfaces" (consistent elevated backgrounds for overlays) is well-executed.
-- Take from it: Accent color confidence, surface layering philosophy, the warm-neutral-not-cold-blue background approach.
+| Context | Size | strokeWidth |
+|---------|------|-------------|
+| Nav items, inline buttons | 16px | 1.5 (default) |
+| Menu bar start content | 14px | 1.5 |
+| Status/action overlays | 28px | 1.5 |
+| Small indicators | 12-13px | 1.5-2 |
 
-**2. Linear** (linear.app)
-- Why: The gold standard for dark-mode developer/productivity tools in 2024-2025. Their LCH-based color system generates beautiful gradients from just 3 base values. Their information density is high but never cluttered.
-- Take from it: Typography hierarchy, information density management, the way active/selected states use a muted accent background rather than a heavy fill.
-
-**3. Raycast** (raycast.com)
-- Why: macOS-native feel. Since Nexus is a Tauri app on macOS, it should feel like it belongs on macOS. Raycast's command palette UI, subtle blur effects, and tight spacing are a masterclass in desktop-native design for developer tools.
-- Take from it: macOS-native spacing rhythm, subtle glass/blur usage that enhances without overwhelming, icon density and sizing.
-
-**4. Vercel Dashboard** (vercel.com/dashboard)
-- Why: Uses Geist (the font recommended above), has a methodical color token system, and handles complex status information (deployments, builds, domains) with clarity. Their dark mode is one of the best implementations of neutral-warm backgrounds.
-- Take from it: The Geist type scale in action, status color treatment, the specific gray scale (not too blue, not too warm).
-
-**5. Docker Desktop**
-- Why: Direct competitor/adjacent product. Nexus manages Docker containers, so users will subconsciously compare the two. Docker Desktop's dark mode is decent but bland --- Nexus should be clearly better and more opinionated.
-- Take from it: What NOT to do --- their gray-on-gray hierarchy is too flat, their accent (Docker blue) gets lost. Learn from their container status visualization patterns, but execute them with more visual confidence.
-
-### Secondary References
-
-- **Obsidian** --- For plugin ecosystem UI patterns (marketplace, settings, permissions)
-- **Arc Browser** --- For sidebar navigation patterns and how to make dense sidebars feel spacious
-- **GitHub Desktop** --- For macOS-native Electron/Tauri-style desktop app conventions
+Icons use `currentColor`. Set color via text utility classes (`text-default-400`, `text-primary`, etc).
 
 ---
 
-## 5. Tailwind v4 Theme Configuration
+## Interactive Elements
 
-Tailwind v4 uses CSS-based configuration rather than `tailwind.config.ts`. Here is the proposed theme, defined as CSS custom properties in `index.css`:
+### Nav Items
+
+A nav item is a full-width button with an icon (16px), a gap, and a text label.
+
+```
+┌──────────────────────────┐
+│  [icon 16px] [gap] Label │   ← expanded
+└──────────────────────────┘
+
+┌──────┐
+│[icon]│   ← collapsed (icon centered, text hidden)
+└──────┘
+```
+
+**Classes:**
+
+```
+/* Base */
+relative flex items-center w-full rounded-xl text-sm
+transition-all duration-300
+
+/* Expanded */
+px-3 py-2 gap-3
+
+/* Collapsed */
+px-0 py-2 gap-0 justify-center
+
+/* Active */
+text-foreground font-medium
++ absolute inset-0 div with:
+  expanded: bg-default-100 rounded-xl
+  collapsed: bg-primary/15 rounded-xl
+
+/* Inactive */
+text-default-500 hover:text-foreground hover:bg-default-50
+```
+
+### Icon Slot Alignment
+
+Any item with a leading visual element (icon, status dot, avatar letter) MUST use a **16px-wide slot** (`w-4 shrink-0`) so text labels align vertically across all items:
+
+```
+[  •  ] Cookie Jar      ← dot centered in w-4 container
+[icon ] Add Plugins     ← 16px icon fills w-4 naturally
+[  A  ] Agent Chat      ← letter centered in w-4 container
+```
+
+The gap between the icon slot and text is `gap-3` (12px) via the NavItem flex container.
+
+### Status Dots
+
+Status dots indicate plugin/extension state. They are 8px circles inside a 16px alignment container.
+
+```html
+<span class="flex items-center justify-center w-4 shrink-0">
+  <span class="relative flex h-2 w-2">
+    <!-- Ping layer (running only) -->
+    <span class="absolute inline-flex h-full w-full rounded-full bg-success animate-ping opacity-75" />
+    <!-- Solid dot -->
+    <span class="relative inline-flex rounded-full h-2 w-2 bg-success" />
+  </span>
+</span>
+```
+
+| Status | Color | Animation |
+|--------|-------|-----------|
+| Running | `bg-success` | `animate-ping` until viewport is warm |
+| Stopped | `bg-default-400` | None |
+| Error | `bg-danger` | None |
+| Installing | `bg-warning` | None |
+
+### Buttons
+
+Use HeroUI `<Button>` exclusively. Common patterns:
+
+| Variant | Usage |
+|---------|-------|
+| `color="primary"` | Primary CTA ("Start Plugin", "Install") |
+| `variant="flat"` | Secondary actions ("Cancel") |
+| `color="danger"` | Destructive actions ("Remove") |
+| `variant="flat" color="danger"` | Soft destructive ("Remove" in confirmation) |
+
+### Menu Bars
+
+Plugin viewport menu bars use the Surface glass panel treatment, floating inside the content area:
+
+```
+mx-2 mt-2 px-1 h-8 rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5
+```
+
+Menu items are plain `<button>` elements:
+
+```
+px-2 py-1 text-[13px] rounded hover:bg-default-200/40 transition-colors
+```
+
+The first item (plugin name) is `font-semibold`. Subsequent items are `text-default-500`.
+
+### Dropdowns
+
+Use HeroUI `<Dropdown>` + `<DropdownMenu>` + `<DropdownItem>`. Sections separated with `<DropdownSection showDivider>`.
+
+Start content icons: 14px, colored by action type (success for start, warning for stop, danger for remove, primary for update/rebuild).
+
+---
+
+## Layout
+
+### Sidebar
+
+Collapsible. 240px expanded, 68px collapsed. Animated with Framer Motion spring (`bounce: 0, duration: 0.3`).
+
+Three Surface sections stacked vertically:
+1. **Brand** — "nexus." wordmark
+2. **Plugins/Extensions** — scrollable list
+3. **Navigation** — Add Plugins, Extensions, Settings
+
+Collapse/expand uses **CSS transitions on the same DOM** — not conditional rendering. Text labels transition `w-0 opacity-0` ↔ `w-auto opacity-100` via `transition-all duration-300`. Icons stay in place. This prevents layout animation bugs.
+
+### Content Area
+
+Plugin content renders in stacked iframes. Only the selected plugin is visible; others use `invisible pointer-events-none`. Settings and marketplace use `opacity-0 pointer-events-none` to preserve state.
+
+---
+
+## Animation
+
+### Motion Principles
+
+| What | How | Duration |
+|------|-----|----------|
+| Sidebar width | Framer Motion spring | `bounce: 0, duration: 0.3` |
+| Nav item state changes | CSS `transition-all` | 300ms |
+| Text collapse/expand | CSS `transition-all` on width + opacity | 300ms |
+| Button hover | CSS `transition-colors` | 150ms (Tailwind default) |
+| Modal open/close | HeroUI built-in | Default |
+
+**Do not** use Framer Motion `layoutId` on sidebar nav items — it causes animation bugs during collapse transitions. Use plain `div` elements for active indicators.
+
+**Do not** conditionally render DOM during animated layout changes. Always keep elements mounted and use CSS transitions to show/hide.
+
+---
+
+## Plugin Iframe Guidelines
+
+Plugins render inside sandboxed iframes in the Nexus viewport. To match the host app:
+
+### Required Setup
+
+1. Install: `@heroui/react`, `framer-motion`, `@imdanibytes/nexus-ui`, `lucide-react`
+2. Wrap root in `<NexusProvider>` from `@imdanibytes/nexus-ui`
+3. Import styles: `@import "@imdanibytes/nexus-ui/styles"` in your CSS
+4. Use HeroUI's Tailwind plugin in your `hero.ts`:
+
+```ts
+import { heroui } from "@heroui/react";
+export default heroui({ defaultTheme: "dark" });
+```
+
+### Theme Sync
+
+Nexus sends theme changes via `postMessage`:
+
+```ts
+window.addEventListener("message", (e) => {
+  if (e.data?.type === "nexus:system" && e.data.event === "theme_changed") {
+    // e.data.data.theme is "light" | "dark"
+    document.documentElement.className = e.data.data.theme;
+  }
+});
+```
+
+The initial theme is passed as a `?nexus_theme=dark` query parameter on the iframe URL.
+
+### Visual Checklist for Plugins
+
+- [ ] Dark mode is the default and looks correct
+- [ ] No opaque gray containers — use `bg-default-50/40 backdrop-blur-xl border border-white/5` for panels
+- [ ] Text uses HeroUI semantic colors (`text-foreground`, `text-default-500`), not hardcoded hex
+- [ ] Buttons are HeroUI `<Button>`, not custom styled
+- [ ] Icons are Lucide at 16px / strokeWidth 1.5
+- [ ] Font is Geist (inherited from NexusProvider styles)
+- [ ] Scrollbars are thin (6px) with transparent track
+- [ ] No competing accent colors — `primary` is the only accent
+- [ ] Modals use HeroUI `<Modal>`, not custom overlays
+- [ ] Forms use HeroUI inputs (built-in labels, descriptions, error states)
+
+---
+
+## Scrollbar
 
 ```css
-@import "tailwindcss";
-
-/* ============================================
-   Nexus Design Tokens
-   ============================================ */
-
-@theme {
-  /* --- Surface / Background --- */
-  --color-nx-deep: #0C0E12;
-  --color-nx-base: #12141A;
-  --color-nx-surface: #1A1D25;
-  --color-nx-raised: #222631;
-  --color-nx-overlay: #2A2E3A;
-  --color-nx-wash: #323744;
-
-  /* --- Accent --- */
-  --color-nx-accent: #2DD4A8;
-  --color-nx-accent-hover: #22B893;
-  --color-nx-accent-muted: oklch(0.72 0.15 168 / 0.15);
-  --color-nx-accent-subtle: oklch(0.72 0.15 168 / 0.08);
-
-  /* --- Highlight (secondary accent) --- */
-  --color-nx-highlight: #F0AB3A;
-  --color-nx-highlight-muted: oklch(0.78 0.15 75 / 0.15);
-
-  /* --- Text --- */
-  --color-nx-text: #E8ECF2;
-  --color-nx-text-secondary: #9BA3B2;
-  --color-nx-text-muted: #5E6778;
-  --color-nx-text-ghost: #3D4452;
-
-  /* --- Border --- */
-  --color-nx-border: #2A2E3A;
-  --color-nx-border-subtle: #222631;
-  --color-nx-border-strong: #3D4452;
-  --color-nx-border-accent: oklch(0.72 0.15 168 / 0.5);
-
-  /* --- Status --- */
-  --color-nx-success: #34D399;
-  --color-nx-success-muted: oklch(0.73 0.17 163 / 0.12);
-  --color-nx-warning: #FBBF24;
-  --color-nx-warning-muted: oklch(0.83 0.16 85 / 0.12);
-  --color-nx-error: #F87171;
-  --color-nx-error-muted: oklch(0.68 0.19 22 / 0.12);
-  --color-nx-info: #60A5FA;
-  --color-nx-info-muted: oklch(0.7 0.14 250 / 0.12);
-
-  /* --- Shadows --- */
-  --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.5);
-  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.3);
-  --shadow-focus: 0 0 0 2px oklch(0.72 0.15 168 / 0.3);
-  --shadow-card-hover: 0 0 0 1px oklch(0.72 0.15 168 / 0.15);
-
-  /* --- Border Radius --- */
-  --radius-card: 10px;
-  --radius-button: 8px;
-  --radius-input: 8px;
-  --radius-modal: 14px;
-  --radius-tag: 6px;
-
-  /* --- Typography --- */
-  --font-sans: 'Geist', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
-
-  /* --- Transitions --- */
-  --transition-fast: 150ms ease-out;
-  --transition-normal: 200ms ease-out;
-  --transition-slow: 300ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* ============================================
-   Base Styles
-   ============================================ */
-
-:root {
-  font-family: var(--font-sans);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  background-color: var(--color-nx-deep);
-  color: var(--color-nx-text);
-}
-
-#root {
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* ============================================
-   Scrollbar
-   ============================================ */
-
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-nx-wash);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-nx-text-muted);
-}
-```
-
-### Usage Examples (Tailwind Classes)
-
-With the above tokens defined, here is how they map to component usage:
-
-```
-Shell background:          bg-nx-deep
-Main content area:         bg-nx-base
-Sidebar:                   bg-nx-raised border-r border-nx-border
-Cards:                     bg-nx-surface border border-nx-border rounded-[var(--radius-card)]
-Card hover:                hover:border-nx-border-strong hover:shadow-[var(--shadow-card-hover)]
-Selected card:             border-nx-border-accent bg-nx-accent-subtle
-Primary button:            bg-nx-accent hover:bg-nx-accent-hover text-nx-deep rounded-[var(--radius-button)]
-Secondary button:          bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary rounded-[var(--radius-button)]
-Input:                     bg-nx-wash border border-nx-border-strong focus:shadow-[var(--shadow-focus)]
-Active nav item bg:        bg-nx-accent-muted text-nx-accent
-Heading text:              text-nx-text font-semibold
-Body text:                 text-nx-text-secondary
-Muted text:                text-nx-text-muted
-Status running badge:      bg-nx-success-muted text-nx-success
-Status error badge:        bg-nx-error-muted text-nx-error
-Status warning badge:      bg-nx-warning-muted text-nx-warning
-Modal overlay:             bg-black/50 backdrop-blur-sm
-Modal container:           bg-nx-surface border border-nx-border rounded-[var(--radius-modal)] shadow-[var(--shadow-modal)]
-Toast:                     bg-nx-raised border border-nx-border rounded-[var(--radius-card)] shadow-[var(--shadow-toast)]
-Code elements:             font-mono bg-nx-deep text-nx-text-secondary px-1.5 py-0.5 rounded-[var(--radius-tag)]
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--heroui-default-300)); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--heroui-default-400)); }
 ```
 
 ---
 
-## 6. Component-Specific Recommendations
+## Border Radius
 
-### Sidebar (`Sidebar.tsx`)
-
-- Background: `bg-nx-raised` (not the same as the content area --- creates depth)
-- Border: `border-r border-nx-border`
-- Logo area: consider a subtle gradient or the accent color in the "Nexus" text
-- Selected plugin item: `bg-nx-accent-muted text-nx-accent` (teal tint, not white-on-gray)
-- Status dots: keep them small (6px) but add a subtle CSS animation for `running`:
-
-```css
-@keyframes pulse-status {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-.status-running {
-  animation: pulse-status 2s ease-in-out infinite;
-}
-```
-
-### Plugin Cards (`PluginCard.tsx`)
-
-- At rest: `bg-nx-surface border-nx-border`
-- Hover: `border-nx-border-strong` + very faint accent glow
-- Selected: `border-nx-border-accent bg-nx-accent-subtle`
-- Status badges should use the `*-muted` background variants with the solid status color for text
-- Category tags: `bg-nx-overlay text-nx-text-secondary rounded-[var(--radius-tag)]`
-
-### Plugin Viewport (`PluginViewport.tsx`)
-
-- Header bar: `bg-nx-raised/60 border-b border-nx-border` (slightly transparent so the iframe content bleeds through faintly --- creates depth)
-- The "Start Plugin" CTA button: `bg-nx-accent hover:bg-nx-accent-hover text-nx-deep` (dark text on teal, high contrast)
-
-### Logs Panel (`PluginLogs.tsx`)
-
-- Container: `bg-nx-deep` (the darkest surface --- logs should feel like a terminal)
-- Log text: `font-mono text-[12px] text-nx-text-secondary`
-- Consider syntax-highlighting log levels (ERROR in `text-nx-error`, WARN in `text-nx-warning`, INFO in `text-nx-info`)
-
-### Permission Dialog (`PermissionDialog.tsx`)
-
-- Modal: `bg-nx-surface border-nx-border rounded-[var(--radius-modal)] shadow-[var(--shadow-modal)]`
-- Risk badge colors map directly: `low` -> success, `medium` -> warning, `high` -> error
-
-### Toast Notifications (`Shell.tsx`)
-
-- All toasts: same base appearance (`bg-nx-raised border border-nx-border`) with a **colored left border** (4px) indicating type
-- Error: left border `border-l-4 border-l-nx-error`
-- Success: left border `border-l-4 border-l-nx-success`
-- Info: left border `border-l-4 border-l-nx-info`
-- This is more subtle than the current approach (fully colored background) and scales better visually
+| Element | Radius |
+|---------|--------|
+| Glass panels (Surface) | `rounded-xl` (12px) |
+| Buttons, inputs | HeroUI defaults |
+| Modals | `rounded-xl` (12px, HeroUI default) |
+| Status dots | `rounded-full` |
+| Nav item hover/active indicator | `rounded-xl` |
+| Menu bar item hover | `rounded` (4px) |
+| App icon placeholders | `rounded-[14px]` |
 
 ---
 
-## 7. Migration Strategy
+## Spacing
 
-Applying this design direction does not require a big-bang rewrite. Here is the phased approach:
+Base unit: 4px. Sidebar uses `p-3` (12px) internal padding. Glass panels use `p-2` (8px). Nav items use `px-3 py-2` (12px / 8px). Menu bar items use `px-2 py-1` (8px / 4px).
 
-### Phase 1: Foundation (index.css + Shell)
-1. Add the `@theme` block to `index.css`
-2. Install Geist font (`pnpm add geist`)
-3. Update `Shell.tsx` and `Sidebar.tsx` to use the new tokens
-4. Update body/root styles
-
-### Phase 2: Components
-1. Update `PluginCard.tsx` (both variants)
-2. Update `PluginControls.tsx`
-3. Update `PluginViewport.tsx`
-4. Update `SearchBar.tsx`
-
-### Phase 3: Overlays and Details
-1. Update `PluginLogs.tsx`
-2. Update `PermissionDialog.tsx`
-3. Update `PluginDetail.tsx`
-4. Update `SettingsPage.tsx`, `DockerSettings.tsx`, `UpdateCheck.tsx`
-
-### Phase 4: Polish
-1. Add micro-interactions (modal transitions, toast animations, status pulse)
-2. Add Lucide icons (replace inline SVGs)
-3. Add sidebar glass effect
-4. Final spacing/typography audit
-
-Each phase is independently shippable. The tokens are additive --- old slate-* classes still work during migration.
+Section gaps: `gap-2` (8px) between Surface panels in sidebar. `space-y-0.5` (2px) between nav items within a panel.
 
 ---
 
-## Sources
+## What NOT to Do
 
-- [Dark Mode Color Palettes: Complete Guide (MyPaletteTool)](https://mypalettetool.com/blog/dark-mode-color-palettes)
-- [Modern App Colors: Design Palettes That Work In 2026 (WebOsmotic)](https://webosmotic.com/blog/modern-app-colors/)
-- [Best Dashboard Design Examples & Inspirations for 2026 (Muzli)](https://muz.li/blog/best-dashboard-design-examples-inspirations-for-2026/)
-- [How we redesigned the Linear UI (Linear)](https://linear.app/now/how-we-redesigned-the-linear-ui)
-- [Warp: How we designed themes for the terminal (Warp)](https://www.warp.dev/blog/how-we-designed-themes-for-the-terminal-a-peek-into-our-process)
-- [Geist Design System (Vercel)](https://vercel.com/geist/introduction)
-- [Geist Colors (Vercel)](https://vercel.com/geist/colors)
-- [Geist Font (Vercel)](https://vercel.com/font)
-- [Custom Themes - Warp Documentation](https://docs.warp.dev/terminal/appearance/custom-themes)
-- [28 Best Free Fonts for Modern UI Design (Untitled UI)](https://www.untitledui.com/blog/best-free-fonts)
-- [Best Code Fonts for Developers & Programmers (JHK Blog)](https://www.jhkinfotech.com/blog/code-fonts-for-developers-programmers)
-- [Theme Variables - Tailwind CSS v4](https://tailwindcss.com/docs/theme)
-- [Dark Mode - Tailwind CSS](https://tailwindcss.com/docs/dark-mode)
-- [Tailwind v4 Custom Theme Styling (Flagrant)](https://www.beflagrant.com/blog/tailwindcss-v4-custom-theme-styling-2025-08-21)
-- [Colors in Every Format - shadcn/ui](https://ui.shadcn.com/colors)
-- [Theming - shadcn/ui](https://ui.shadcn.com/docs/theming)
-- [Dark Mode Color Palettes for Modern Websites (Colorhero)](https://colorhero.io/blog/dark-mode-color-palettes-2025)
+- **No opaque containers.** Every panel is translucent glass.
+- **No Tailwind color palette** (`slate-*`, `gray-*`, `zinc-*`). Use HeroUI semantic tokens.
+- **No custom hex colors** in components. Define them in the theme if needed.
+- **No `border-divider`** for glass panel borders. Use `border-white/5`.
+- **No heavy shadows** on cards. Depth comes from translucency and backdrop blur.
+- **No conditional DOM rendering** during layout animations. CSS transitions only.
+- **No Framer Motion `layoutId`** on elements that change during sidebar collapse.
+- **No `justify-center`** on text labels. Text is always left-aligned in its flex container.
+- **No `flex-1`** on text label spans — it changes text positioning. Use `truncate whitespace-nowrap`.

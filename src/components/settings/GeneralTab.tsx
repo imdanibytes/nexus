@@ -3,32 +3,27 @@ import { useTranslation } from "react-i18next";
 import { appVersion, type AppVersionInfo } from "../../lib/tauri";
 import { RegistrySettings } from "./RegistrySettings";
 import { UpdateCheck } from "./UpdateCheck";
-import { Info, Bug, Bell, BellOff, Globe, Check, ChevronsUpDown, Palette } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Button } from "@/components/ui/button";
+import { Info, Bug, Bell, BellOff, Globe, Check, Sun, Moon, Monitor } from "lucide-react";
+import { Switch, Autocomplete, AutocompleteItem, Button, Card, CardBody, Divider, Tabs, Tab } from "@heroui/react";
 import {
   notificationsEnabled,
   setNotificationsEnabled,
 } from "../../hooks/useOsNotification";
 import { LANGUAGES } from "../../i18n";
 import { cn } from "../../lib/utils";
-import { THEMES, getTheme, applyTheme, type ThemeId } from "../../lib/theme";
+import { getColorMode, applyColorMode, type ColorMode } from "../../lib/theme";
+
+const COLOR_MODES: { id: ColorMode; icon: typeof Sun; labelKey: string }[] = [
+  { id: "light", icon: Sun, labelKey: "general.modeLight" },
+  { id: "dark", icon: Moon, labelKey: "general.modeDark" },
+  { id: "system", icon: Monitor, labelKey: "general.modeSystem" },
+];
 
 export function GeneralTab() {
   const { t, i18n } = useTranslation("settings");
   const [version, setVersion] = useState<AppVersionInfo | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(notificationsEnabled);
-  const [langOpen, setLangOpen] = useState(false);
-  const [activeTheme, setActiveTheme] = useState<ThemeId>(getTheme);
+  const [colorMode, setColorMode] = useState<ColorMode>(getColorMode);
 
   useEffect(() => {
     appVersion().then(setVersion).catch(() => {});
@@ -39,188 +34,147 @@ export function GeneralTab() {
     setNotificationsEnabled(checked);
   }
 
+  function handleColorMode(mode: ColorMode) {
+    setColorMode(mode);
+    applyColorMode(mode);
+  }
+
   return (
     <div className="space-y-6">
+      {/* Appearance */}
+      <Card>
+        <CardBody>
+          <div className="flex items-center gap-2 mb-4">
+            <Sun size={16} className="text-default-500" />
+            <h3 className="text-sm font-semibold">{t("general.appearance")}</h3>
+          </div>
+          <Tabs
+            selectedKey={colorMode}
+            onSelectionChange={(key) => handleColorMode(key as ColorMode)}
+          >
+            {COLOR_MODES.map((mode) => {
+              const Icon = mode.icon;
+              return (
+                <Tab
+                  key={mode.id}
+                  title={
+                    <div className="flex items-center gap-2">
+                      <Icon size={14} />
+                      {t(mode.labelKey)}
+                    </div>
+                  }
+                />
+              );
+            })}
+          </Tabs>
+        </CardBody>
+      </Card>
+
       {/* About */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Info size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">{t("general.about")}</h3>
-        </div>
-        <div className="space-y-2.5">
-          <div className="flex justify-between items-center">
-            <span className="text-[12px] text-nx-text-muted">{t("general.version")}</span>
-            <span className="text-[13px] text-nx-text font-mono">
-              {version?.version ?? "..."}
-            </span>
+      <Card>
+        <CardBody>
+          <div className="flex items-center gap-2 mb-4">
+            <Info size={16} className="text-default-500" />
+            <h3 className="text-sm font-semibold">{t("general.about")}</h3>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-[12px] text-nx-text-muted">{t("general.app")}</span>
-            <span className="text-[13px] text-nx-text">
-              {version?.name ?? "Nexus"}
-            </span>
-          </div>
-          {version?.commit && (
+          <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-[12px] text-nx-text-muted">{t("general.build")}</span>
-              <span className="text-[13px] text-nx-text font-mono">
-                {version.commit}
+              <span className="text-sm text-default-500">{t("general.version")}</span>
+              <span className="text-sm font-mono">
+                {version?.version ?? "..."}
               </span>
             </div>
-          )}
-        </div>
-        <div className="mt-4 pt-4 border-t border-nx-border-subtle">
-          <UpdateCheck />
-        </div>
-        <div className="mt-4 pt-4 border-t border-nx-border-subtle flex items-center justify-between">
-          <div>
-            <span className="text-[12px] text-nx-text-muted">{t("general.bugPrompt")}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-default-500">{t("general.app")}</span>
+              <span className="text-sm">
+                {version?.name ?? "Nexus"}
+              </span>
+            </div>
+            {version?.commit && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-default-500">{t("general.build")}</span>
+                <span className="text-sm font-mono">{version.commit}</span>
+              </div>
+            )}
           </div>
-          <a
-            href={`https://github.com/imdanibytes/nexus/issues/new?template=bug_report.md&labels=bug&title=&body=${encodeURIComponent(`**Nexus Version:** ${version?.version ?? "unknown"}\n**OS:** ${navigator.platform}\n\n**Describe the bug**\n\n\n**Steps to reproduce**\n1. \n2. \n3. \n\n**Expected behavior**\n\n\n**Screenshots**\n`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-nx-text-muted hover:text-nx-text rounded-[var(--radius-button)] border border-nx-border hover:bg-nx-wash/40 transition-all duration-150"
-          >
-            <Bug size={13} strokeWidth={1.5} />
-            {t("general.reportBug")}
-          </a>
-        </div>
-      </section>
+          <Divider className="my-4" />
+          <UpdateCheck />
+          <Divider className="my-4" />
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-default-500">{t("general.bugPrompt")}</span>
+            <Button
+              as="a"
+              href={`https://github.com/imdanibytes/nexus/issues/new?template=bug_report.md&labels=bug&title=&body=${encodeURIComponent(`**Nexus Version:** ${version?.version ?? "unknown"}\n**OS:** ${navigator.platform}\n\n**Describe the bug**\n\n\n**Steps to reproduce**\n1. \n2. \n3. \n\n**Expected behavior**\n\n\n**Screenshots**\n`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              startContent={<Bug size={14} />}
+            >
+              {t("general.reportBug")}
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
 
       {/* Notifications */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Bell size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            {t("general.notifications")}
-          </h3>
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[13px] text-nx-text">
-              {t("general.showNative")}
-            </p>
-            <p className="text-[11px] text-nx-text-ghost mt-0.5">
-              {t("general.nativeHint")}
-            </p>
+      <Card>
+        <CardBody>
+          <div className="flex items-center gap-2 mb-4">
+            <Bell size={16} className="text-default-500" />
+            <h3 className="text-sm font-semibold">{t("general.notifications")}</h3>
           </div>
-          <Switch checked={notifEnabled} onCheckedChange={handleNotifToggle} />
-        </div>
-        {!notifEnabled && (
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-nx-border-subtle">
-            <BellOff size={13} strokeWidth={1.5} className="text-nx-text-ghost" />
-            <p className="text-[11px] text-nx-text-ghost">
-              {t("general.notifDisabled")}
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm">{t("general.showNative")}</p>
+              <p className="text-xs text-default-400 mt-1">{t("general.nativeHint")}</p>
+            </div>
+            <Switch isSelected={notifEnabled} onValueChange={handleNotifToggle} />
           </div>
-        )}
-      </section>
+          {!notifEnabled && (
+            <>
+              <Divider className="my-4" />
+              <div className="flex items-center gap-2">
+                <BellOff size={14} className="text-default-400" />
+                <p className="text-xs text-default-400">{t("general.notifDisabled")}</p>
+              </div>
+            </>
+          )}
+        </CardBody>
+      </Card>
 
       {/* Language */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Globe size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            {t("general.language")}
-          </h3>
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[13px] text-nx-text">
-              {t("general.languageHint")}
-            </p>
+      <Card>
+        <CardBody>
+          <div className="flex items-center gap-2 mb-4">
+            <Globe size={16} className="text-default-500" />
+            <h3 className="text-sm font-semibold">{t("general.language")}</h3>
           </div>
-          <Popover open={langOpen} onOpenChange={setLangOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={langOpen}
-                className="w-[180px] justify-between text-[12px] font-medium bg-nx-overlay border-nx-border hover:bg-nx-wash"
-              >
-                {LANGUAGES.find((l) => l.code === i18n.language)?.label ?? i18n.language}
-                <ChevronsUpDown className="ml-2 size-3.5 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-[180px] p-0 bg-nx-raised border-nx-border-strong shadow-[var(--shadow-dropdown)] rounded-[var(--radius-input)]"
-              align="end"
-            >
-              <Command className="bg-transparent">
-                <CommandInput
-                  placeholder={t("general.searchLanguage")}
-                  className="text-[12px] h-8"
-                />
-                <CommandList>
-                  <CommandEmpty className="text-[12px] text-nx-text-ghost py-4">
-                    {t("general.noLanguageFound")}
-                  </CommandEmpty>
-                  <CommandGroup>
-                    {LANGUAGES.map((lang) => (
-                      <CommandItem
-                        key={lang.code}
-                        value={lang.label}
-                        onSelect={() => {
-                          i18n.changeLanguage(lang.code);
-                          setLangOpen(false);
-                        }}
-                        className="text-[12px] rounded-[var(--radius-tag)]"
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 size-3.5",
-                            i18n.language === lang.code ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {lang.label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
-      </section>
-
-      {/* Theme */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Palette size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            {t("general.theme")}
-          </h3>
-        </div>
-        <p className="text-[13px] text-nx-text-muted mb-4">
-          {t("general.themeHint")}
-        </p>
-        <div className="flex gap-3">
-          {THEMES.map((theme) => (
-            <button
-              key={theme.id}
-              onClick={() => {
-                setActiveTheme(theme.id);
-                applyTheme(theme.id);
+          <div className="flex items-center justify-between">
+            <p className="text-sm">{t("general.languageHint")}</p>
+            <Autocomplete
+              defaultSelectedKey={i18n.language}
+              onSelectionChange={(key) => {
+                if (key) i18n.changeLanguage(String(key));
               }}
-              className={cn(
-                "flex items-center gap-2.5 px-4 py-2.5 rounded-[var(--radius-button)] border transition-all duration-150",
-                activeTheme === theme.id
-                  ? "border-nx-accent bg-nx-accent-subtle"
-                  : "border-nx-border-subtle bg-nx-deep hover:bg-nx-wash/30"
-              )}
+              placeholder={t("general.searchLanguage")}
+              className="w-[200px]"
             >
-              <span
-                className="w-4 h-4 rounded-full flex-shrink-0 ring-1 ring-white/10"
-                style={{ background: theme.accent }}
-              />
-              <span className="text-[12px] font-medium text-nx-text">
-                {t(theme.labelKey)}
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
+              {LANGUAGES.map((lang) => (
+                <AutocompleteItem key={lang.code} textValue={lang.label}>
+                  <div className="flex items-center gap-2">
+                    <Check
+                      className={cn(
+                        "size-4",
+                        i18n.language === lang.code ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {lang.label}
+                  </div>
+                </AutocompleteItem>
+              ))}
+            </Autocomplete>
+          </div>
+        </CardBody>
+      </Card>
 
       {/* Registries */}
       <RegistrySettings />

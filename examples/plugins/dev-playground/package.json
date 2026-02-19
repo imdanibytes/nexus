@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@imdanibytes/nexus-ui": "file:../../../packages/nexus-ui",
-    "@nexus-dashboard/tokens": "file:../../../packages/tokens",
+    "@heroui/react": "^2.8.9",
+    "@heroui/theme": "^2.4.26",
+    "framer-motion": "^12.34.2",
     "lucide-react": "^0.564.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

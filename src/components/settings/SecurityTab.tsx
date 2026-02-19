@@ -4,20 +4,19 @@ import { useAppStore } from "../../stores/appStore";
 import { oauthListClients, oauthRevokeClient } from "../../lib/tauri";
 import type { OAuthClientInfo } from "../../types/oauth";
 import { Shield, KeyRound, Search, ChevronDown, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
+  Button,
+  Input,
+  Chip,
+  Card,
+  CardBody,
+  Divider,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/react";
 import { PermissionList } from "../permissions/PermissionList";
 
 function ConnectedClients() {
@@ -46,87 +45,91 @@ function ConnectedClients() {
   }
 
   return (
-    <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+    <Card>
+      <CardBody className="p-5">
       <div className="flex items-center gap-2 mb-4">
-        <KeyRound size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-        <h3 className="text-[14px] font-semibold text-nx-text">
+        <KeyRound size={15} strokeWidth={1.5} className="text-default-500" />
+        <h3 className="text-[14px] font-semibold">
           {t("securityTab.connectedClients")}
         </h3>
       </div>
 
-      <p className="text-[11px] text-nx-text-ghost mb-4">
+      <p className="text-[11px] text-default-400 mb-4">
         {t("securityTab.connectedClientsDesc")}
       </p>
 
       {clients.length === 0 ? (
-        <p className="text-[11px] text-nx-text-ghost">
+        <p className="text-[11px] text-default-400">
           {t("securityTab.noClients")}
         </p>
       ) : (
         <div className="space-y-2">
           {clients.map((client) => (
-            <div
-              key={client.client_id}
-              className="flex items-center justify-between p-3 rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep"
-            >
+            <Card key={client.client_id}>
+              <CardBody className="p-3 flex-row items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-[13px] text-nx-text font-medium truncate">
+                <span className="text-[13px] font-medium truncate">
                   {client.client_name}
                 </span>
-                <Badge
-                  variant={client.approved ? "success" : "outline"}
-                  className="text-[10px] flex-shrink-0"
+                <Chip
+                  size="sm"
+                  variant="flat"
+                  color={client.approved ? "success" : "default"}
                 >
                   {client.approved
                     ? t("securityTab.approved")
                     : t("securityTab.requiresConsent")}
-                </Badge>
-                <span className="text-[10px] text-nx-text-ghost font-mono flex-shrink-0">
+                </Chip>
+                <span className="text-[10px] text-default-400 font-mono flex-shrink-0">
                   {new Date(client.registered_at).toLocaleDateString()}
                 </span>
               </div>
               <Button
-                variant="destructive"
-                size="xs"
-                onClick={() => setRevokeTarget(client)}
-                className="flex-shrink-0 ml-2"
+                color="danger"
+                onPress={() => setRevokeTarget(client)}
+                startContent={<Trash2 size={10} strokeWidth={2} />}
               >
-                <Trash2 size={10} strokeWidth={2} />
                 {t("securityTab.revoke")}
               </Button>
-            </div>
+              </CardBody>
+            </Card>
           ))}
         </div>
       )}
 
       {/* Revoke confirmation dialog */}
-      <AlertDialog
-        open={revokeTarget !== null}
+      <Modal
+        isOpen={revokeTarget !== null}
         onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}
       >
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[14px]">
-              {t("securityTab.revokeConfirm", {
-                clientName: revokeTarget?.client_name ?? "",
-              })}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-[12px]">
-              {t("securityTab.revokeDetail")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common:action.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => revokeTarget && handleRevoke(revokeTarget.client_id)}
-              className="bg-nx-error hover:bg-nx-error/80 text-white"
-            >
-              {t("securityTab.revoke")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </section>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="text-[14px]">
+                {t("securityTab.revokeConfirm", {
+                  clientName: revokeTarget?.client_name ?? "",
+                })}
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-[12px] text-default-500">
+                  {t("securityTab.revokeDetail")}
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button onPress={onClose}>{t("common:action.cancel")}</Button>
+                <Button
+                  color="danger"
+                  onPress={() => revokeTarget && handleRevoke(revokeTarget.client_id)}
+                >
+                  {t("securityTab.revoke")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+    </CardBody>
+    </Card>
   );
 }
 
@@ -157,38 +160,41 @@ export function SecurityTab() {
       <ConnectedClients />
 
       {/* Plugin Permissions */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card>
+        <CardBody className="p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Shield size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
+          <Shield size={15} strokeWidth={1.5} className="text-default-500" />
+          <h3 className="text-[14px] font-semibold">
             {t("pluginsTab.permissions")}
           </h3>
         </div>
 
         {installedPlugins.length === 0 ? (
-          <p className="text-[11px] text-nx-text-ghost">
+          <p className="text-[11px] text-default-400">
             {t("pluginsTab.noPlugins")}
           </p>
         ) : (
           <>
             <div className="relative mb-4">
-              <Search
-                size={14}
-                strokeWidth={1.5}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-nx-text-ghost"
-              />
               <Input
                 type="text"
                 value={permSearch}
-                onChange={(e) => setPermSearch(e.target.value)}
+                onValueChange={setPermSearch}
                 placeholder={t("pluginsTab.filterPlugins")}
-                className="pl-9"
+                startContent={
+                  <Search
+                    size={14}
+                    strokeWidth={1.5}
+                    className="text-default-400"
+                  />
+                }
+                variant="bordered"
               />
             </div>
 
             <div className="space-y-2">
               {filtered.length === 0 ? (
-                <p className="text-[11px] text-nx-text-ghost">
+                <p className="text-[11px] text-default-400">
                   {t("pluginsTab.noMatch", { query: permSearch })}
                 </p>
               ) : (
@@ -198,54 +204,55 @@ export function SecurityTab() {
                   const permCount = plugin.manifest.permissions.length;
 
                   return (
-                    <Collapsible key={id} open={isOpen} onOpenChange={() => togglePerm(id)}>
-                      <div className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden">
-                        <CollapsibleTrigger asChild>
-                          <button className="w-full flex items-center justify-between p-3 hover:bg-nx-wash/30 transition-colors duration-150">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-[13px] text-nx-text font-medium truncate">
-                                {plugin.manifest.name}
-                              </span>
-                              <span className="text-[11px] text-nx-text-ghost font-mono flex-shrink-0">
-                                v{plugin.manifest.version}
-                              </span>
-                              <Badge
-                                variant={plugin.status === "running" ? "success" : "secondary"}
-                                className="text-[10px]"
-                              >
-                                {plugin.status}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                              <span className="text-[11px] text-nx-text-ghost">
-                                {t("pluginsTab.permCount", { count: permCount })}
-                              </span>
-                              <ChevronDown
-                                size={14}
-                                strokeWidth={1.5}
-                                className={`text-nx-text-ghost transition-transform duration-200 ${
-                                  isOpen ? "rotate-180" : ""
-                                }`}
-                              />
-                            </div>
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <div className="px-3 pb-3 border-t border-nx-border-subtle">
-                            <div className="pt-3">
-                              <PermissionList pluginId={id} />
-                            </div>
-                          </div>
-                        </CollapsibleContent>
-                      </div>
-                    </Collapsible>
+                    <Card key={id}>
+                      <CardBody
+                        as="button"
+                        onClick={() => togglePerm(id)}
+                        className="p-3 flex-row items-center justify-between cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-[13px] font-medium truncate">
+                            {plugin.manifest.name}
+                          </span>
+                          <span className="text-[11px] text-default-400 font-mono flex-shrink-0">
+                            v{plugin.manifest.version}
+                          </span>
+                          <Chip
+                            size="sm"
+                            variant="flat"
+                            color={plugin.status === "running" ? "success" : "default"}
+                          >
+                            {plugin.status}
+                          </Chip>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          <span className="text-[11px] text-default-400">
+                            {t("pluginsTab.permCount", { count: permCount })}
+                          </span>
+                          <ChevronDown
+                            size={14}
+                            strokeWidth={1.5}
+                            className={`text-default-400 transition-transform duration-200 ${
+                              isOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </div>
+                      </CardBody>
+                      {isOpen && (
+                        <CardBody className="px-3 pb-3 pt-0">
+                          <Divider className="mb-3" />
+                          <PermissionList pluginId={id} />
+                        </CardBody>
+                      )}
+                    </Card>
                   );
                 })
               )}
             </div>
           </>
         )}
-      </section>
+      </CardBody>
+      </Card>
     </div>
   );
 }

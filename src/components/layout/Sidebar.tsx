@@ -118,19 +118,19 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
     setSettingsTab,
     availableUpdates,
     setAvailableUpdates,
-    busyPlugins,
     setShowLogs,
-    warmViewports,
   } = useAppStore();
-  const { start, stop, remove, rebuild, toggleDevMode } = usePluginActions();
   const id = plugin.manifest.id;
+  // Per-plugin selectors — only re-render when THIS plugin's state changes
+  const isBusy = useAppStore((s) => !!s.busyPlugins[id]);
+  const isWarm = useAppStore((s) => !!s.warmViewports[id]);
+  const { start, stop, remove, rebuild, toggleDevMode } = usePluginActions();
   const isSelected = selectedPluginId === id;
   const isRunning = plugin.status === "running";
-  const isWarm = !!warmViewports[id];
   const update = availableUpdates.find((u) => u.item_id === id);
   const hasUpdate = !!update;
-  const isBusy = !!busyPlugins[id];
   const isLocal = !!plugin.local_manifest_path;
+  const [menuOpen, setMenuOpen] = useState(false);
   const removeModal = useDisclosure();
 
   const handleStart = () => start(id);
@@ -225,98 +225,104 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
         )}
       </NavItem>
 
-      {/* Context menu trigger */}
-      <Dropdown>
-        <DropdownTrigger>
-          <button className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all">
-            <MoreHorizontal size={14} />
-          </button>
-        </DropdownTrigger>
-        <DropdownMenu aria-label="Plugin actions">
-          {hasUpdate ? (
-            <DropdownSection showDivider>
-              <DropdownItem
-                key="update"
-                onPress={handleUpdate}
-                isDisabled={isBusy}
-                startContent={<ArrowUp size={14} className="text-primary" />}
-              >
-                {t("plugins:menu.update")}
-              </DropdownItem>
-            </DropdownSection>
-          ) : (
-            <DropdownSection className="hidden">
-              <DropdownItem key="noop">-</DropdownItem>
-            </DropdownSection>
-          )}
-          <DropdownSection showDivider>
-            {isRunning ? (
-              <DropdownItem
-                key="stop"
-                onPress={handleStop}
-                isDisabled={isBusy}
-                startContent={<Square size={14} className="text-warning" />}
-              >
-                {t("common:action.stop")}
-              </DropdownItem>
+      {/* Context menu — lazy: Dropdown only mounts when opened */}
+      <button
+        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all"
+        onClick={(e) => { e.stopPropagation(); setMenuOpen(true); }}
+      >
+        <MoreHorizontal size={14} />
+      </button>
+      {menuOpen && (
+        <Dropdown isOpen onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
+          <DropdownTrigger>
+            <span className="sr-only">menu</span>
+          </DropdownTrigger>
+          <DropdownMenu aria-label="Plugin actions">
+            {hasUpdate ? (
+              <DropdownSection showDivider>
+                <DropdownItem
+                  key="update"
+                  onPress={handleUpdate}
+                  isDisabled={isBusy}
+                  startContent={<ArrowUp size={14} className="text-primary" />}
+                >
+                  {t("plugins:menu.update")}
+                </DropdownItem>
+              </DropdownSection>
             ) : (
-              <DropdownItem
-                key="start"
-                onPress={handleStart}
-                isDisabled={isBusy}
-                startContent={<Play size={14} className="text-success" />}
-              >
-                {t("common:action.start")}
-              </DropdownItem>
+              <DropdownSection className="hidden">
+                <DropdownItem key="noop">-</DropdownItem>
+              </DropdownSection>
             )}
-            <DropdownItem
-              key="logs"
-              onPress={() => setShowLogs(id)}
-              startContent={<ScrollText size={14} />}
-            >
-              {t("plugins:menu.logs")}
-            </DropdownItem>
-          </DropdownSection>
-          {isLocal ? (
             <DropdownSection showDivider>
+              {isRunning ? (
+                <DropdownItem
+                  key="stop"
+                  onPress={handleStop}
+                  isDisabled={isBusy}
+                  startContent={<Square size={14} className="text-warning" />}
+                >
+                  {t("common:action.stop")}
+                </DropdownItem>
+              ) : (
+                <DropdownItem
+                  key="start"
+                  onPress={handleStart}
+                  isDisabled={isBusy}
+                  startContent={<Play size={14} className="text-success" />}
+                >
+                  {t("common:action.start")}
+                </DropdownItem>
+              )}
               <DropdownItem
-                key="rebuild"
-                onPress={handleRebuild}
-                isDisabled={isBusy}
-                startContent={<Hammer size={14} className="text-primary" />}
+                key="logs"
+                onPress={() => setShowLogs(id)}
+                startContent={<ScrollText size={14} />}
               >
-                {t("plugins:menu.rebuild")}
-              </DropdownItem>
-              <DropdownItem
-                key="devmode"
-                onPress={handleToggleDevMode}
-                isDisabled={isBusy}
-                startContent={<Wrench size={14} />}
-              >
-                {plugin.dev_mode
-                  ? t("plugins:menu.disableDevMode")
-                  : t("plugins:menu.enableDevMode")}
+                {t("plugins:menu.logs")}
               </DropdownItem>
             </DropdownSection>
-          ) : (
-            <DropdownSection className="hidden">
-              <DropdownItem key="noop2">-</DropdownItem>
+            {isLocal ? (
+              <DropdownSection showDivider>
+                <DropdownItem
+                  key="rebuild"
+                  onPress={handleRebuild}
+                  isDisabled={isBusy}
+                  startContent={<Hammer size={14} className="text-primary" />}
+                >
+                  {t("plugins:menu.rebuild")}
+                </DropdownItem>
+                <DropdownItem
+                  key="devmode"
+                  onPress={handleToggleDevMode}
+                  isDisabled={isBusy}
+                  startContent={<Wrench size={14} />}
+                >
+                  {plugin.dev_mode
+                    ? t("plugins:menu.disableDevMode")
+                    : t("plugins:menu.enableDevMode")}
+                </DropdownItem>
+              </DropdownSection>
+            ) : (
+              <DropdownSection className="hidden">
+                <DropdownItem key="noop2">-</DropdownItem>
+              </DropdownSection>
+            )}
+            <DropdownSection>
+              <DropdownItem
+                key="remove"
+                onPress={removeModal.onOpen}
+                isDisabled={isBusy}
+                className="text-danger"
+                color="danger"
+                startContent={<Trash2 size={14} />}
+              >
+                {t("common:action.remove")}
+              </DropdownItem>
             </DropdownSection>
-          )}
-          <DropdownSection>
-            <DropdownItem
-              key="remove"
-              onPress={removeModal.onOpen}
-              isDisabled={isBusy}
-              className="text-danger"
-              color="danger"
-              startContent={<Trash2 size={14} />}
-            >
-              {t("common:action.remove")}
-            </DropdownItem>
-          </DropdownSection>
-        </DropdownMenu>
-      </Dropdown>
+          </DropdownMenu>
+        </Dropdown>
+      )}
 
       {/* Remove confirmation modal */}
       <Modal isOpen={removeModal.isOpen} onOpenChange={removeModal.onOpenChange}>
@@ -358,14 +364,14 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
   const {
     availableUpdates,
     setAvailableUpdates,
-    busyExtensions,
     setView,
     setSettingsTab,
     setFocusExtensionId,
   } = useAppStore();
-  const isBusy = !!busyExtensions[ext.id];
+  const isBusy = useAppStore((s) => !!s.busyExtensions[ext.id]);
   const update = availableUpdates.find((u) => u.item_id === ext.id);
   const hasUpdate = !!update;
+  const [menuOpen, setMenuOpen] = useState(false);
   const removeModal = useDisclosure();
 
   async function handleExtUpdate() {
@@ -454,70 +460,77 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
         )}
       </NavItem>
 
-      <Dropdown>
-        <DropdownTrigger>
-          <button className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all">
-            <MoreHorizontal size={14} />
-          </button>
-        </DropdownTrigger>
-        <DropdownMenu aria-label="Extension actions">
-          {hasUpdate ? (
+      {/* Context menu — lazy */}
+      <button
+        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all"
+        onClick={(e) => { e.stopPropagation(); setMenuOpen(true); }}
+      >
+        <MoreHorizontal size={14} />
+      </button>
+      {menuOpen && (
+        <Dropdown isOpen onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
+          <DropdownTrigger>
+            <span className="sr-only">menu</span>
+          </DropdownTrigger>
+          <DropdownMenu aria-label="Extension actions">
+            {hasUpdate ? (
+              <DropdownSection showDivider>
+                <DropdownItem
+                  key="update"
+                  onPress={handleExtUpdate}
+                  isDisabled={isBusy}
+                  startContent={<ArrowUp size={14} className="text-primary" />}
+                >
+                  {t("plugins:menu.update")}
+                </DropdownItem>
+              </DropdownSection>
+            ) : (
+              <DropdownSection className="hidden">
+                <DropdownItem key="noop">-</DropdownItem>
+              </DropdownSection>
+            )}
             <DropdownSection showDivider>
               <DropdownItem
-                key="update"
-                onPress={handleExtUpdate}
+                key="toggle"
+                onPress={handleToggle}
                 isDisabled={isBusy}
-                startContent={<ArrowUp size={14} className="text-primary" />}
+                startContent={
+                  <Power
+                    size={14}
+                    className={ext.enabled ? "text-warning" : "text-success"}
+                  />
+                }
               >
-                {t("plugins:menu.update")}
+                {ext.enabled
+                  ? t("common:action.disable")
+                  : t("common:action.enable")}
+              </DropdownItem>
+              <DropdownItem
+                key="manage"
+                onPress={() => {
+                  setSettingsTab("extensions");
+                  setView("settings");
+                }}
+                startContent={<Settings size={14} />}
+              >
+                {t("plugins:menu.manageExtensions")}
               </DropdownItem>
             </DropdownSection>
-          ) : (
-            <DropdownSection className="hidden">
-              <DropdownItem key="noop">-</DropdownItem>
-            </DropdownSection>
-          )}
-          <DropdownSection showDivider>
-            <DropdownItem
-              key="toggle"
-              onPress={handleToggle}
-              isDisabled={isBusy}
-              startContent={
-                <Power
-                  size={14}
-                  className={ext.enabled ? "text-warning" : "text-success"}
-                />
-              }
-            >
-              {ext.enabled
-                ? t("common:action.disable")
-                : t("common:action.enable")}
-            </DropdownItem>
-            <DropdownItem
-              key="manage"
-              onPress={() => {
-                setSettingsTab("extensions");
-                setView("settings");
-              }}
-              startContent={<Settings size={14} />}
-            >
-              {t("plugins:menu.manageExtensions")}
+            <DropdownSection>
+              <DropdownItem
+                key="remove"
+                onPress={removeModal.onOpen}
+                isDisabled={isBusy}
+                className="text-danger"
+                color="danger"
+                startContent={<Trash2 size={14} />}
+              >
+                {t("common:action.remove")}
             </DropdownItem>
           </DropdownSection>
-          <DropdownSection>
-            <DropdownItem
-              key="remove"
-              onPress={removeModal.onOpen}
-              isDisabled={isBusy}
-              className="text-danger"
-              color="danger"
-              startContent={<Trash2 size={14} />}
-            >
-              {t("common:action.remove")}
-            </DropdownItem>
-          </DropdownSection>
-        </DropdownMenu>
-      </Dropdown>
+          </DropdownMenu>
+        </Dropdown>
+      )}
 
       <Modal isOpen={removeModal.isOpen} onOpenChange={removeModal.onOpenChange}>
         <ModalContent>

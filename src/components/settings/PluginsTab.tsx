@@ -4,10 +4,7 @@ import { usePlugins } from "../../hooks/usePlugins";
 import { pluginGetSettings, pluginSaveSettings, pluginStorageInfo, pluginClearStorage } from "../../lib/tauri";
 import type { InstalledPlugin, SettingDef } from "../../types/plugin";
 import { Puzzle, Save, Check, Square, Trash2, Database, HardDrive, Cloud } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch, Button, Input, Select, SelectItem, Card, CardBody, Chip, Divider } from "@heroui/react";
 import { ErrorBoundary } from "../ErrorBoundary";
 
 function SettingField({
@@ -24,28 +21,29 @@ function SettingField({
       return (
         <label className="flex items-center gap-3 cursor-pointer">
           <Switch
-            checked={!!value}
-            onCheckedChange={(checked) => onChange(def.key, checked)}
+            isSelected={!!value}
+            onValueChange={(checked) => onChange(def.key, checked)}
           />
-          <span className="text-[13px] text-nx-text">{def.label}</span>
+          <span className="text-[13px]">{def.label}</span>
         </label>
       );
 
     case "number":
       return (
         <div>
-          <label className="block text-[12px] text-nx-text-muted mb-1.5">
+          <label className="block text-[12px] text-default-500 mb-1.5">
             {def.label}
           </label>
           <Input
             type="number"
-            value={value as number ?? ""}
-            onChange={(e) =>
+            value={String(value ?? "")}
+            onValueChange={(v) =>
               onChange(
                 def.key,
-                e.target.value === "" ? null : Number(e.target.value)
+                v === "" ? null : Number(v)
               )
             }
+            variant="bordered"
           />
         </div>
       );
@@ -53,23 +51,20 @@ function SettingField({
     case "select":
       return (
         <div>
-          <label className="block text-[12px] text-nx-text-muted mb-1.5">
+          <label className="block text-[12px] text-default-500 mb-1.5">
             {def.label}
           </label>
           <Select
-            value={(value as string) ?? ""}
-            onValueChange={(v) => onChange(def.key, v)}
+            selectedKeys={value ? [String(value)] : []}
+            onSelectionChange={(keys) => {
+              const selected = Array.from(keys)[0];
+              if (selected) onChange(def.key, String(selected));
+            }}
+            variant="bordered"
           >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {def.options?.map((opt) => (
-                <SelectItem key={opt} value={opt}>
-                  {opt}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            {(def.options ?? []).map((opt) => (
+              <SelectItem key={opt}>{opt}</SelectItem>
+            ))}
           </Select>
         </div>
       );
@@ -78,13 +73,14 @@ function SettingField({
     default:
       return (
         <div>
-          <label className="block text-[12px] text-nx-text-muted mb-1.5">
+          <label className="block text-[12px] text-default-500 mb-1.5">
             {def.label}
           </label>
           <Input
             type="text"
-            value={(value as string) ?? ""}
-            onChange={(e) => onChange(def.key, e.target.value)}
+            value={String(value ?? "")}
+            onValueChange={(v) => onChange(def.key, v)}
+            variant="bordered"
           />
         </div>
       );
@@ -114,32 +110,33 @@ function StorageInfo({ pluginId }: { pluginId: string }) {
   if (bytes === null) return null;
 
   return (
-    <div className="flex items-center justify-between pt-3 mt-3 border-t border-nx-border-subtle">
-      <div className="flex items-center gap-1.5">
-        <Database size={11} strokeWidth={1.5} className="text-nx-text-ghost" />
-        <span className="text-[11px] text-nx-text-ghost">
-          Storage: {formatBytes(bytes)}
-        </span>
+    <>
+      <Divider className="my-3" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Database size={11} strokeWidth={1.5} className="text-default-400" />
+          <span className="text-[11px] text-default-400">
+            Storage: {formatBytes(bytes)}
+          </span>
+        </div>
+        {bytes > 0 && (
+          <Button
+            color="danger"
+            onPress={async () => {
+              setClearing(true);
+              try {
+                await pluginClearStorage(pluginId);
+                setBytes(0);
+              } catch { /* ignore */ }
+              finally { setClearing(false); }
+            }}
+            isDisabled={clearing}
+          >
+            {clearing ? t("pluginsTab.clearing") : t("pluginsTab.clearData")}
+          </Button>
+        )}
       </div>
-      {bytes > 0 && (
-        <Button
-          variant="link"
-          size="sm"
-          onClick={async () => {
-            setClearing(true);
-            try {
-              await pluginClearStorage(pluginId);
-              setBytes(0);
-            } catch { /* ignore */ }
-            finally { setClearing(false); }
-          }}
-          disabled={clearing}
-          className="h-auto p-0 text-[10px] text-nx-error hover:text-nx-error/80"
-        >
-          {clearing ? t("pluginsTab.clearing") : t("pluginsTab.clearData")}
-        </Button>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -192,47 +189,40 @@ function PluginSettingsCard({
     <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
       {plugin.status === "running" && (
         <Button
-          variant="secondary"
-          size="xs"
-          onClick={onStop}
-          disabled={busy !== null}
-          className="bg-nx-warning-muted text-nx-warning hover:bg-nx-warning/20"
+          color="warning"
+          onPress={onStop}
+          isDisabled={busy !== null}
+          startContent={<Square size={10} strokeWidth={2} />}
         >
-          <Square size={10} strokeWidth={2} />
           {busy === "stopping" ? t("pluginsTab.stopping") : t("common:action.stop")}
         </Button>
       )}
       {showConfirm ? (
         <div className="flex items-center gap-1">
           <Button
-            variant="destructive"
-            size="xs"
-            onClick={() => {
+            color="danger"
+            onPress={() => {
               onRemove();
               setShowConfirm(false);
             }}
-            disabled={busy !== null}
-            className="bg-nx-error hover:bg-nx-error/80 text-white"
+            isDisabled={busy !== null}
           >
             {busy === "removing" ? t("pluginsTab.removing") : t("common:action.confirm")}
           </Button>
           <Button
-            variant="secondary"
-            size="xs"
-            onClick={() => setShowConfirm(false)}
-            disabled={busy !== null}
+            onPress={() => setShowConfirm(false)}
+            isDisabled={busy !== null}
           >
             {t("common:action.cancel")}
           </Button>
         </div>
       ) : (
         <Button
-          variant="destructive"
-          size="xs"
-          onClick={() => setShowConfirm(true)}
-          disabled={busy !== null}
+          color="danger"
+          onPress={() => setShowConfirm(true)}
+          isDisabled={busy !== null}
+          startContent={<Trash2 size={10} strokeWidth={2} />}
         >
-          <Trash2 size={10} strokeWidth={2} />
           {t("common:action.remove")}
         </Button>
       )}
@@ -241,94 +231,96 @@ function PluginSettingsCard({
 
   if (defs.length === 0) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-nx-border-subtle bg-nx-deep p-4">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-[13px] text-nx-text font-medium">
-            {plugin.manifest.name}
-          </span>
-          <span className="text-[11px] text-nx-text-ghost font-mono">
-            v{plugin.manifest.version}
-          </span>
-          <span
-            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[var(--radius-tag)] flex-shrink-0 ${
-              plugin.status === "running"
-                ? "bg-nx-success-muted text-nx-success"
-                : "bg-nx-overlay text-nx-text-ghost"
-            }`}
-          >
-            {plugin.status.toUpperCase()}
-          </span>
-          <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-ghost flex-shrink-0">
-            {isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
-            {isLocalSource ? t("common:status.local") : t("common:status.registry")}
-          </span>
-          {actionButtons}
-        </div>
-        <p className="text-[11px] text-nx-text-ghost">
-          {t("pluginsTab.noConfigurable")}
-        </p>
-        <StorageInfo pluginId={plugin.manifest.id} />
-      </div>
+      <Card>
+        <CardBody className="p-4">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[13px] font-medium">
+              {plugin.manifest.name}
+            </span>
+            <span className="text-[11px] text-default-400 font-mono">
+              v{plugin.manifest.version}
+            </span>
+            <Chip
+              size="sm"
+              variant="flat"
+              color={plugin.status === "running" ? "success" : "default"}
+            >
+              {plugin.status.toUpperCase()}
+            </Chip>
+            <Chip
+              size="sm"
+              variant="flat"
+              startContent={isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
+            >
+              {isLocalSource ? t("common:status.local") : t("common:status.registry")}
+            </Chip>
+            {actionButtons}
+          </div>
+          <p className="text-[11px] text-default-400">
+            {t("pluginsTab.noConfigurable")}
+          </p>
+          <StorageInfo pluginId={plugin.manifest.id} />
+        </CardBody>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-nx-border-subtle bg-nx-deep p-4">
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-[13px] text-nx-text font-medium">
-          {plugin.manifest.name}
-        </span>
-        <span className="text-[11px] text-nx-text-ghost font-mono">
-          v{plugin.manifest.version}
-        </span>
-        <span
-          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[var(--radius-tag)] flex-shrink-0 ${
-            plugin.status === "running"
-              ? "bg-nx-success-muted text-nx-success"
-              : "bg-nx-overlay text-nx-text-ghost"
-          }`}
-        >
-          {plugin.status.toUpperCase()}
-        </span>
-        <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-overlay text-nx-text-ghost flex-shrink-0">
-          {isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
-          {isLocalSource ? t("common:status.local") : t("common:status.registry")}
-        </span>
-        {actionButtons}
-      </div>
+    <Card>
+      <CardBody className="p-4">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-[13px] font-medium">
+            {plugin.manifest.name}
+          </span>
+          <span className="text-[11px] text-default-400 font-mono">
+            v{plugin.manifest.version}
+          </span>
+          <Chip
+            size="sm"
+            variant="flat"
+            color={plugin.status === "running" ? "success" : "default"}
+          >
+            {plugin.status.toUpperCase()}
+          </Chip>
+          <Chip
+            size="sm"
+            variant="flat"
+            startContent={isLocalSource ? <HardDrive size={9} strokeWidth={1.5} /> : <Cloud size={9} strokeWidth={1.5} />}
+          >
+            {isLocalSource ? t("common:status.local") : t("common:status.registry")}
+          </Chip>
+          {actionButtons}
+        </div>
 
-      <div className="space-y-4">
-        {defs.map((def) => (
-          <SettingField
-            key={def.key}
-            def={def}
-            value={values[def.key] ?? def.default}
-            onChange={handleChange}
-          />
-        ))}
-      </div>
+        <div className="space-y-4">
+          {defs.map((def) => (
+            <SettingField
+              key={def.key}
+              def={def}
+              value={values[def.key] ?? def.default}
+              onChange={handleChange}
+            />
+          ))}
+        </div>
 
-      {error && (
-        <p className="mt-3 text-[11px] text-nx-error">{error}</p>
-      )}
+        {error && (
+          <p className="mt-3 text-[11px] text-danger">{error}</p>
+        )}
 
-      <div className="mt-4 flex items-center gap-2">
-        <Button
-          size="sm"
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saved ? (
-            <Check size={13} strokeWidth={2} />
-          ) : (
-            <Save size={13} strokeWidth={1.5} />
-          )}
-          {saving ? t("common:action.saving") : saved ? t("common:action.saved") : t("common:action.save")}
-        </Button>
-      </div>
+        <div className="mt-4 flex items-center gap-2">
+          <Button
+            color="primary"
+            onPress={handleSave}
+            isDisabled={saving}
+            startContent={saved ? <Check size={13} strokeWidth={2} /> : <Save size={13} strokeWidth={1.5} />}
+          >
+            {saving ? t("common:action.saving") : saved ? t("common:action.saved") : t("common:action.save")}
+          </Button>
+        </div>
 
-      <StorageInfo pluginId={plugin.manifest.id} />
-    </div>
+        <StorageInfo pluginId={plugin.manifest.id} />
+      </CardBody>
+    </Card>
   );
 }
 
@@ -339,33 +331,35 @@ export function PluginsTab() {
   return (
     <div className="space-y-6">
       {/* Settings */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Puzzle size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            {t("pluginsTab.pluginSettings")}
-          </h3>
-        </div>
-
-        {plugins.length === 0 ? (
-          <p className="text-[11px] text-nx-text-ghost">
-            {t("pluginsTab.noPlugins")}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {plugins.map((plugin) => (
-              <ErrorBoundary key={plugin.manifest.id} inline label={plugin.manifest.name}>
-                <PluginSettingsCard
-                  plugin={plugin}
-                  busy={busyPlugins[plugin.manifest.id] ?? null}
-                  onStop={() => stop(plugin.manifest.id)}
-                  onRemove={() => remove(plugin.manifest.id)}
-                />
-              </ErrorBoundary>
-            ))}
+      <Card>
+        <CardBody className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Puzzle size={15} strokeWidth={1.5} className="text-default-500" />
+            <h3 className="text-[14px] font-semibold">
+              {t("pluginsTab.pluginSettings")}
+            </h3>
           </div>
-        )}
-      </section>
+
+          {plugins.length === 0 ? (
+            <p className="text-[11px] text-default-400">
+              {t("pluginsTab.noPlugins")}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {plugins.map((plugin) => (
+                <ErrorBoundary key={plugin.manifest.id} inline label={plugin.manifest.name}>
+                  <PluginSettingsCard
+                    plugin={plugin}
+                    busy={busyPlugins[plugin.manifest.id] ?? null}
+                    onStop={() => stop(plugin.manifest.id)}
+                    onRemove={() => remove(plugin.manifest.id)}
+                  />
+                </ErrorBoundary>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

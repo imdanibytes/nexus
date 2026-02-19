@@ -6,47 +6,123 @@ import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { ExtensionStatus } from "../../types/extension";
 import * as api from "../../lib/tauri";
-import { Plus, Settings, ArrowUp, Play, Square, ScrollText, Trash2, Hammer, Wrench, MoreHorizontal, TriangleAlert, Power, Puzzle } from "lucide-react";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
+  Plus,
+  Settings,
+  ArrowUp,
+  Play,
+  Square,
+  ScrollText,
+  Trash2,
+  Hammer,
+  Wrench,
+  MoreHorizontal,
+  TriangleAlert,
+  Power,
+  Puzzle,
+  Store,
+  Blocks,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import {
+  Button,
+  Dropdown,
+  DropdownTrigger,
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+  DropdownItem,
+  DropdownSection,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Tooltip,
+  useDisclosure,
+} from "@heroui/react";
+import { cn } from "@imdanibytes/nexus-ui";
+import { NexusLogo } from "../brand/NexusLogo";
+import { motion, AnimatePresence } from "framer-motion";
 
+/* ─── Status colors ─── */
 const statusColor: Record<string, string> = {
-  running: "bg-nx-success",
-  stopped: "bg-nx-text-muted",
-  error: "bg-nx-error",
-  installing: "bg-nx-warning",
+  running: "bg-success",
+  stopped: "bg-default-400",
+  error: "bg-danger",
+  installing: "bg-warning",
 };
 
-function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
+/* ─── Nav item ─── */
+function NavItem({
+  isActive,
+  onClick,
+  children,
+  className,
+  collapsed,
+  tooltip,
+}: {
+  isActive?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+  className?: string;
+  collapsed?: boolean;
+  tooltip?: string;
+}) {
+  const button = (
+    <button
+      onClick={onClick}
+      className={cn(
+        "relative flex items-center w-full rounded-xl text-sm transition-all duration-300",
+        collapsed ? "px-0 py-2 gap-0 justify-center" : "px-3 py-2 gap-3",
+        isActive
+          ? "text-foreground font-medium"
+          : "text-default-500 hover:text-foreground hover:bg-default-50",
+        className,
+      )}
+    >
+      {isActive && (
+        <div className={cn("absolute inset-0 rounded-xl", collapsed ? "bg-primary/15" : "bg-default-100")} />
+      )}
+      <span className={cn("relative flex items-center w-full transition-all duration-300", collapsed ? "gap-0 justify-center" : "gap-3")}>
+        {children}
+      </span>
+    </button>
+  );
+
+  if (tooltip) {
+    return (
+      <Tooltip content={tooltip} placement="right" delay={300} closeDelay={0} isDisabled={!collapsed}>
+        {button}
+      </Tooltip>
+    );
+  }
+
+  return button;
+}
+
+/* ─── Surface layer — each section is its own card ─── */
+function Surface({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5 p-2", className)}>
+      {children}
+    </div>
+  );
+}
+
+/* ─── Plugin row ─── */
+function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?: boolean }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const { selectedPluginId, selectPlugin, setView, setSettingsTab, availableUpdates, setAvailableUpdates, busyPlugins, setShowLogs, warmViewports } = useAppStore();
+  const {
+    selectedPluginId,
+    selectPlugin,
+    setView,
+    setSettingsTab,
+    availableUpdates,
+    setAvailableUpdates,
+    busyPlugins,
+    setShowLogs,
+    warmViewports,
+  } = useAppStore();
   const { start, stop, remove, rebuild, toggleDevMode } = usePluginActions();
   const id = plugin.manifest.id;
   const isSelected = selectedPluginId === id;
@@ -56,13 +132,16 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
   const hasUpdate = !!update;
   const isBusy = !!busyPlugins[id];
   const isLocal = !!plugin.local_manifest_path;
-  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const removeModal = useDisclosure();
 
   const handleStart = () => start(id);
   const handleStop = () => stop(id);
   const handleRebuild = () => rebuild(id);
   const handleToggleDevMode = () => toggleDevMode(id, !plugin.dev_mode);
-  const handleRemove = () => { setRemoveDialogOpen(false); remove(id); };
+  const handleRemove = () => {
+    removeModal.onClose();
+    remove(id);
+  };
 
   async function handleUpdate() {
     if (!update) return;
@@ -72,138 +151,223 @@ function PluginItem({ plugin }: { plugin: InstalledPlugin }) {
       return;
     }
     try {
-      await api.updatePlugin(update.manifest_url, update.new_image_digest, update.build_context);
+      await api.updatePlugin(
+        update.manifest_url,
+        update.new_image_digest,
+        update.build_context,
+      );
       setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== id));
     } catch {
       // Lifecycle events handle busy state and error toasts
     }
   }
 
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        size="sm"
+  const statusDot = (
+    <span className="flex items-center justify-center w-4 shrink-0">
+      <span className="relative flex h-2 w-2">
+        <span
+          className={cn(
+            "absolute inline-flex h-full w-full rounded-full",
+            statusColor[plugin.status] ?? "bg-default-400",
+            isRunning && !isWarm && "animate-ping opacity-75",
+          )}
+        />
+        <span
+          className={cn(
+            "relative inline-flex rounded-full h-2 w-2",
+            statusColor[plugin.status] ?? "bg-default-400",
+          )}
+        />
+      </span>
+    </span>
+  );
+
+  if (collapsed) {
+    return (
+      <NavItem
         isActive={isSelected}
         onClick={() => {
-          selectPlugin(plugin.manifest.id);
+          selectPlugin(id);
           setView("plugins");
         }}
-        className="text-[12px]"
+        collapsed
+        tooltip={plugin.manifest.name}
       >
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusColor[plugin.status] ?? "bg-nx-text-muted"}`}
-          style={isRunning && !isWarm ? { animation: "pulse-status 2s ease-in-out infinite" } : undefined}
-        />
-        <span className="truncate">{plugin.manifest.name}</span>
-      </SidebarMenuButton>
+        <span className="relative">
+          {plugin.manifest.name.charAt(0).toUpperCase()}
+          <span
+            className={cn(
+              "absolute -bottom-1 -right-2.5 h-2 w-2 rounded-full",
+              statusColor[plugin.status] ?? "bg-default-400",
+            )}
+          />
+        </span>
+      </NavItem>
+    );
+  }
 
-      {hasUpdate && (
-        <SidebarMenuBadge className="group-focus-within/menu-item:opacity-0 group-hover/menu-item:opacity-0">
-          <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent" />
-        </SidebarMenuBadge>
-      )}
+  return (
+    <div className="group/item relative">
+      <NavItem
+        isActive={isSelected}
+        onClick={() => {
+          selectPlugin(id);
+          setView("plugins");
+        }}
+      >
+        {statusDot}
+        <span className="truncate whitespace-nowrap">{plugin.manifest.name}</span>
+        {hasUpdate && (
+          <ArrowUp
+            size={14}
+            strokeWidth={2}
+            className="text-primary shrink-0 group-hover/item:opacity-0 transition-opacity"
+          />
+        )}
+      </NavItem>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuAction showOnHover className="text-nx-text-ghost hover:text-nx-text">
-            <MoreHorizontal size={14} strokeWidth={1.5} />
-          </SidebarMenuAction>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" className="w-48">
-          {hasUpdate && (
-            <>
-              <DropdownMenuItem onClick={handleUpdate} disabled={isBusy}>
-                <ArrowUp size={14} strokeWidth={1.5} className="text-nx-accent" />
+      {/* Context menu trigger */}
+      <Dropdown>
+        <DropdownTrigger>
+          <button className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all">
+            <MoreHorizontal size={14} />
+          </button>
+        </DropdownTrigger>
+        <DropdownMenu aria-label="Plugin actions">
+          {hasUpdate ? (
+            <DropdownSection showDivider>
+              <DropdownItem
+                key="update"
+                onPress={handleUpdate}
+                isDisabled={isBusy}
+                startContent={<ArrowUp size={14} className="text-primary" />}
+              >
                 {t("plugins:menu.update")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-
-          {isRunning ? (
-            <DropdownMenuItem onClick={handleStop} disabled={isBusy}>
-              <Square size={14} strokeWidth={1.5} className="text-nx-warning" />
-              {t("common:action.stop")}
-            </DropdownMenuItem>
+              </DropdownItem>
+            </DropdownSection>
           ) : (
-            <DropdownMenuItem onClick={handleStart} disabled={isBusy}>
-              <Play size={14} strokeWidth={1.5} className="text-nx-success" />
-              {t("common:action.start")}
-            </DropdownMenuItem>
+            <DropdownSection className="hidden">
+              <DropdownItem key="noop">-</DropdownItem>
+            </DropdownSection>
           )}
-
-          <DropdownMenuItem onClick={() => setShowLogs(plugin.manifest.id)}>
-            <ScrollText size={14} strokeWidth={1.5} />
-            {t("plugins:menu.logs")}
-          </DropdownMenuItem>
-
-          {isLocal && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleRebuild} disabled={isBusy}>
-                <Hammer size={14} strokeWidth={1.5} className="text-nx-accent" />
+          <DropdownSection showDivider>
+            {isRunning ? (
+              <DropdownItem
+                key="stop"
+                onPress={handleStop}
+                isDisabled={isBusy}
+                startContent={<Square size={14} className="text-warning" />}
+              >
+                {t("common:action.stop")}
+              </DropdownItem>
+            ) : (
+              <DropdownItem
+                key="start"
+                onPress={handleStart}
+                isDisabled={isBusy}
+                startContent={<Play size={14} className="text-success" />}
+              >
+                {t("common:action.start")}
+              </DropdownItem>
+            )}
+            <DropdownItem
+              key="logs"
+              onPress={() => setShowLogs(id)}
+              startContent={<ScrollText size={14} />}
+            >
+              {t("plugins:menu.logs")}
+            </DropdownItem>
+          </DropdownSection>
+          {isLocal ? (
+            <DropdownSection showDivider>
+              <DropdownItem
+                key="rebuild"
+                onPress={handleRebuild}
+                isDisabled={isBusy}
+                startContent={<Hammer size={14} className="text-primary" />}
+              >
                 {t("plugins:menu.rebuild")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleToggleDevMode} disabled={isBusy}>
-                <Wrench size={14} strokeWidth={1.5} />
-                {plugin.dev_mode ? t("plugins:menu.disableDevMode") : t("plugins:menu.enableDevMode")}
-              </DropdownMenuItem>
+              </DropdownItem>
+              <DropdownItem
+                key="devmode"
+                onPress={handleToggleDevMode}
+                isDisabled={isBusy}
+                startContent={<Wrench size={14} />}
+              >
+                {plugin.dev_mode
+                  ? t("plugins:menu.disableDevMode")
+                  : t("plugins:menu.enableDevMode")}
+              </DropdownItem>
+            </DropdownSection>
+          ) : (
+            <DropdownSection className="hidden">
+              <DropdownItem key="noop2">-</DropdownItem>
+            </DropdownSection>
+          )}
+          <DropdownSection>
+            <DropdownItem
+              key="remove"
+              onPress={removeModal.onOpen}
+              isDisabled={isBusy}
+              className="text-danger"
+              color="danger"
+              startContent={<Trash2 size={14} />}
+            >
+              {t("common:action.remove")}
+            </DropdownItem>
+          </DropdownSection>
+        </DropdownMenu>
+      </Dropdown>
+
+      {/* Remove confirmation modal */}
+      <Modal isOpen={removeModal.isOpen} onOpenChange={removeModal.onOpenChange}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader>
+                <div className="flex items-center gap-2">
+                  <TriangleAlert size={18} className="text-warning" />
+                  {t("common:confirm.removePlugin", {
+                    name: plugin.manifest.name,
+                  })}
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-default-500">
+                  {t("common:confirm.removePluginDesc")}
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="flat" onPress={onClose}>
+                  {t("common:action.cancel")}
+                </Button>
+                <Button color="danger" onPress={handleRemove}>
+                  {t("common:confirm.removeAndDeleteData")}
+                </Button>
+              </ModalFooter>
             </>
           )}
-
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => setRemoveDialogOpen(true)}
-            disabled={isBusy}
-          >
-            <Trash2 size={14} strokeWidth={1.5} />
-            {t("common:action.remove")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <TriangleAlert size={18} className="text-nx-warning" />
-              {t("common:confirm.removePlugin", { name: plugin.manifest.name })}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-relaxed pt-1">
-              {t("common:confirm.removePluginDesc")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="pt-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setRemoveDialogOpen(false)}
-            >
-              {t("common:action.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleRemove}
-              className="bg-nx-error text-white hover:bg-nx-error/80"
-            >
-              {t("common:confirm.removeAndDeleteData")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </SidebarMenuItem>
+        </ModalContent>
+      </Modal>
+    </div>
   );
 }
 
-function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
+/* ─── Extension row ─── */
+function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: boolean }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const { availableUpdates, setAvailableUpdates, busyExtensions, setView, setSettingsTab, setFocusExtensionId } = useAppStore();
+  const {
+    availableUpdates,
+    setAvailableUpdates,
+    busyExtensions,
+    setView,
+    setSettingsTab,
+    setFocusExtensionId,
+  } = useAppStore();
   const isBusy = !!busyExtensions[ext.id];
   const update = availableUpdates.find((u) => u.item_id === ext.id);
   const hasUpdate = !!update;
-  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const removeModal = useDisclosure();
 
   async function handleExtUpdate() {
     if (!update) return;
@@ -215,9 +379,7 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
     try {
       await api.updateExtension(update.manifest_url);
       setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== ext.id));
-    } catch {
-      // Lifecycle events handle busy state and error toasts
-    }
+    } catch {}
   }
 
   async function handleToggle() {
@@ -229,97 +391,159 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
   }
 
   async function handleRemove() {
-    setRemoveDialogOpen(false);
+    removeModal.onClose();
     await api.extensionRemove(ext.id);
   }
 
+  const statusDot = (
+    <span
+      className={cn(
+        "h-2 w-2 rounded-full shrink-0",
+        ext.enabled ? "bg-success" : "bg-default-400",
+      )}
+    />
+  );
+
+  if (collapsed) {
+    return (
+      <Tooltip content={ext.display_name} placement="right" delay={300} closeDelay={0}>
+        <div className="group/item relative">
+          <NavItem
+            onClick={() => {
+              setSettingsTab("extensions");
+              setFocusExtensionId(ext.id);
+              setView("settings");
+            }}
+            collapsed
+          >
+            <span className="relative flex items-center justify-center h-7 w-7 rounded-lg bg-default-100 text-xs font-semibold text-default-500 shrink-0">
+              {ext.display_name.charAt(0).toUpperCase()}
+              <span
+                className={cn(
+                  "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background",
+                  ext.enabled ? "bg-success" : "bg-default-400",
+                )}
+              />
+            </span>
+          </NavItem>
+        </div>
+      </Tooltip>
+    );
+  }
+
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        size="sm"
-        className="text-[12px]"
+    <div className="group/item relative">
+      <NavItem
         onClick={() => {
           setSettingsTab("extensions");
           setFocusExtensionId(ext.id);
           setView("settings");
         }}
       >
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${ext.enabled ? "bg-nx-success" : "bg-nx-text-muted"}`}
-        />
-        <span className="truncate">{ext.display_name}</span>
-      </SidebarMenuButton>
+        {statusDot}
+        <span className="truncate whitespace-nowrap">{ext.display_name}</span>
+        {hasUpdate && (
+          <ArrowUp
+            size={14}
+            strokeWidth={2}
+            className="text-primary shrink-0 group-hover/item:opacity-0 transition-opacity"
+          />
+        )}
+      </NavItem>
 
-      {hasUpdate && (
-        <SidebarMenuBadge className="group-focus-within/menu-item:opacity-0 group-hover/menu-item:opacity-0">
-          <ArrowUp size={12} strokeWidth={1.5} className="text-nx-accent" />
-        </SidebarMenuBadge>
-      )}
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuAction showOnHover className="text-nx-text-ghost hover:text-nx-text">
-            <MoreHorizontal size={14} strokeWidth={1.5} />
-          </SidebarMenuAction>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" className="w-48">
-          {hasUpdate && (
-            <>
-              <DropdownMenuItem onClick={handleExtUpdate} disabled={isBusy}>
-                <ArrowUp size={14} strokeWidth={1.5} className="text-nx-accent" />
+      <Dropdown>
+        <DropdownTrigger>
+          <button className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all">
+            <MoreHorizontal size={14} />
+          </button>
+        </DropdownTrigger>
+        <DropdownMenu aria-label="Extension actions">
+          {hasUpdate ? (
+            <DropdownSection showDivider>
+              <DropdownItem
+                key="update"
+                onPress={handleExtUpdate}
+                isDisabled={isBusy}
+                startContent={<ArrowUp size={14} className="text-primary" />}
+              >
                 {t("plugins:menu.update")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
+              </DropdownItem>
+            </DropdownSection>
+          ) : (
+            <DropdownSection className="hidden">
+              <DropdownItem key="noop">-</DropdownItem>
+            </DropdownSection>
           )}
+          <DropdownSection showDivider>
+            <DropdownItem
+              key="toggle"
+              onPress={handleToggle}
+              isDisabled={isBusy}
+              startContent={
+                <Power
+                  size={14}
+                  className={ext.enabled ? "text-warning" : "text-success"}
+                />
+              }
+            >
+              {ext.enabled
+                ? t("common:action.disable")
+                : t("common:action.enable")}
+            </DropdownItem>
+            <DropdownItem
+              key="manage"
+              onPress={() => {
+                setSettingsTab("extensions");
+                setView("settings");
+              }}
+              startContent={<Settings size={14} />}
+            >
+              {t("plugins:menu.manageExtensions")}
+            </DropdownItem>
+          </DropdownSection>
+          <DropdownSection>
+            <DropdownItem
+              key="remove"
+              onPress={removeModal.onOpen}
+              isDisabled={isBusy}
+              className="text-danger"
+              color="danger"
+              startContent={<Trash2 size={14} />}
+            >
+              {t("common:action.remove")}
+            </DropdownItem>
+          </DropdownSection>
+        </DropdownMenu>
+      </Dropdown>
 
-          <DropdownMenuItem onClick={handleToggle} disabled={isBusy}>
-            <Power size={14} strokeWidth={1.5} className={ext.enabled ? "text-nx-warning" : "text-nx-success"} />
-            {ext.enabled ? t("common:action.disable") : t("common:action.enable")}
-          </DropdownMenuItem>
-
-          <DropdownMenuItem onClick={() => {
-            setSettingsTab("extensions");
-            setView("settings");
-          }}>
-            <Settings size={14} strokeWidth={1.5} />
-            {t("plugins:menu.manageExtensions")}
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => setRemoveDialogOpen(true)}
-            disabled={isBusy}
-          >
-            <Trash2 size={14} strokeWidth={1.5} />
-            {t("common:action.remove")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <TriangleAlert size={18} className="text-nx-warning" />
-              {t("common:confirm.removeExtension", { name: ext.display_name })}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-relaxed pt-1" asChild>
-              <div>
+      <Modal isOpen={removeModal.isOpen} onOpenChange={removeModal.onOpenChange}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader>
+                <div className="flex items-center gap-2">
+                  <TriangleAlert size={18} className="text-warning" />
+                  {t("common:confirm.removeExtension", {
+                    name: ext.display_name,
+                  })}
+                </div>
+              </ModalHeader>
+              <ModalBody>
                 {ext.consumers.length > 0 ? (
                   <>
-                    <p>
-                      {t("common:confirm.removeExtensionConsumers", { count: ext.consumers.length })}
+                    <p className="text-default-500">
+                      {t("common:confirm.removeExtensionConsumers", {
+                        count: ext.consumers.length,
+                      })}
                     </p>
-                    <ul className="mt-2 space-y-1.5">
+                    <ul className="mt-3 space-y-2">
                       {ext.consumers.map((c) => (
                         <li
                           key={c.plugin_id}
-                          className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle"
+                          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-default-100"
                         >
-                          <Puzzle size={12} strokeWidth={1.5} className="text-nx-text-ghost flex-shrink-0" />
-                          <span className="text-[12px] text-nx-text font-medium truncate">
+                          <Puzzle size={14} className="text-default-400" />
+                          <span className="text-sm font-medium truncate">
                             {c.plugin_name}
                           </span>
                         </li>
@@ -327,146 +551,136 @@ function ExtensionItem({ ext }: { ext: ExtensionStatus }) {
                     </ul>
                   </>
                 ) : (
-                  <p>
+                  <p className="text-default-500">
                     {t("common:confirm.removeExtensionNoConsumers")}
                   </p>
                 )}
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="pt-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setRemoveDialogOpen(false)}
-            >
-              {t("common:action.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleRemove}
-              className="bg-nx-error text-white hover:bg-nx-error/80"
-            >
-              {t("common:confirm.removeExtensionAction")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </SidebarMenuItem>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="flat" onPress={onClose}>
+                  {t("common:action.cancel")}
+                </Button>
+                <Button color="danger" onPress={handleRemove}>
+                  {t("common:confirm.removeExtensionAction")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+    </div>
   );
 }
 
+/* ─── Main sidebar ─── */
 export function AppSidebar() {
   const { t } = useTranslation(["common", "plugins"]);
-  const { currentView, setView, installedPlugins, installedExtensions } = useAppStore();
+  const { currentView, setView, installedPlugins, installedExtensions } =
+    useAppStore();
   const badgeCount = useNotificationCount();
+
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem("nexus-sidebar-collapsed") === "true";
+  });
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("nexus-sidebar-collapsed", String(next));
+  };
 
   const plugins = installedPlugins.filter((p) => p.manifest.ui !== null);
   const integrations = installedPlugins.filter((p) => p.manifest.ui === null);
 
   return (
-    <Sidebar
-      collapsible="none"
-      className="border-r border-nx-border"
-      style={{
-        background: "rgba(34, 38, 49, 0.85)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-      }}
+    <motion.aside
+      animate={{ width: collapsed ? 68 : 240 }}
+      transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+      className="flex-shrink-0 flex flex-col h-full backdrop-blur-2xl bg-background/40 p-3 gap-2 overflow-hidden"
     >
-      <SidebarHeader className="px-4 py-4 border-b border-nx-border-subtle">
-        <h1 className="text-[15px] font-bold tracking-tight">
-          <span className="text-nx-accent">Nexus</span>
-        </h1>
-        <p className="text-[10px] text-nx-text-muted font-medium tracking-wide uppercase mt-0.5">
-          {t("common:nav.pluginDashboard")}
-        </p>
-      </SidebarHeader>
+      <div className="flex flex-col flex-1 gap-2 overflow-hidden">
+        {/* Layer 0 — Brand */}
+        <Surface className={cn("py-3 flex items-center transition-all duration-300", collapsed ? "px-0 justify-center" : "px-4")}>
+          <NexusLogo className="text-foreground" collapsed={collapsed} />
+        </Surface>
 
-      <SidebarContent>
-        {installedPlugins.length === 0 ? (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-              {t("common:nav.installed")}
-            </SidebarGroupLabel>
-            <SidebarMenu>
-              <p className="text-[11px] text-nx-text-ghost px-2 py-2">
+        {/* Layer 1 — Installed plugins (scrollable) */}
+        <Surface className="flex-1 overflow-y-auto">
+          {installedPlugins.length === 0 ? (
+            collapsed ? (
+              <div className="flex justify-center py-3">
+                <span className="h-2 w-2 rounded-full bg-default-300" />
+              </div>
+            ) : (
+              <p className="text-sm text-default-400 px-2 py-3">
                 {t("common:empty.noPlugins")}
               </p>
-            </SidebarMenu>
-          </SidebarGroup>
-        ) : (
-          <>
-            {plugins.length > 0 && (
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-                  {t("common:nav.plugins")}
-                </SidebarGroupLabel>
-                <SidebarMenu>
-                  {plugins.map((plugin) => (
-                    <PluginItem key={plugin.manifest.id} plugin={plugin} />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroup>
-            )}
-            {integrations.length > 0 && (
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-                  {t("common:nav.integrations")}
-                </SidebarGroupLabel>
-                <SidebarMenu>
-                  {integrations.map((plugin) => (
-                    <PluginItem key={plugin.manifest.id} plugin={plugin} />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroup>
-            )}
-            {installedExtensions.length > 0 && (
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-[10px] font-semibold text-nx-text-muted uppercase tracking-wider">
-                  {t("common:nav.extensions")}
-                </SidebarGroupLabel>
-                <SidebarMenu>
-                  {installedExtensions.map((ext) => (
-                    <ExtensionItem key={ext.id} ext={ext} />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroup>
-            )}
-          </>
-        )}
-      </SidebarContent>
+            )
+          ) : (
+            <div className="space-y-0.5">
+              {plugins.map((plugin) => (
+                <PluginItem key={plugin.manifest.id} plugin={plugin} collapsed={collapsed} />
+              ))}
+              {integrations.map((plugin) => (
+                <PluginItem key={plugin.manifest.id} plugin={plugin} collapsed={collapsed} />
+              ))}
+              {installedExtensions.map((ext) => (
+                <ExtensionItem key={ext.id} ext={ext} collapsed={collapsed} />
+              ))}
+            </div>
+          )}
+        </Surface>
 
-      <SidebarFooter className="border-t border-nx-border-subtle">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="sm"
-              isActive={currentView === "marketplace" || currentView === "plugin-detail"}
-              onClick={() => setView("marketplace")}
-              className="text-[12px]"
-            >
-              <Plus size={15} strokeWidth={1.5} />
-              {t("common:nav.addPlugins")}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="sm"
-              isActive={currentView === "settings"}
-              onClick={() => setView("settings")}
-              className="text-[12px]"
-            >
-              <Settings size={15} strokeWidth={1.5} />
-              {t("common:nav.settings")}
-            </SidebarMenuButton>
+        {/* Layer 2 — Navigation */}
+        <Surface className="space-y-0.5">
+          <NavItem
+            isActive={currentView === "marketplace" || currentView === "plugin-detail"}
+            onClick={() => setView("marketplace")}
+            collapsed={collapsed}
+            tooltip={t("common:nav.addPlugins")}
+          >
+            <Store size={16} className="shrink-0" />
+            <span className={cn("truncate whitespace-nowrap transition-all duration-300", collapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{t("common:nav.addPlugins")}</span>
+          </NavItem>
+
+          <NavItem
+            isActive={currentView === "extension-marketplace" || currentView === "extension-detail"}
+            onClick={() => setView("extension-marketplace")}
+            collapsed={collapsed}
+            tooltip={t("common:nav.extensions")}
+          >
+            <Blocks size={16} className="shrink-0" />
+            <span className={cn("truncate whitespace-nowrap transition-all duration-300", collapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{t("common:nav.extensions")}</span>
+          </NavItem>
+
+          <NavItem
+            isActive={currentView === "settings"}
+            onClick={() => setView("settings")}
+            collapsed={collapsed}
+            tooltip={t("common:nav.settings")}
+          >
+            <Settings size={16} className="shrink-0" />
+            <span className={cn("truncate whitespace-nowrap transition-all duration-300", collapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{t("common:nav.settings")}</span>
             {badgeCount > 0 && (
-              <SidebarMenuBadge className="min-w-0 h-2 w-2 p-0 rounded-full bg-nx-accent" style={{ top: "50%", transform: "translateY(-50%)" }} />
+              <span className={cn("flex h-5 min-w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium px-1.5 shrink-0 transition-all duration-300", collapsed && "scale-75")}>
+                {badgeCount}
+              </span>
             )}
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-    </Sidebar>
+          </NavItem>
+        </Surface>
+      </div>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={toggleCollapsed}
+        className="flex items-center justify-center py-1.5 rounded-xl text-default-400 hover:text-foreground hover:bg-default-50 transition-colors"
+      >
+        {collapsed ? (
+          <PanelLeftOpen size={16} />
+        ) : (
+          <PanelLeftClose size={16} />
+        )}
+      </button>
+    </motion.aside>
   );
 }

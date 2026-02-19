@@ -5,33 +5,30 @@ import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
 import { useAppStore } from "../../stores/appStore";
 import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
-import { getTheme } from "../../lib/theme";
+import { getColorMode } from "../../lib/theme";
 import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand, Wrench, ScrollText, TriangleAlert, ArrowUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
-  Menubar,
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarCheckboxItem,
-  MenubarTrigger,
-} from "@/components/ui/menubar";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Button,
+  Card,
+  CardBody,
+  Chip,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  DropdownSection,
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerBody,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
+  Checkbox,
+} from "@heroui/react";
 
 interface Props {
   plugin: InstalledPlugin;
@@ -48,33 +45,29 @@ export function PluginViewport({
   const isRunning = plugin.status === "running";
   const isBusy = busyAction !== null;
   const hasUi = plugin.manifest.ui !== null;
-  const theme = getTheme();
+  const theme = getColorMode();
   const iframeSrc = hasUi
     ? `http://localhost:${plugin.assigned_port}${plugin.manifest.ui!.path}${plugin.manifest.ui!.path.includes("?") ? "&" : "?"}nexus_theme=${theme}`
     : null;
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Push current theme to plugin iframe on load so it starts with the right accent
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
-    const theme = getTheme();
+    const theme = getColorMode();
     try {
       e.currentTarget.contentWindow?.postMessage(
         { type: "nexus:system", event: "theme_changed", data: { theme } },
         "*"
       );
     } catch {
-      // cross-origin or unmounted — ignore
+      // cross-origin or unmounted
     }
   }, []);
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* macOS-style menu bar */}
       <PluginMenuBar plugin={plugin} disabled={isBusy} onStart={onStart} onOpenChange={setMenuOpen} />
 
-      {/* Plugin content */}
       <div className="flex-1 relative">
-        {/* Transparent overlay to capture clicks when menu is open (iframe swallows pointer events) */}
         {menuOpen && <div className="absolute inset-0 z-10" />}
         {isRunning && !isBusy && hasUi ? (
           <iframe
@@ -90,23 +83,21 @@ export function PluginViewport({
           <HeadlessPluginStatus plugin={plugin} />
         ) : !isBusy ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4">
-              <StopCircle size={28} strokeWidth={1.5} className="text-nx-text-ghost" />
+            <div className="w-16 h-16 rounded-[14px] bg-default-100 flex items-center justify-center mb-4">
+              <StopCircle size={28} strokeWidth={1.5} className="text-default-400" />
             </div>
-            <p className="text-[13px] text-nx-text-secondary mb-4">
+            <p className="text-[13px] text-default-500 mb-4">
               {plugin.status === "error"
                 ? t("viewport.pluginError")
                 : t("viewport.pluginStopped")}
             </p>
-            <Button onClick={onStart}>
-              <Play size={14} strokeWidth={1.5} />
+            <Button color="primary" onPress={onStart} startContent={<Play size={14} strokeWidth={1.5} />}>
               {t("viewport.startPlugin")}
             </Button>
           </div>
         ) : null}
       </div>
 
-      {/* Busy overlay */}
       {busyAction && (
         <BusyOverlay action={busyAction} pluginName={plugin.manifest.name} />
       )}
@@ -121,173 +112,161 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
   const isRunning = plugin.status === "running";
   const isLocal = !!plugin.local_manifest_path;
   const id = plugin.manifest.id;
-  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
-  const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
+  const removeModal = useDisclosure();
+  const aboutModal = useDisclosure();
 
   const handleStart = () => start(id);
   const handleStop = () => stop(id);
   const handleRestart = () => restart(id);
   const handleRebuild = () => rebuild(id);
   const handleToggleDevMode = () => toggleDevMode(id, !plugin.dev_mode);
-  const handleRemove = () => { setRemoveDialogOpen(false); remove(id); };
+  const handleRemove = () => { removeModal.onClose(); remove(id); };
 
   const m = plugin.manifest;
 
   return (
     <>
-      <Menubar
-        className="rounded-none border-x-0 border-t-0 border-b border-nx-border bg-nx-raised/60 shadow-none px-2"
-        onValueChange={(value) => onOpenChange?.(value !== "")}
+      <div
+        className="flex items-center gap-0 mx-2 mt-2 px-1 h-8 rounded-xl bg-default-50/40 backdrop-blur-xl border border-white/5"
       >
-        {/* macOS-style app name menu */}
-        <MenubarMenu>
-          <MenubarTrigger className="font-semibold text-nx-text">
-            {m.name}
-          </MenubarTrigger>
-          <MenubarContent>
-            <MenubarItem onClick={() => setAboutDialogOpen(true)}>
-              {t("menu.about", { name: m.name })}
-            </MenubarItem>
-            <MenubarSeparator />
-            {isRunning ? (
-              <>
-                <MenubarItem onClick={handleRestart} disabled={disabled}>
-                  <Play size={14} strokeWidth={1.5} className="text-nx-success" />
-                  {t("common:action.restart")}
-                </MenubarItem>
-                <MenubarItem onClick={handleStop} disabled={disabled}>
-                  <Square size={14} strokeWidth={1.5} className="text-nx-warning" />
-                  {t("common:action.stop")}
-                </MenubarItem>
-              </>
-            ) : (
-              <MenubarItem onClick={handleStart} disabled={disabled}>
-                <Play size={14} strokeWidth={1.5} className="text-nx-success" />
-                {t("common:action.start")}
-              </MenubarItem>
-            )}
-            <MenubarSeparator />
-            <MenubarItem
-              variant="destructive"
-              onClick={() => setRemoveDialogOpen(true)}
-              disabled={disabled}
-            >
-              <Trash2 size={14} strokeWidth={1.5} />
-              {t("menu.remove", { name: m.name })}
-            </MenubarItem>
-          </MenubarContent>
-        </MenubarMenu>
+        {/* App menu */}
+        <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
+          <DropdownTrigger>
+            <button className="px-2 py-1 text-[13px] font-semibold rounded hover:bg-default-200/40 transition-colors">
+              {m.name}
+            </button>
+          </DropdownTrigger>
+          <DropdownMenu aria-label="Plugin menu">
+            <DropdownSection showDivider>
+              <DropdownItem key="about" onPress={aboutModal.onOpen}>
+                {t("menu.about", { name: m.name })}
+              </DropdownItem>
+            </DropdownSection>
+            <DropdownSection showDivider>
+              {isRunning ? (
+                <>
+                  <DropdownItem key="restart" onPress={handleRestart} isDisabled={disabled} startContent={<Play size={14} strokeWidth={1.5} className="text-success" />}>
+                    {t("common:action.restart")}
+                  </DropdownItem>
+                  <DropdownItem key="stop" onPress={handleStop} isDisabled={disabled} startContent={<Square size={14} strokeWidth={1.5} className="text-warning" />}>
+                    {t("common:action.stop")}
+                  </DropdownItem>
+                </>
+              ) : (
+                <DropdownItem key="start" onPress={handleStart} isDisabled={disabled} startContent={<Play size={14} strokeWidth={1.5} className="text-success" />}>
+                  {t("common:action.start")}
+                </DropdownItem>
+              )}
+            </DropdownSection>
+            <DropdownSection>
+              <DropdownItem key="remove" onPress={removeModal.onOpen} isDisabled={disabled} className="text-danger" color="danger" startContent={<Trash2 size={14} strokeWidth={1.5} />}>
+                {t("menu.remove", { name: m.name })}
+              </DropdownItem>
+            </DropdownSection>
+          </DropdownMenu>
+        </Dropdown>
 
-        <MenubarMenu>
-          <MenubarTrigger className="text-nx-text-secondary">
-            {t("menu.view")}
-          </MenubarTrigger>
-          <MenubarContent>
-            <MenubarItem onClick={() => setShowLogs(id)}>
-              <ScrollText size={14} strokeWidth={1.5} />
+        {/* View menu */}
+        <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
+          <DropdownTrigger>
+            <button className="px-2 py-1 text-[13px] text-default-500 rounded hover:bg-default-200/40 transition-colors">
+              {t("menu.view")}
+            </button>
+          </DropdownTrigger>
+          <DropdownMenu aria-label="View menu">
+            <DropdownItem key="logs" onPress={() => setShowLogs(id)} startContent={<ScrollText size={14} strokeWidth={1.5} />}>
               {t("menu.logs")}
-            </MenubarItem>
-          </MenubarContent>
-        </MenubarMenu>
+            </DropdownItem>
+          </DropdownMenu>
+        </Dropdown>
 
+        {/* Dev menu */}
         {isLocal && (
-          <MenubarMenu>
-            <MenubarTrigger className="text-nx-text-secondary">
-              {t("menu.dev")}
-            </MenubarTrigger>
-            <MenubarContent>
-              <MenubarItem onClick={handleRebuild} disabled={disabled}>
-                <Hammer size={14} strokeWidth={1.5} className="text-nx-accent" />
+          <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
+            <DropdownTrigger>
+              <button className="px-2 py-1 text-[13px] text-default-500 rounded hover:bg-default-200/40 transition-colors">
+                {t("menu.dev")}
+              </button>
+            </DropdownTrigger>
+            <DropdownMenu aria-label="Dev menu">
+              <DropdownItem key="rebuild" onPress={handleRebuild} isDisabled={disabled} startContent={<Hammer size={14} strokeWidth={1.5} className="text-primary" />}>
                 {t("menu.rebuild")}
-              </MenubarItem>
-              <MenubarSeparator />
-              <MenubarCheckboxItem
-                checked={plugin.dev_mode}
-                onCheckedChange={handleToggleDevMode}
-                disabled={disabled}
-              >
-                <Wrench size={14} strokeWidth={1.5} />
+              </DropdownItem>
+              <DropdownItem key="autorebuild" onPress={handleToggleDevMode} isDisabled={disabled} startContent={<Wrench size={14} strokeWidth={1.5} />} endContent={plugin.dev_mode ? <span className="text-[10px] text-primary">ON</span> : null}>
                 {t("menu.autoRebuild")}
-              </MenubarCheckboxItem>
-            </MenubarContent>
-          </MenubarMenu>
+              </DropdownItem>
+            </DropdownMenu>
+          </Dropdown>
         )}
-      </Menubar>
+      </div>
 
       {/* About dialog */}
-      <Dialog open={aboutDialogOpen} onOpenChange={setAboutDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader className="items-center text-center">
-            <div className="w-16 h-16 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-2">
+      <Modal isOpen={aboutModal.isOpen} onOpenChange={aboutModal.onOpenChange}>
+        <ModalContent>
+          <ModalHeader className="flex flex-col items-center text-center pb-0">
+            <div className="w-16 h-16 rounded-[14px] bg-default-100 flex items-center justify-center mb-2">
               {m.icon ? (
                 <img src={m.icon} alt={m.name} className="w-10 h-10 rounded-md" />
               ) : (
-                <Terminal size={28} strokeWidth={1.5} className="text-nx-accent" />
+                <Terminal size={28} strokeWidth={1.5} className="text-primary" />
               )}
             </div>
-            <DialogTitle className="text-base">{m.name}</DialogTitle>
-            <DialogDescription className="text-[12px] text-nx-text-muted" asChild>
-              <div className="space-y-3">
-                <p>{m.description}</p>
-                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-left text-[11px]">
-                  <span className="text-nx-text-ghost">{t("about.version")}</span>
-                  <span className="font-mono text-nx-text-secondary">{m.version}</span>
-                  <span className="text-nx-text-ghost">{t("about.author")}</span>
-                  <span className="text-nx-text-secondary">{m.author}</span>
-                  <span className="text-nx-text-ghost">{t("about.id")}</span>
-                  <span className="font-mono text-nx-text-secondary">{m.id}</span>
-                  {m.license && (
-                    <>
-                      <span className="text-nx-text-ghost">{t("about.license")}</span>
-                      <span className="text-nx-text-secondary">{m.license}</span>
-                    </>
-                  )}
-                  <span className="text-nx-text-ghost">{t("about.type")}</span>
-                  <span className="text-nx-text-secondary">{m.ui ? t("about.uiPlugin") : t("about.headlessService")}</span>
-                  {m.mcp && (
-                    <>
-                      <span className="text-nx-text-ghost">{t("viewport.mcpTools")}</span>
-                      <span className="text-nx-text-secondary">{m.mcp.tools?.length ?? 0}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
+            <span className="text-base">{m.name}</span>
+          </ModalHeader>
+          <ModalBody className="text-center">
+            <p className="text-[12px] text-default-500">{m.description}</p>
+            <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-left text-[11px] mt-3">
+              <span className="text-default-400">{t("about.version")}</span>
+              <span className="font-mono text-default-500">{m.version}</span>
+              <span className="text-default-400">{t("about.author")}</span>
+              <span className="text-default-500">{m.author}</span>
+              <span className="text-default-400">{t("about.id")}</span>
+              <span className="font-mono text-default-500">{m.id}</span>
+              {m.license && (
+                <>
+                  <span className="text-default-400">{t("about.license")}</span>
+                  <span className="text-default-500">{m.license}</span>
+                </>
+              )}
+              <span className="text-default-400">{t("about.type")}</span>
+              <span className="text-default-500">{m.ui ? t("about.uiPlugin") : t("about.headlessService")}</span>
+              {m.mcp && (
+                <>
+                  <span className="text-default-400">{t("viewport.mcpTools")}</span>
+                  <span className="text-default-500">{m.mcp.tools?.length ?? 0}</span>
+                </>
+              )}
+            </div>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
-      {/* Remove confirmation dialog */}
-      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <TriangleAlert size={18} className="text-nx-warning" />
-              {t("common:confirm.removePlugin", { name: m.name })}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-relaxed pt-1">
-              {t("common:confirm.removePluginDesc")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="pt-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setRemoveDialogOpen(false)}
-            >
-              {t("common:action.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleRemove}
-              className="bg-nx-error text-white hover:bg-nx-error/80"
-            >
-              {t("common:confirm.removeAndDeleteData")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Remove confirmation */}
+      <Modal isOpen={removeModal.isOpen} onOpenChange={removeModal.onOpenChange}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex items-center gap-2 text-base">
+                <TriangleAlert size={18} className="text-warning" />
+                {t("common:confirm.removePlugin", { name: m.name })}
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-[13px] text-default-500 leading-relaxed">
+                  {t("common:confirm.removePluginDesc")}
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button onPress={onClose}>
+                  {t("common:action.cancel")}
+                </Button>
+                <Button color="danger" onPress={handleRemove}>
+                  {t("common:confirm.removeAndDeleteData")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </>
   );
 }
@@ -300,50 +279,48 @@ function McpToolCard({ tool, onDetail }: {
   const params = Object.keys(properties);
 
   return (
-    <button
-      onClick={() => onDetail(tool)}
-      className="rounded-[var(--radius-card)] bg-nx-surface/60 border border-nx-border-subtle hover:border-nx-border-strong p-3.5 flex flex-col gap-2 text-left transition-colors cursor-pointer"
+    <Card
+      as="button"
+      isPressable
+      onPress={() => onDetail(tool)}
     >
       <div className="flex items-center gap-2">
-        <Terminal size={13} strokeWidth={1.5} className="text-nx-accent shrink-0" />
-        <span className="text-[12px] font-mono font-medium text-nx-accent truncate">{tool.name}</span>
-        <Expand size={12} strokeWidth={1.5} className="ml-auto shrink-0 text-nx-text-ghost" />
+        <Terminal size={13} strokeWidth={1.5} className="text-primary shrink-0" />
+        <span className="text-[12px] font-mono font-medium text-primary truncate">{tool.name}</span>
+        <Expand size={12} strokeWidth={1.5} className="ml-auto shrink-0 text-default-400" />
       </div>
       {tool.description && (
-        <p className="text-[11px] text-nx-text-secondary leading-relaxed line-clamp-3">
+        <p className="text-[11px] text-default-500 leading-relaxed line-clamp-3">
           {tool.description}
         </p>
       )}
       {params.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-auto pt-1">
           {params.map((p) => (
-            <span
-              key={p}
-              className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-nx-overlay/60 text-nx-text-muted"
-            >
+            <Chip key={p} size="sm" variant="flat">
               {p}
-            </span>
+            </Chip>
           ))}
         </div>
       )}
-    </button>
+    </Card>
   );
 }
 
 function SchemaBlock({ label, schema }: { label: string; schema: Record<string, unknown> }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-1.5">
+      <p className="text-[11px] font-semibold text-default-500 uppercase tracking-wider mb-1.5">
         {label}
       </p>
-      <pre className="text-[11px] font-mono text-nx-text-secondary bg-nx-deep border border-nx-border rounded-[var(--radius-tag)] p-3 overflow-x-auto whitespace-pre-wrap break-words">
+      <pre className="text-[11px] font-mono text-default-500 bg-background border border-divider rounded-[6px] p-3 overflow-x-auto whitespace-pre-wrap break-words">
         {JSON.stringify(schema, null, 2)}
       </pre>
     </div>
   );
 }
 
-function McpToolDetailSheet({
+function McpToolDetailDrawer({
   tool,
   open,
   onOpenChange,
@@ -361,87 +338,83 @@ function McpToolDetailSheet({
   const params = Object.entries(properties);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="bg-nx-base border-nx-border sm:max-w-md overflow-y-auto"
-      >
-        <SheetHeader>
+    <Drawer isOpen={open} onOpenChange={onOpenChange} placement="right">
+      <DrawerContent>
+        <DrawerHeader className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <Terminal size={15} strokeWidth={1.5} className="text-nx-accent" />
-            <SheetTitle className="font-mono text-nx-accent text-[14px]">
+            <Terminal size={15} strokeWidth={1.5} className="text-primary" />
+            <span className="font-mono text-primary text-[14px]">
               {tool.name}
-            </SheetTitle>
+            </span>
           </div>
           {tool.description && (
-            <SheetDescription className="text-nx-text-secondary text-[12px] leading-relaxed">
+            <p className="text-default-500 text-[12px] leading-relaxed font-normal">
               {tool.description}
-            </SheetDescription>
+            </p>
           )}
-        </SheetHeader>
+        </DrawerHeader>
 
-        <div className="flex flex-col gap-5 px-4 pb-6">
-          {params.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-2">
-                {t("viewport.parameters")}
-              </p>
-              <div className="space-y-2">
-                {params.map(([name, meta]) => (
-                  <div
-                    key={name}
-                    className="rounded-[var(--radius-button)] bg-nx-surface/60 border border-nx-border-subtle px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono font-medium text-nx-text">
-                        {name}
-                      </span>
-                      {meta.type && (
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-nx-overlay/60 text-nx-text-muted">
-                          {meta.type}
+        <DrawerBody>
+          <div className="flex flex-col gap-5">
+            {params.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-default-500 uppercase tracking-wider mb-2">
+                  {t("viewport.parameters")}
+                </p>
+                <div className="space-y-2">
+                  {params.map(([name, meta]) => (
+                    <div
+                      key={name}
+                      className="rounded-[8px] px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono font-medium">
+                          {name}
                         </span>
-                      )}
-                      {required.includes(name) && (
-                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-nx-accent-muted text-nx-accent">
-                          {t("viewport.required")}
-                        </span>
+                        {meta.type && (
+                          <Chip size="sm" variant="flat">
+                            {meta.type}
+                          </Chip>
+                        )}
+                        {required.includes(name) && (
+                          <Chip size="sm" variant="flat" color="primary">
+                            {t("viewport.required")}
+                          </Chip>
+                        )}
+                      </div>
+                      {meta.description && (
+                        <p className="text-[10px] text-default-400 mt-1 leading-relaxed">
+                          {meta.description}
+                        </p>
                       )}
                     </div>
-                    {meta.description && (
-                      <p className="text-[10px] text-nx-text-ghost mt-1 leading-relaxed">
-                        {meta.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {tool.input_schema && Object.keys(tool.input_schema).length > 0 && (
-            <SchemaBlock label={t("viewport.inputSchema")} schema={tool.input_schema} />
-          )}
+            {tool.input_schema && Object.keys(tool.input_schema).length > 0 && (
+              <SchemaBlock label={t("viewport.inputSchema")} schema={tool.input_schema} />
+            )}
 
-          {tool.permissions.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-1.5">
-                {t("viewport.requiredPermissions")}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {tool.permissions.map((p) => (
-                  <span
-                    key={p}
-                    className="text-[10px] font-mono px-2 py-1 rounded-[var(--radius-tag)] bg-nx-warning-muted text-nx-warning border border-nx-warning/20"
-                  >
-                    {p}
-                  </span>
-                ))}
+            {tool.permissions.length > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold text-default-500 uppercase tracking-wider mb-1.5">
+                  {t("viewport.requiredPermissions")}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tool.permissions.map((p) => (
+                    <Chip key={p} size="sm" variant="flat" color="warning">
+                      {p}
+                    </Chip>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+            )}
+          </div>
+        </DrawerBody>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -453,19 +426,19 @@ function HeadlessPluginStatus({ plugin }: { plugin: InstalledPlugin }) {
   return (
     <div className="h-full overflow-y-auto p-6">
       <div className="flex flex-col items-center text-center mb-6">
-        <div className="w-14 h-14 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-3">
-          <Terminal size={24} strokeWidth={1.5} className="text-nx-accent" />
+        <div className="w-14 h-14 rounded-[14px] bg-default-100 flex items-center justify-center mb-3">
+          <Terminal size={24} strokeWidth={1.5} className="text-primary" />
         </div>
-        <p className="text-[14px] font-semibold text-nx-text mb-1">
+        <p className="text-[14px] font-semibold mb-1">
           {t("viewport.headlessRunning")}
         </p>
-        <p className="text-[12px] text-nx-text-muted max-w-md">
+        <p className="text-[12px] text-default-500 max-w-md">
           {t("viewport.headlessDesc", { count: mcpTools.length })}
         </p>
       </div>
       {mcpTools.length > 0 && (
         <div>
-          <p className="text-[11px] font-semibold text-nx-text-muted uppercase tracking-wider mb-3">
+          <p className="text-[11px] font-semibold text-default-500 uppercase tracking-wider mb-3">
             {t("viewport.mcpTools")}
           </p>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
@@ -476,7 +449,7 @@ function HeadlessPluginStatus({ plugin }: { plugin: InstalledPlugin }) {
         </div>
       )}
 
-      <McpToolDetailSheet
+      <McpToolDetailDrawer
         tool={detailTool}
         open={detailTool !== null}
         onOpenChange={(open) => { if (!open) setDetailTool(null); }}
@@ -496,36 +469,36 @@ function BusyOverlay({ action, pluginName }: { action: PluginAction; pluginName:
       icon: Trash2,
       label: t("overlay.removing"),
       sub: t("overlay.removingSub"),
-      color: "text-nx-error",
-      bg: "bg-nx-error-muted",
+      color: "text-danger",
+      bg: "bg-danger-50",
     },
     stopping: {
       icon: Square,
       label: t("overlay.stopping"),
       sub: t("overlay.stoppingSub"),
-      color: "text-nx-warning",
-      bg: "bg-nx-warning-muted",
+      color: "text-warning",
+      bg: "bg-warning-50",
     },
     starting: {
       icon: Play,
       label: t("overlay.starting"),
       sub: t("overlay.startingSub"),
-      color: "text-nx-success",
-      bg: "bg-nx-success-muted",
+      color: "text-success",
+      bg: "bg-success-50",
     },
     rebuilding: {
       icon: Hammer,
       label: t("overlay.rebuilding"),
       sub: t("overlay.rebuildingSub"),
-      color: "text-nx-accent",
-      bg: "bg-nx-accent-muted",
+      color: "text-primary",
+      bg: "bg-primary-50",
     },
     updating: {
       icon: ArrowUp,
       label: t("overlay.updating"),
       sub: t("overlay.updatingSub"),
-      color: "text-nx-accent",
-      bg: "bg-nx-accent-muted",
+      color: "text-primary",
+      bg: "bg-primary-50",
     },
   };
 
@@ -533,20 +506,20 @@ function BusyOverlay({ action, pluginName }: { action: PluginAction; pluginName:
   const Icon = config.icon;
 
   return (
-    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-nx-deep/90 backdrop-blur-sm">
+    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-4">
-        <div className={`w-16 h-16 rounded-[var(--radius-modal)] ${config.bg} flex items-center justify-center`}>
+        <div className={`w-16 h-16 rounded-[14px] ${config.bg} flex items-center justify-center`}>
           <Icon size={28} strokeWidth={1.5} className={config.color} />
         </div>
         <div className="text-center">
-          <p className="text-[14px] font-semibold text-nx-text mb-1">
+          <p className="text-[14px] font-semibold mb-1">
             {config.label} {pluginName}
           </p>
-          <p className="text-[12px] text-nx-text-muted">
+          <p className="text-[12px] text-default-500">
             {config.sub}
           </p>
         </div>
-        <Loader2 size={20} strokeWidth={1.5} className="text-nx-text-muted animate-spin" />
+        <Loader2 size={20} strokeWidth={1.5} className="text-default-500 animate-spin" />
       </div>
     </div>
   );

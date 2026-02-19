@@ -4,17 +4,7 @@ import { usePermissions } from "../../hooks/usePermissions";
 import { getPermissionInfo } from "../../types/permissions";
 import type { Permission, GrantedPermission } from "../../types/permissions";
 import { ChevronDown, FolderOpen, RotateCcw, X, ShieldCheck, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
+import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Chip } from "@heroui/react";
 
 interface Props {
   pluginId: string;
@@ -41,7 +31,7 @@ export function PermissionList({ pluginId }: Props) {
 
   if (grants.length === 0) {
     return (
-      <p className="text-[11px] text-nx-text-ghost">{t("list.noPermissions")}</p>
+      <p className="text-[11px] text-default-400">{t("list.noPermissions")}</p>
     );
   }
 
@@ -72,11 +62,11 @@ export function PermissionList({ pluginId }: Props) {
         <>
           {activeGrants.length > 0 && (
             <div className="flex items-center gap-2 pt-2 pb-0.5">
-              <div className="flex-1 h-px bg-nx-border-subtle" />
-              <span className="text-[10px] text-nx-warning font-medium uppercase tracking-wide">
+              <div className="flex-1 h-px bg-default-100" />
+              <span className="text-[10px] text-warning font-medium uppercase tracking-wide">
                 {t("list.deferred")}
               </span>
-              <div className="flex-1 h-px bg-nx-border-subtle" />
+              <div className="flex-1 h-px bg-default-100" />
             </div>
           )}
 
@@ -86,40 +76,37 @@ export function PermissionList({ pluginId }: Props) {
             return (
               <div
                 key={`deferred-${grant.permission}`}
-                className="rounded-[var(--radius-button)] border border-nx-warning/20 bg-nx-deep overflow-hidden"
+                className="rounded-[8px] border border-warning/20 bg-background overflow-hidden"
               >
                 <div className="flex items-center justify-between p-2.5">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-[12px] text-nx-text font-medium font-mono">
+                      <p className="text-[12px] font-medium font-mono">
                         {grant.permission}
                       </p>
-                      <span className="flex items-center gap-1 text-[10px] text-nx-warning font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-warning-muted flex-shrink-0">
-                        <Clock size={10} strokeWidth={1.5} />
+                      <Chip size="sm" variant="flat" color="warning" startContent={<Clock size={10} strokeWidth={1.5} />}>
                         {t("common:status.deferred")}
-                      </span>
+                      </Chip>
                     </div>
-                    <p className="text-[11px] text-nx-text-muted mt-0.5">
+                    <p className="text-[11px] text-default-500 mt-0.5">
                       {info?.description ?? t("permissions:meta.unknown")}
                     </p>
-                    <p className="text-[10px] text-nx-text-ghost mt-0.5">
+                    <p className="text-[10px] text-default-400 mt-0.5">
                       {t("list.willPrompt")}
                     </p>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 ml-2">
                     <Button
-                      size="xs"
-                      onClick={() => unrevoke(pluginId, [grant.permission as Permission])}
-                      className="bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20"
+                      color="primary"
+                      onPress={() => unrevoke(pluginId, [grant.permission as Permission])}
                       title={t("list.activateTooltip")}
                     >
                       <ShieldCheck size={11} strokeWidth={1.5} />
                       {t("list.activate")}
                     </Button>
                     <Button
-                      variant="destructive"
-                      size="xs"
-                      onClick={() => revoke(pluginId, [grant.permission as Permission])}
+                      color="danger"
+                      onPress={() => revoke(pluginId, [grant.permission as Permission])}
                     >
                       {t("list.revoke")}
                     </Button>
@@ -136,11 +123,11 @@ export function PermissionList({ pluginId }: Props) {
         <>
           {(activeGrants.length > 0 || deferredGrants.length > 0) && (
             <div className="flex items-center gap-2 pt-2 pb-0.5">
-              <div className="flex-1 h-px bg-nx-border-subtle" />
-              <span className="text-[10px] text-nx-text-ghost font-medium uppercase tracking-wide">
+              <div className="flex-1 h-px bg-default-100" />
+              <span className="text-[10px] text-default-400 font-medium uppercase tracking-wide">
                 {t("list.revoked")}
               </span>
-              <div className="flex-1 h-px bg-nx-border-subtle" />
+              <div className="flex-1 h-px bg-default-100" />
             </div>
           )}
 
@@ -151,31 +138,31 @@ export function PermissionList({ pluginId }: Props) {
             return (
               <div
                 key={`revoked-${grant.permission}`}
-                className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden opacity-60"
+                className="rounded-[8px] border border-default-100 bg-background overflow-hidden opacity-60"
               >
                 <div className="flex items-center justify-between p-2.5">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-[12px] text-nx-text-muted font-medium font-mono line-through">
+                      <p className="text-[12px] text-default-500 font-medium font-mono line-through">
                         {grant.permission}
                       </p>
-                      <span className="text-[10px] text-nx-error font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-error-muted flex-shrink-0">
+                      <Chip size="sm" variant="flat" color="danger">
                         {t("common:status.revoked")}
-                      </span>
+                      </Chip>
                       {scopeCount > 0 && (
-                        <span className="text-[10px] text-nx-text-ghost font-mono flex-shrink-0">
+                        <span className="text-[10px] text-default-400 font-mono flex-shrink-0">
                           {t("list.savedScopes", { count: scopeCount })}
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-nx-text-ghost mt-0.5">
+                    <p className="text-[11px] text-default-400 mt-0.5">
                       {info?.description ?? t("permissions:meta.unknown")}
                     </p>
                   </div>
                   <Button
-                    size="xs"
-                    onClick={() => setConfirmRestore(grant.permission)}
-                    className="bg-nx-accent-muted text-nx-accent hover:bg-nx-accent/20 flex-shrink-0 ml-2"
+                    color="primary"
+                    onPress={() => setConfirmRestore(grant.permission)}
+                    className="flex-shrink-0 ml-2"
                   >
                     <RotateCcw size={11} strokeWidth={1.5} />
                     {t("list.restore")}
@@ -188,37 +175,42 @@ export function PermissionList({ pluginId }: Props) {
       )}
 
       {/* Confirm restore modal */}
-      <AlertDialog open={confirmRestore !== null} onOpenChange={(open) => { if (!open) setConfirmRestore(null); }}>
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[14px]">
-              {t("list.restorePermission")}
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                <p className="text-[12px] text-nx-text-muted mb-1">
-                  Restore <span className="font-mono font-medium text-nx-text">{confirmRestore}</span> for this plugin?
+      <Modal
+        isOpen={confirmRestore !== null}
+        onOpenChange={(open) => { if (!open) setConfirmRestore(null); }}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="text-[14px]">
+                {t("list.restorePermission")}
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-[12px] text-default-500 mb-1">
+                  Restore <span className="font-mono font-medium">{confirmRestore}</span> for this plugin?
                 </p>
-                <p className="text-[11px] text-nx-text-ghost">
+                <p className="text-[11px] text-default-400">
                   {t("list.restoreDetail")}
                 </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common:action.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                unrevoke(pluginId, [confirmRestore as Permission]);
-                setConfirmRestore(null);
-              }}
-              className="bg-nx-accent-muted border border-nx-accent/30 text-nx-text hover:bg-nx-accent/20"
-            >
-              {t("list.restore")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              </ModalBody>
+              <ModalFooter>
+                <Button onPress={onClose}>
+                  {t("common:action.cancel")}
+                </Button>
+                <Button
+                  color="primary"
+                  onPress={() => {
+                    unrevoke(pluginId, [confirmRestore as Permission]);
+                    setConfirmRestore(null);
+                  }}
+                >
+                  {t("list.restore")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }
@@ -252,50 +244,48 @@ function ActivePermissionRow({
   const isExpanded = expandedPerms.has(grant.permission);
 
   return (
-    <div className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden">
+    <div className="rounded-[8px] border border-default-100 bg-background overflow-hidden">
       {/* Permission row */}
       <div
         onClick={hasPaths ? () => onToggle(grant.permission) : undefined}
-        className={`flex items-center justify-between p-2.5 ${hasPaths ? "cursor-pointer hover:bg-nx-wash/30 transition-colors duration-150" : ""}`}
+        className={`flex items-center justify-between p-2.5 ${hasPaths ? "cursor-pointer hover:bg-default-200/30 transition-colors duration-150" : ""}`}
       >
         <div className="flex items-center gap-2 min-w-0">
           {hasPaths && (
             <ChevronDown
               size={14}
               strokeWidth={1.5}
-              className={`text-nx-text-muted flex-shrink-0 transition-transform duration-200 ${
+              className={`text-default-500 flex-shrink-0 transition-transform duration-200 ${
                 isExpanded ? "rotate-0" : "-rotate-90"
               }`}
             />
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-[12px] text-nx-text font-medium font-mono">
+              <p className="text-[12px] font-medium font-mono">
                 {grant.permission}
               </p>
               {hasPaths && (
-                <span className="text-[10px] text-nx-text-ghost font-mono flex-shrink-0">
+                <span className="text-[10px] text-default-400 font-mono flex-shrink-0">
                   {paths.length === 0
                     ? t("list.noPathsApproved")
                     : t("list.pathCount", { count: paths.length })}
                 </span>
               )}
               {isFs && grant.approved_scopes === null && (
-                <span className="text-[10px] text-nx-warning font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-warning-muted flex-shrink-0">
+                <Chip size="sm" variant="flat" color="warning">
                   {t("common:status.unrestricted")}
-                </span>
+                </Chip>
               )}
             </div>
-            <p className="text-[11px] text-nx-text-muted mt-0.5">
+            <p className="text-[11px] text-default-500 mt-0.5">
               {info?.description ?? t("permissions:meta.unknown")}
             </p>
           </div>
         </div>
         <Button
-          variant="destructive"
-          size="xs"
-          onClick={(e) => {
-            e.stopPropagation();
+          color="danger"
+          onPress={(e) => {
             onRevoke(pluginId, [grant.permission as Permission]);
           }}
           className="flex-shrink-0 ml-2"
@@ -306,9 +296,9 @@ function ActivePermissionRow({
 
       {/* Approved paths (expanded) */}
       {hasPaths && isExpanded && (
-        <div className="px-2.5 pb-2.5 border-t border-nx-border-subtle">
+        <div className="px-2.5 pb-2.5 border-t border-default-100">
           {paths.length === 0 ? (
-            <p className="text-[11px] text-nx-text-ghost pt-2">
+            <p className="text-[11px] text-default-400 pt-2">
               {t("list.noDirectoriesApproved")}
             </p>
           ) : (
@@ -316,22 +306,21 @@ function ActivePermissionRow({
               {paths.map((p) => (
                 <div
                   key={p}
-                  className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-[var(--radius-tag)] bg-nx-base"
+                  className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-[6px] bg-default-100"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <FolderOpen
                       size={12}
                       strokeWidth={1.5}
-                      className="text-nx-accent flex-shrink-0"
+                      className="text-primary flex-shrink-0"
                     />
-                    <span className="text-[11px] font-mono text-nx-text truncate">
+                    <span className="text-[11px] font-mono truncate">
                       {p}
                     </span>
                   </div>
                   <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() =>
+                    isIconOnly
+                    onPress={() =>
                       onRemovePath(
                         pluginId,
                         grant.permission as Permission,
@@ -339,7 +328,7 @@ function ActivePermissionRow({
                       )
                     }
                     title={t("list.revokeAccessTo", { path: p })}
-                    className="text-nx-text-ghost hover:text-nx-error flex-shrink-0"
+                    className="flex-shrink-0"
                   >
                     <X size={12} strokeWidth={1.5} />
                   </Button>

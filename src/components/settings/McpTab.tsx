@@ -18,12 +18,7 @@ import {
   Wrench,
   Terminal,
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Switch, Button, Chip, Card, CardBody, Divider, Tabs, Tab, Tooltip } from "@heroui/react";
 
 type ConfigTab = "desktop" | "code";
 
@@ -39,16 +34,15 @@ function CopyButton({ text }: { text: string }) {
 
   return (
     <Button
-      variant="ghost"
-      size="icon-xs"
-      onClick={copy}
-      className="absolute top-2 right-2 bg-nx-surface border border-nx-border-subtle hover:bg-nx-wash"
+      isIconOnly
+      onPress={copy}
+      className="absolute top-2 right-2"
       title={t("common:action.copyToClipboard")}
     >
       {copied ? (
-        <Check size={12} strokeWidth={1.5} className="text-nx-success" />
+        <Check size={12} strokeWidth={1.5} className="text-success" />
       ) : (
-        <Copy size={12} strokeWidth={1.5} className="text-nx-text-ghost" />
+        <Copy size={12} strokeWidth={1.5} className="text-default-400" />
       )}
     </Button>
   );
@@ -57,7 +51,7 @@ function CopyButton({ text }: { text: string }) {
 function CodeBlock({ text }: { text: string }) {
   return (
     <div className="relative">
-      <pre className="bg-nx-deep border border-nx-border-subtle rounded-[var(--radius-button)] p-3 text-[11px] text-nx-text-secondary font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+      <pre className="bg-background border border-default-100 rounded-[8px] p-3 text-[11px] text-default-500 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
         {text}
       </pre>
       <CopyButton text={text} />
@@ -153,9 +147,9 @@ export function McpTab() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-          <p className="text-[12px] text-nx-text-ghost">{t("mcp.loadingSettings")}</p>
-        </section>
+        <Card><CardBody className="p-5">
+          <p className="text-[12px] text-default-400">{t("mcp.loadingSettings")}</p>
+        </CardBody></Card>
       </div>
     );
   }
@@ -174,60 +168,62 @@ export function McpTab() {
   return (
     <div className="space-y-6">
       {/* Section 1: MCP Gateway */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card><CardBody className="p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Cpu size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-            <h3 className="text-[14px] font-semibold text-nx-text">
+            <Cpu size={15} strokeWidth={1.5} className="text-default-500" />
+            <h3 className="text-[14px] font-semibold">
               {t("mcp.gateway")}
             </h3>
           </div>
 
           {/* Global toggle */}
-          <Switch checked={globalEnabled} onCheckedChange={(checked) => toggleGlobal(checked)} />
+          <Switch isSelected={globalEnabled} onValueChange={(checked) => toggleGlobal(checked)} />
         </div>
 
         <div className="flex items-center gap-2 mb-2">
           <CircleDot
             size={12}
             strokeWidth={2}
-            className={globalEnabled ? "text-nx-success" : "text-nx-text-ghost"}
+            className={globalEnabled ? "text-success" : "text-default-400"}
           />
           <span
             className={`text-[12px] font-medium ${
-              globalEnabled ? "text-nx-success" : "text-nx-text-ghost"
+              globalEnabled ? "text-success" : "text-default-400"
             }`}
           >
             {globalEnabled ? t("mcp.gatewayActive") : t("mcp.gatewayDisabled")}
           </span>
         </div>
 
-        <p className="text-[11px] text-nx-text-ghost">
+        <p className="text-[11px] text-default-400">
           {t("mcp.gatewayDesc")}
         </p>
-      </section>
+      </CardBody></Card>
 
       {/* Section 2: Client Setup */}
       {globalEnabled && configData && (
-        <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+        <Card><CardBody className="p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Terminal size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-            <h3 className="text-[14px] font-semibold text-nx-text">
+            <Terminal size={15} strokeWidth={1.5} className="text-default-500" />
+            <h3 className="text-[14px] font-semibold">
               {t("mcp.clientSetup")}
             </h3>
           </div>
 
           {/* Client tabs */}
-          <Tabs value={configTab} onValueChange={(v) => { setConfigTab(v as ConfigTab); }} className="mb-3">
-            <TabsList>
-              <TabsTrigger value="desktop">{t("mcp.claudeDesktop")}</TabsTrigger>
-              <TabsTrigger value="code">{t("mcp.claudeCode")}</TabsTrigger>
-            </TabsList>
+          <Tabs
+            selectedKey={configTab}
+            onSelectionChange={(key) => setConfigTab(key as ConfigTab)}
+            className="mb-3"
+          >
+            <Tab key="desktop" title={t("mcp.claudeDesktop")} />
+            <Tab key="code" title={t("mcp.claudeCode")} />
           </Tabs>
 
           {configTab === "desktop" ? (
             <div className="space-y-3">
-              <p className="text-[11px] text-nx-text-ghost">
+              <p className="text-[11px] text-default-400">
                 {t("mcp.desktopHint")}
               </p>
               <CodeBlock text={desktopSnippet} />
@@ -235,31 +231,31 @@ export function McpTab() {
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] text-nx-text-ghost">
+                <p className="text-[11px] text-default-400">
                   {t("mcp.codeHint")}
                 </p>
                 <label className="flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
-                  <Switch size="sm" checked={userScope} onCheckedChange={setUserScope} />
-                  <span className="text-[11px] text-nx-text-muted">{t("mcp.allProjects")}</span>
+                  <Switch isSelected={userScope} onValueChange={setUserScope} />
+                  <span className="text-[11px] text-default-500">{t("mcp.allProjects")}</span>
                 </label>
               </div>
               <CodeBlock text={injectScope(configData.claude_code_command)} />
             </div>
           )}
-        </section>
+        </CardBody></Card>
       )}
 
       {/* Section 3: Tool Registry */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
+      <Card><CardBody className="p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Wrench size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
+          <Wrench size={15} strokeWidth={1.5} className="text-default-500" />
+          <h3 className="text-[14px] font-semibold">
             {t("mcp.toolRegistry")}
           </h3>
         </div>
 
         {Object.keys(pluginGroups).length === 0 ? (
-          <p className="text-[11px] text-nx-text-ghost">
+          <p className="text-[11px] text-default-400">
             {t("mcp.noTools")}
           </p>
         ) : (
@@ -272,120 +268,113 @@ export function McpTab() {
               const pluginRunning = firstTool?.plugin_running ?? false;
 
               return (
-                <Collapsible
-                  key={group.pluginId}
-                  open={isOpen}
-                  onOpenChange={() => toggleExpanded(group.pluginId)}
-                >
-                  <div className="rounded-[var(--radius-button)] border border-nx-border-subtle bg-nx-deep overflow-hidden">
-                    {/* Plugin header */}
-                    <div className="flex items-center justify-between p-3">
-                      <CollapsibleTrigger asChild>
-                        <button
-                          className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity"
-                        >
-                          <CircleDot
-                            size={10}
-                            strokeWidth={2.5}
-                            className={
-                              pluginRunning ? "text-nx-success" : "text-nx-text-ghost"
-                            }
-                          />
-                          <span className="text-[13px] text-nx-text font-medium truncate">
-                            {group.pluginName}
-                          </span>
-                          {group.pluginId === "nexus" && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 flex-shrink-0">
-                              {t("common:status.builtIn")}
-                            </Badge>
-                          )}
-                          <span className="text-[11px] text-nx-text-ghost flex-shrink-0">
-                            {t("mcp.toolCount", { count: group.tools.length })}
-                          </span>
-                          <ChevronDown
-                            size={14}
-                            strokeWidth={1.5}
-                            className={`text-nx-text-ghost transition-transform duration-200 ${
-                              isOpen ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-                      </CollapsibleTrigger>
+                <div key={group.pluginId} className="overflow-hidden">
+                  {/* Plugin header */}
+                  <div className="flex items-center justify-between p-3">
+                    <button
+                      onClick={() => toggleExpanded(group.pluginId)}
+                      className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity"
+                    >
+                      <CircleDot
+                        size={10}
+                        strokeWidth={2.5}
+                        className={
+                          pluginRunning ? "text-success" : "text-default-400"
+                        }
+                      />
+                      <span className="text-[13px] font-medium truncate">
+                        {group.pluginName}
+                      </span>
+                      {group.pluginId === "nexus" && (
+                        <Chip size="sm">
+                          {t("common:status.builtIn")}
+                        </Chip>
+                      )}
+                      <span className="text-[11px] text-default-400 flex-shrink-0">
+                        {t("mcp.toolCount", { count: group.tools.length })}
+                      </span>
+                      <ChevronDown
+                        size={14}
+                        strokeWidth={1.5}
+                        className={`text-default-400 transition-transform duration-200 ${
+                          isOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
 
-                      {/* Plugin-level toggle */}
-                      <Switch size="sm" className="flex-shrink-0 ml-3" checked={pluginEnabled} onCheckedChange={(checked) => togglePlugin(group.pluginId, checked)} />
-                    </div>
-
-                    {/* Expanded tool list */}
-                    <CollapsibleContent>
-                      <div className="border-t border-nx-border-subtle">
-                        {group.tools.map((tool) => (
-                          <div
-                            key={tool.name}
-                            className="flex items-center justify-between px-3 py-2.5 border-b border-nx-border-subtle last:border-b-0 hover:bg-nx-wash/20 transition-colors"
-                          >
-                            <div className="min-w-0 flex-1 mr-3">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-[12px] text-nx-text font-mono truncate">
-                                  {tool.name.split(".").pop()}
-                                </span>
-                                {/* Permission badge with tooltip */}
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="flex-shrink-0">
-                                      {tool.permissions_granted ? (
-                                        <Shield
-                                          size={11}
-                                          strokeWidth={1.5}
-                                          className="text-nx-success cursor-help"
-                                        />
-                                      ) : (
-                                        <ShieldAlert
-                                          size={11}
-                                          strokeWidth={1.5}
-                                          className="text-nx-warning cursor-help"
-                                        />
-                                      )}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    {tool.permissions_granted
-                                      ? t("mcp.allPermissionsGranted")
-                                      : t("mcp.missingPermissions", { permissions: tool.required_permissions.join(", ") })}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
-                              <p className="text-[11px] text-nx-text-ghost truncate">
-                                {tool.description}
-                              </p>
-                              {tool.required_permissions.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {tool.required_permissions.map((perm) => (
-                                    <Badge
-                                      key={perm}
-                                      variant={tool.permissions_granted ? "success" : "warning"}
-                                      className="text-[9px]"
-                                    >
-                                      {perm}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Tool-level toggle */}
-                            <Switch size="sm" checked={tool.tool_enabled} onCheckedChange={(checked) => toggleTool(tool.name, checked)} />
-                          </div>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
+                    {/* Plugin-level toggle */}
+                    <Switch className="flex-shrink-0 ml-3" isSelected={pluginEnabled} onValueChange={(checked) => togglePlugin(group.pluginId, checked)} />
                   </div>
-                </Collapsible>
+
+                  {/* Expanded tool list */}
+                  {isOpen && (
+                    <div className="border-t border-default-100">
+                      {group.tools.map((tool) => (
+                        <div
+                          key={tool.name}
+                          className="flex items-center justify-between px-3 py-2.5 border-b border-default-100 last:border-b-0 hover:bg-default-200/20 transition-colors"
+                        >
+                          <div className="min-w-0 flex-1 mr-3">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[12px] font-mono truncate">
+                                {tool.name.split(".").pop()}
+                              </span>
+                              {/* Permission badge with tooltip */}
+                              <Tooltip
+                                content={
+                                  tool.permissions_granted
+                                    ? t("mcp.allPermissionsGranted")
+                                    : t("mcp.missingPermissions", { permissions: tool.required_permissions.join(", ") })
+                                }
+                                size="sm"
+                              >
+                                <span className="flex-shrink-0">
+                                  {tool.permissions_granted ? (
+                                    <Shield
+                                      size={11}
+                                      strokeWidth={1.5}
+                                      className="text-success cursor-help"
+                                    />
+                                  ) : (
+                                    <ShieldAlert
+                                      size={11}
+                                      strokeWidth={1.5}
+                                      className="text-warning cursor-help"
+                                    />
+                                  )}
+                                </span>
+                              </Tooltip>
+                            </div>
+                            <p className="text-[11px] text-default-400 truncate">
+                              {tool.description}
+                            </p>
+                            {tool.required_permissions.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {tool.required_permissions.map((perm) => (
+                                  <Chip
+                                    key={perm}
+                                    size="sm"
+                                    color={tool.permissions_granted ? "success" : "warning"}
+                                  >
+                                    {perm}
+                                  </Chip>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Tool-level toggle */}
+                          <Switch isSelected={tool.tool_enabled} onValueChange={(checked) => toggleTool(tool.name, checked)} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
         )}
-      </section>
+      </CardBody></Card>
     </div>
   );
 }

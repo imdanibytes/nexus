@@ -1,6 +1,6 @@
 import * as React from "react"
-import { TooltipProvider } from "../components/tooltip"
-import { Toaster } from "../components/sonner"
+import { HeroUIProvider } from "@heroui/react"
+import { Toaster } from "sonner"
 
 interface NexusContextValue {
   apiUrl: string
@@ -47,6 +47,11 @@ export function NexusProvider({
   const [themeApplied] = React.useState(() => {
     const initial = getInitialTheme()
     if (initial) applyThemeAttr(initial)
+    // Dark class is managed by the app's color mode system (lib/theme.ts).
+    // Plugins still default to dark if no mode is set.
+    if (!document.documentElement.classList.contains("light")) {
+      document.documentElement.classList.add("dark")
+    }
     return !!initial
   })
 
@@ -79,11 +84,11 @@ export function NexusProvider({
   }, [])
 
   return (
-    <NexusContext.Provider value={{ apiUrl }}>
-      <TooltipProvider>
+    <HeroUIProvider>
+      <NexusContext.Provider value={{ apiUrl }}>
         {children}
         {toaster && <Toaster />}
-      </TooltipProvider>
-    </NexusContext.Provider>
+      </NexusContext.Provider>
+    </HeroUIProvider>
   )
 }

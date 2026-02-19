@@ -4,7 +4,7 @@ import { RefreshCw, Download, RotateCcw, Check, ChevronDown, ChevronUp } from "l
 import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { marked } from "marked";
-import { Button } from "@/components/ui/button";
+import { Button, Card, CardBody } from "@heroui/react";
 
 type UpdateState =
   | { phase: "idle" }
@@ -94,9 +94,7 @@ export function UpdateCheck() {
           state.phase === "up-to-date" ||
           state.phase === "error") && (
           <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleCheck}
+            onPress={handleCheck}
           >
             <RefreshCw size={12} strokeWidth={1.5} />
             {t("updateCheck.checkForUpdates")}
@@ -105,9 +103,7 @@ export function UpdateCheck() {
 
         {state.phase === "checking" && (
           <Button
-            variant="secondary"
-            size="sm"
-            disabled
+            isDisabled
           >
             <RefreshCw size={12} strokeWidth={1.5} className="animate-spin" />
             {t("common:action.checking")}
@@ -116,8 +112,7 @@ export function UpdateCheck() {
 
         {state.phase === "available" && (
           <Button
-            size="sm"
-            onClick={handleDownload}
+            onPress={handleDownload}
           >
             <Download size={12} strokeWidth={1.5} />
             {t("updateCheck.installVersion", { version: state.update.version })}
@@ -126,9 +121,8 @@ export function UpdateCheck() {
 
         {state.phase === "ready" && (
           <Button
-            size="sm"
-            onClick={handleRelaunch}
-            className="bg-nx-success hover:brightness-110 text-nx-deep"
+            onPress={handleRelaunch}
+            color="success"
           >
             <RotateCcw size={12} strokeWidth={1.5} />
             {t("updateCheck.restartToUpdate")}
@@ -137,56 +131,56 @@ export function UpdateCheck() {
 
         {/* Status text */}
         {state.phase === "up-to-date" && (
-          <span className="flex items-center gap-1 text-[11px] text-nx-success">
+          <span className="flex items-center gap-1 text-[11px] text-success">
             <Check size={12} strokeWidth={1.5} />
             {t("updateCheck.latestVersion")}
           </span>
         )}
 
         {state.phase === "error" && (
-          <span className="text-[11px] text-nx-error">{state.message}</span>
+          <span className="text-[11px] text-danger">{state.message}</span>
         )}
       </div>
 
       {/* Release notes */}
       {releaseNotes && (
-        <div className="rounded-[var(--radius-card)] border border-nx-border bg-nx-surface overflow-hidden">
+        <Card className="overflow-hidden">
           <button
             onClick={() => setNotesOpen(!notesOpen)}
-            className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-nx-overlay/50 transition-colors"
+            className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-default-100 transition-colors"
           >
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-nx-text-muted">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-default-500">
               {t("updateCheck.whatsNew")}
               {state.phase === "available" && (
-                <span className="ml-2 normal-case tracking-normal font-normal text-nx-text-ghost">
+                <span className="ml-2 normal-case tracking-normal font-normal text-default-400">
                   {t("updateCheck.version", { version: state.update.version })}
                 </span>
               )}
             </span>
             {notesOpen ? (
-              <ChevronUp size={12} className="text-nx-text-muted" />
+              <ChevronUp size={12} className="text-default-500" />
             ) : (
-              <ChevronDown size={12} className="text-nx-text-muted" />
+              <ChevronDown size={12} className="text-default-500" />
             )}
           </button>
           {notesOpen && (
-            <div className="px-3 pb-3 text-[12px] leading-relaxed text-nx-text-secondary border-t border-nx-border/50 pt-2 max-h-60 overflow-y-auto">
+            <CardBody className="px-3 pb-3 pt-2 text-[12px] leading-relaxed text-default-500 max-h-60 overflow-y-auto">
               <ReleaseNotes markdown={releaseNotes} />
-            </div>
+            </CardBody>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Download progress bar */}
       {state.phase === "downloading" && (
         <div className="space-y-1.5">
-          <div className="h-1.5 bg-nx-overlay rounded-full overflow-hidden">
+          <div className="h-1.5 bg-default-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-nx-accent rounded-full transition-[width] duration-300 ease-out"
+              className="h-full bg-primary rounded-full transition-[width] duration-300 ease-out"
               style={{ width: `${state.progress}%` }}
             />
           </div>
-          <p className="text-[10px] text-nx-text-muted">
+          <p className="text-[10px] text-default-500">
             {t("updateCheck.downloading", { percent: Math.round(state.progress) })}
           </p>
         </div>

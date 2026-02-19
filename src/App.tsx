@@ -13,9 +13,10 @@ import { useExtensions } from "./hooks/useExtensions";
 import { useLifecycleEvents } from "./hooks/useLifecycleEvents";
 import { checkEngine, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
+import { Button } from "@heroui/react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InstallOverlay } from "./components/InstallOverlay";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { NexusProvider } from "@imdanibytes/nexus-ui";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 
@@ -71,24 +72,24 @@ function PluginsView() {
       {/* Empty / select prompt — shown when no plugin is selected */}
       {!selectedPluginId && (
         <div className="flex flex-col items-center justify-center h-full text-center p-6">
-          <div className="w-20 h-20 rounded-[var(--radius-modal)] bg-nx-surface flex items-center justify-center mb-4">
-            <Package size={36} strokeWidth={1.5} className="text-nx-text-ghost" />
+          <div className="w-20 h-20 rounded-[14px] bg-default-100 flex items-center justify-center mb-4">
+            <Package size={36} strokeWidth={1.5} className="text-default-400" />
           </div>
-          <h3 className="text-[16px] font-semibold text-nx-text-secondary mb-1">
+          <h3 className="text-[16px] font-semibold text-default-500 mb-1">
             {plugins.length === 0 ? t("empty.noPlugins") : t("empty.selectPlugin")}
           </h3>
-          <p className="text-[13px] text-nx-text-muted max-w-sm mb-4">
+          <p className="text-[13px] text-default-500 max-w-sm mb-4">
             {plugins.length === 0
               ? t("empty.noPluginsHint")
               : t("empty.selectPluginHint")}
           </p>
           {plugins.length === 0 && (
-            <button
-              onClick={() => setView("marketplace")}
-              className="px-4 py-2 bg-nx-accent hover:bg-nx-accent-hover text-nx-deep text-[13px] font-medium rounded-[var(--radius-button)] transition-all duration-150"
+            <Button
+              color="primary"
+              onPress={() => setView("marketplace")}
             >
               {t("nav.addPlugins")}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -201,16 +202,18 @@ function App() {
   }, [updateCheckInterval, checkForPluginUpdates]);
 
   return (
-    <TooltipProvider>
+    <NexusProvider>
     <Shell>
       <InstallOverlay />
-      {/* Always-mounted views — stacked absolutely, hidden with visibility to preserve iframe state */}
-      <div className={`absolute inset-0 overflow-y-auto ${currentView === "plugins" ? "" : "invisible pointer-events-none"}`}>
+      {/* Always-mounted views — stacked absolutely, hidden with opacity to preserve iframe state.
+         Using opacity-0 instead of invisible because CSS visibility:visible on descendants
+         (like HeroUI's Tabs cursor) overrides visibility:hidden on the parent. */}
+      <div className={`absolute inset-0 overflow-y-auto ${currentView === "plugins" ? "" : "opacity-0 pointer-events-none"}`}>
         <ErrorBoundary label="Plugins">
           <PluginsView />
         </ErrorBoundary>
       </div>
-      <div className={`absolute inset-0 overflow-y-auto ${currentView === "settings" ? "" : "invisible pointer-events-none"}`}>
+      <div className={`absolute inset-0 overflow-y-auto ${currentView === "settings" ? "" : "opacity-0 pointer-events-none"}`}>
         <ErrorBoundary label="Settings">
           <SettingsPage />
         </ErrorBoundary>
@@ -258,7 +261,7 @@ function App() {
         </div>
       )}
     </Shell>
-    </TooltipProvider>
+    </NexusProvider>
   );
 }
 

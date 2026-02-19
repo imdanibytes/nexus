@@ -1,25 +1,28 @@
 import type { ReactNode } from "react";
 import { AppSidebar } from "./Sidebar";
+import { GradientBackground } from "./GradientBackground";
 import { RuntimeApprovalDialog } from "../permissions/RuntimeApprovalDialog";
 import { ErrorBoundary } from "../ErrorBoundary";
-import { Toaster } from "@/components/ui/sonner";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { Toaster } from "@imdanibytes/nexus-ui";
 
 export function Shell({ children }: { children: ReactNode }) {
   return (
-    <SidebarProvider defaultOpen={true} className="bg-nx-deep">
+    <div className="relative flex h-screen text-foreground">
+      <GradientBackground />
+
       <ErrorBoundary inline label="Sidebar">
         <AppSidebar />
       </ErrorBoundary>
-      <SidebarInset className="relative overflow-hidden bg-nx-base">
+
+      <main className="relative flex-1 overflow-hidden backdrop-blur-2xl bg-background/40 border-l border-white/5">
         {children}
-      </SidebarInset>
+      </main>
 
       <ErrorBoundary inline label="Approval Dialog">
         <RuntimeApprovalDialog />
       </ErrorBoundary>
 
       <Toaster position="bottom-right" />
-    </SidebarProvider>
+    </div>
   );
 }

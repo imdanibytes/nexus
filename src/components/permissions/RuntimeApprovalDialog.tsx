@@ -17,8 +17,7 @@ import type {
   ApprovalDecision,
   RuntimeApprovalRequest,
 } from "../../types/permissions";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Modal, ModalContent, Button, Chip } from "@heroui/react";
 import i18n from "../../i18n";
 
 /** Derive a human-readable header from the approval category. */
@@ -39,8 +38,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
       icon: ShieldAlert,
       title: t("permissions:runtime.permissionRequired"),
       subtitle: t("permissions:runtime.deferredSubtitle", { pluginName: req.plugin_name, description: desc }),
-      iconBg: "bg-nx-warning-muted",
-      iconColor: "text-nx-warning",
+      iconBg: "bg-warning-50",
+      iconColor: "text-warning",
     };
   }
 
@@ -69,8 +68,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
       subtitle: scopeVal
         ? t("permissions:runtime.extensionAccessSubtitle", { pluginName: req.plugin_name, operation: opName, scope: scopeDesc, value: scopeVal })
         : t("permissions:runtime.extensionAccessSubtitleShort", { pluginName: req.plugin_name, operation: opName }),
-      iconBg: "bg-nx-warning-muted",
-      iconColor: "text-nx-warning",
+      iconBg: "bg-warning-50",
+      iconColor: "text-warning",
     };
   }
 
@@ -81,8 +80,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
       icon: Link,
       title: t("permissions:runtime.oauthConnect"),
       subtitle: t("permissions:runtime.oauthSubtitle", { clientName }),
-      iconBg: "bg-nx-accent/10",
-      iconColor: "text-nx-accent",
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
     };
   }
 
@@ -92,8 +91,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
       icon: FolderOpen,
       title: t("permissions:runtime.fileAccess"),
       subtitle: t("permissions:runtime.filesystemSubtitle", { pluginName: req.plugin_name, permission: req.permission.replace(":", " ") }),
-      iconBg: "bg-nx-warning-muted",
-      iconColor: "text-nx-warning",
+      iconBg: "bg-warning-50",
+      iconColor: "text-warning",
     };
   }
 
@@ -103,8 +102,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
       icon: ShieldAlert,
       title: t("permissions:runtime.networkAccess"),
       subtitle: t("permissions:runtime.networkSubtitle", { pluginName: req.plugin_name, permission: req.permission.replace(":", " ") }),
-      iconBg: "bg-nx-warning-muted",
-      iconColor: "text-nx-warning",
+      iconBg: "bg-warning-50",
+      iconColor: "text-warning",
     };
   }
 
@@ -115,8 +114,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
       icon: ShieldAlert,
       title: t("permissions:runtime.mcpToolCall"),
       subtitle: t("permissions:runtime.mcpToolSubtitle", { pluginName: req.plugin_name, toolName }),
-      iconBg: "bg-nx-warning-muted",
-      iconColor: "text-nx-warning",
+      iconBg: "bg-warning-50",
+      iconColor: "text-warning",
     };
   }
 
@@ -125,8 +124,8 @@ function resolveHeader(req: RuntimeApprovalRequest): {
     icon: ShieldAlert,
     title: t("permissions:runtime.categoryRequest", { category: req.category }),
     subtitle: t("permissions:runtime.fallbackSubtitle", { pluginName: req.plugin_name, permission: req.permission.replace(":", " ") }),
-    iconBg: "bg-nx-warning-muted",
-    iconColor: "text-nx-warning",
+    iconBg: "bg-warning-50",
+    iconColor: "text-warning",
   };
 }
 
@@ -208,17 +207,18 @@ export function RuntimeApprovalDialog() {
   }
 
   return (
-    <Dialog
-      open={current !== null}
+    <Modal
+      isOpen={current !== null}
       onOpenChange={(open) => {
         if (!open) respond("deny");
       }}
+      hideCloseButton
+      classNames={{
+        backdrop: "z-[60]",
+        wrapper: "z-[60]",
+      }}
     >
-      <DialogContent
-        showCloseButton={false}
-        overlayClassName="z-[60]"
-        className="z-[60] max-w-md border-border p-0 gap-0 overflow-hidden"
-      >
+      <ModalContent>
         {current && (
           <RuntimeApprovalContent
             current={current}
@@ -227,8 +227,8 @@ export function RuntimeApprovalDialog() {
             respond={respond}
           />
         )}
-      </DialogContent>
-    </Dialog>
+      </ModalContent>
+    </Modal>
   );
 }
 
@@ -259,7 +259,7 @@ function RuntimeApprovalContent({
       {/* Header */}
       <div className="flex items-center gap-3 px-6 pt-6 pb-4">
         <div
-          className={`w-10 h-10 rounded-[var(--radius-card)] ${header.iconBg} border border-nx-border-subtle flex items-center justify-center flex-shrink-0`}
+          className={`w-10 h-10 rounded-[14px] ${header.iconBg} border border-default-100 flex items-center justify-center flex-shrink-0`}
         >
           <HeaderIcon
             size={20}
@@ -268,10 +268,10 @@ function RuntimeApprovalContent({
           />
         </div>
         <div className="min-w-0">
-          <h3 className="text-[16px] font-bold text-nx-text">
+          <h3 className="text-[16px] font-bold">
             {header.title}
           </h3>
-          <p className="text-[12px] text-nx-text-muted leading-snug">
+          <p className="text-[12px] text-default-500 leading-snug">
             {header.subtitle}
           </p>
         </div>
@@ -300,7 +300,7 @@ function RuntimeApprovalContent({
       {/* Queue indicator */}
       {queue.length > 1 && (
         <div className="px-6 pb-3">
-          <p className="text-[11px] text-nx-text-ghost">
+          <p className="text-[11px] text-default-400">
             {t("runtime.requestsPending", { count: queue.length - 1 })}
           </p>
         </div>
@@ -308,14 +308,15 @@ function RuntimeApprovalContent({
 
       {/* Actions */}
       <div className="flex gap-3 justify-end px-6 pb-6">
-        <Button variant="secondary" onClick={() => respond("deny")}>
+        <Button onPress={() => respond("deny")}>
           <ShieldX size={14} strokeWidth={1.5} />
           {t("common:action.deny")}
         </Button>
         {isHighRisk ? (
           <Button
-            disabled={approveDisabled}
-            onClick={() => respond("approve_once")}
+            color="primary"
+            isDisabled={approveDisabled}
+            onPress={() => respond("approve_once")}
           >
             <ShieldCheck size={14} strokeWidth={1.5} />
             {approveDisabled ? t("runtime.allowOnceCountdown", { seconds: cooldown }) : t("runtime.allowOnce")}
@@ -323,17 +324,16 @@ function RuntimeApprovalContent({
         ) : (
           <>
             <Button
-              variant="secondary"
-              disabled={approveDisabled}
-              onClick={() => respond("approve_once")}
-              className={!approveDisabled ? "text-nx-text" : undefined}
+              isDisabled={approveDisabled}
+              onPress={() => respond("approve_once")}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               {approveDisabled ? t("runtime.allowOnceCountdown", { seconds: cooldown }) : t("runtime.allowOnce")}
             </Button>
             <Button
-              disabled={approveDisabled}
-              onClick={() => respond("approve")}
+              color="primary"
+              isDisabled={approveDisabled}
+              onPress={() => respond("approve")}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               {approveDisabled ? t("runtime.allowCountdown", { seconds: cooldown }) : t("runtime.allow")}
@@ -354,45 +354,43 @@ function DeferredPermissionDetail({
 }) {
   const { t } = useTranslation("permissions");
   const info = getPermissionInfo(permission);
-  const riskColors: Record<string, string> = {
-    low: "text-nx-success bg-nx-success-muted",
-    medium: "text-nx-warning bg-nx-warning-muted",
-    high: "text-nx-error bg-nx-error-muted",
+  const riskChipColors: Record<string, "success" | "warning" | "danger"> = {
+    low: "success",
+    medium: "warning",
+    high: "danger",
   };
 
   return (
     <div className="space-y-2">
-      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1.5">{t("runtime.permission")}</p>
+      <div className="p-3 rounded-[8px] bg-background border border-default-100">
+        <p className="text-[11px] text-default-500 mb-1.5">{t("runtime.permission")}</p>
         <div className="flex items-center gap-2">
-          <p className="text-[12px] text-nx-text font-medium font-mono">
+          <p className="text-[12px] font-medium font-mono">
             {permission}
           </p>
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-semibold capitalize ${riskColors[info.risk] ?? riskColors.medium}`}
-          >
+          <Chip size="sm" variant="flat" color={riskChipColors[info.risk] ?? "warning"}>
             {info.risk}
-          </span>
+          </Chip>
         </div>
-        <p className="text-[11px] text-nx-text-secondary mt-1">
+        <p className="text-[11px] text-default-500 mt-1">
           {info.description}
         </p>
       </div>
       {context.extension && (
-        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+        <div className="p-3 rounded-[8px] bg-background border border-default-100">
           <div className="flex items-center gap-2 mb-1">
-            <Puzzle size={12} strokeWidth={1.5} className="text-nx-text-muted" />
-            <p className="text-[11px] text-nx-text-muted">
+            <Puzzle size={12} strokeWidth={1.5} className="text-default-500" />
+            <p className="text-[11px] text-default-500">
               {context.extension_display_name ?? context.extension}
             </p>
           </div>
           {context.operation && (
-            <p className="text-[12px] text-nx-text font-medium">
+            <p className="text-[12px] font-medium">
               {context.operation}
             </p>
           )}
           {context.operation_description && (
-            <p className="text-[11px] text-nx-text-secondary mt-0.5">
+            <p className="text-[11px] text-default-500 mt-0.5">
               {context.operation_description}
             </p>
           )}
@@ -406,18 +404,18 @@ function FilesystemDetail({ context }: { context: Record<string, string> }) {
   const { t } = useTranslation("permissions");
   return (
     <div className="space-y-2">
-      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.requestedPath")}</p>
-        <p className="text-[12px] text-nx-text font-mono break-all leading-relaxed">
+      <div className="p-3 rounded-[8px] bg-background border border-default-100">
+        <p className="text-[11px] text-default-500 mb-1">{t("runtime.requestedPath")}</p>
+        <p className="text-[12px] font-mono break-all leading-relaxed">
           {context.path ?? "unknown"}
         </p>
       </div>
       {context.parent_dir && (
-        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-          <p className="text-[11px] text-nx-text-muted mb-1">
+        <div className="p-3 rounded-[8px] bg-background border border-default-100">
+          <p className="text-[11px] text-default-500 mb-1">
             {t("runtime.allowGrantsAccess")}
           </p>
-          <p className="text-[12px] text-nx-accent font-mono break-all leading-relaxed">
+          <p className="text-[12px] text-primary font-mono break-all leading-relaxed">
             {context.parent_dir}
           </p>
         </div>
@@ -447,14 +445,14 @@ function ExtensionDetail({
   return (
     <div className="space-y-2">
       {/* Extension + operation info */}
-      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
+      <div className="p-3 rounded-[8px] bg-background border border-default-100">
         <div className="flex items-center gap-2 mb-1.5">
-          <Puzzle size={13} strokeWidth={1.5} className="text-nx-text-muted" />
-          <p className="text-[11px] text-nx-text-muted">{extName}</p>
+          <Puzzle size={13} strokeWidth={1.5} className="text-default-500" />
+          <p className="text-[11px] text-default-500">{extName}</p>
         </div>
-        <p className="text-[13px] text-nx-text font-medium">{operation}</p>
+        <p className="text-[13px] font-medium">{operation}</p>
         {opDesc && (
-          <p className="text-[11px] text-nx-text-secondary mt-0.5">
+          <p className="text-[11px] text-default-500 mt-0.5">
             {opDesc}
           </p>
         )}
@@ -462,11 +460,11 @@ function ExtensionDetail({
 
       {/* Scope value (for scope approvals) */}
       {context.scope_value && (
-        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-          <p className="text-[11px] text-nx-text-muted mb-1">
+        <div className="p-3 rounded-[8px] bg-background border border-default-100">
+          <p className="text-[11px] text-default-500 mb-1">
             {context.scope_description ?? context.scope_key ?? t("runtime.scope")}
           </p>
-          <p className="text-[12px] text-nx-accent font-mono break-all leading-relaxed">
+          <p className="text-[12px] text-primary font-mono break-all leading-relaxed">
             {context.scope_value}
           </p>
         </div>
@@ -474,14 +472,14 @@ function ExtensionDetail({
 
       {/* Input parameters (for high-risk, shows what's being passed) */}
       {isHighRisk && inputEntries.length > 0 && (
-        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5">
-          <p className="text-[11px] text-nx-text-muted">{t("runtime.parameters")}</p>
+        <div className="p-3 rounded-[8px] bg-background border border-default-100 space-y-1.5">
+          <p className="text-[11px] text-default-500">{t("runtime.parameters")}</p>
           {inputEntries.map(([key, value]) => (
             <div key={key} className="flex gap-2">
-              <span className="text-[11px] text-nx-text-ghost font-mono whitespace-nowrap">
+              <span className="text-[11px] text-default-400 font-mono whitespace-nowrap">
                 {key}:
               </span>
-              <span className="text-[12px] text-nx-text font-mono break-all">
+              <span className="text-[12px] font-mono break-all">
                 {value}
               </span>
             </div>
@@ -517,13 +515,13 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
   return (
     <div className="space-y-2 max-h-[40vh] overflow-y-auto">
       {/* Tool name + plugin */}
-      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.tool")}</p>
-        <p className="text-[13px] text-nx-text font-mono font-medium">
+      <div className="p-3 rounded-[8px] bg-background border border-default-100">
+        <p className="text-[11px] text-default-500 mb-1">{t("runtime.tool")}</p>
+        <p className="text-[13px] font-mono font-medium">
           {toolName}
         </p>
         {pluginName && (
-          <p className="text-[11px] text-nx-text-ghost mt-0.5">
+          <p className="text-[11px] text-default-400 mt-0.5">
             {t("runtime.via", { name: pluginName })}
           </p>
         )}
@@ -531,14 +529,14 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
 
       {/* Arguments */}
       {argEntries.length > 0 && (
-        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5">
-          <p className="text-[11px] text-nx-text-muted">{t("runtime.arguments")}</p>
+        <div className="p-3 rounded-[8px] bg-background border border-default-100 space-y-1.5">
+          <p className="text-[11px] text-default-500">{t("runtime.arguments")}</p>
           {argEntries.map(([key, value]) => (
             <div key={key}>
-              <span className="text-[11px] text-nx-text-ghost font-mono">
+              <span className="text-[11px] text-default-400 font-mono">
                 {key}
               </span>
-              <p className="text-[12px] text-nx-text font-mono break-all leading-relaxed">
+              <p className="text-[12px] font-mono break-all leading-relaxed">
                 {value}
               </p>
             </div>
@@ -548,10 +546,10 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
 
       {/* Description — truncated to 3 lines */}
       {description && (
-        <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-          <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.description")}</p>
+        <div className="p-3 rounded-[8px] bg-background border border-default-100">
+          <p className="text-[11px] text-default-500 mb-1">{t("runtime.description")}</p>
           <p
-            className={`text-[11px] text-nx-text-secondary leading-relaxed break-words ${
+            className={`text-[11px] text-default-500 leading-relaxed break-words ${
               showFullDesc ? "" : "line-clamp-3"
             }`}
           >
@@ -559,10 +557,8 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
           </p>
           {!showFullDesc && description.length > 150 && (
             <Button
-              variant="link"
-              size="sm"
-              onClick={() => setShowFullDesc(true)}
-              className="h-auto p-0 text-[11px] mt-1"
+              onPress={() => setShowFullDesc(true)}
+              className="mt-1"
             >
               {t("common:action.showMore")}
             </Button>
@@ -581,18 +577,18 @@ function OAuthConsentDetail({ context }: { context: Record<string, string> }) {
 
   return (
     <div className="space-y-2">
-      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.oauthClient")}</p>
-        <p className="text-[13px] text-nx-text font-medium">{clientName}</p>
+      <div className="p-3 rounded-[8px] bg-background border border-default-100">
+        <p className="text-[11px] text-default-500 mb-1">{t("runtime.oauthClient")}</p>
+        <p className="text-[13px] font-medium">{clientName}</p>
         {clientId && (
-          <p className="text-[11px] text-nx-text-ghost font-mono mt-0.5">
+          <p className="text-[11px] text-default-400 font-mono mt-0.5">
             {clientId.slice(0, 8)}...
           </p>
         )}
       </div>
-      <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle">
-        <p className="text-[11px] text-nx-text-muted mb-1">{t("runtime.oauthAccess")}</p>
-        <p className="text-[12px] text-nx-text">{scopes}</p>
+      <div className="p-3 rounded-[8px] bg-background border border-default-100">
+        <p className="text-[11px] text-default-500 mb-1">{t("runtime.oauthAccess")}</p>
+        <p className="text-[12px]">{scopes}</p>
       </div>
     </div>
   );
@@ -604,11 +600,11 @@ function GenericDetail({ context }: { context: Record<string, string> }) {
   if (entries.length === 0) return null;
 
   return (
-    <div className="p-3 rounded-[var(--radius-button)] bg-nx-deep border border-nx-border-subtle space-y-1.5 max-h-[40vh] overflow-y-auto">
+    <div className="p-3 rounded-[8px] bg-background border border-default-100 space-y-1.5 max-h-[40vh] overflow-y-auto">
       {entries.map(([key, value]) => (
         <div key={key}>
-          <p className="text-[11px] text-nx-text-muted">{key}</p>
-          <p className="text-[12px] text-nx-text font-mono break-all">
+          <p className="text-[11px] text-default-500">{key}</p>
+          <p className="text-[12px] font-mono break-all">
             {value}
           </p>
         </div>

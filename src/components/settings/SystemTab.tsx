@@ -10,8 +10,7 @@ import {
   type ResourceQuotas,
 } from "../../lib/tauri";
 import { Container, RefreshCw, Gauge, Save, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, Input, Card, CardBody, Chip, Divider } from "@heroui/react";
 
 type RuntimeEngine = "docker" | "podman" | "finch";
 
@@ -115,267 +114,247 @@ export function SystemTab() {
   return (
     <div className="space-y-6">
       {/* Container engine */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Container size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            {t("system.containerEngine")}
-          </h3>
-        </div>
+      <Card>
+        <CardBody className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Container size={15} strokeWidth={1.5} className="text-default-500" />
+            <h3 className="text-[14px] font-semibold">
+              {t("system.containerEngine")}
+            </h3>
+          </div>
 
-        <div className="flex gap-2 mb-5">
-          {ENGINES.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => e.available && setEngine(e.id)}
-              disabled={!e.available}
-              className={`relative flex items-center gap-2 px-4 py-2 text-[12px] font-medium rounded-[var(--radius-button)] transition-all duration-150 ${
-                engine === e.id
-                  ? "bg-nx-accent text-nx-deep"
-                  : e.available
-                    ? "bg-nx-overlay text-nx-text-muted hover:text-nx-text-secondary hover:bg-nx-wash"
-                    : "bg-nx-overlay text-nx-text-ghost cursor-not-allowed opacity-50"
-              }`}
-            >
-              {e.label}
-              {!e.available && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded-[var(--radius-tag)] bg-nx-highlight-muted text-nx-highlight font-semibold tracking-wide">
-                  {t("common:status.soon")}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Docker status */}
-        {engine === "docker" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] text-nx-text-muted">{t("system.status")}</span>
-              <button
-                onClick={refreshEngine}
-                disabled={checking}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-[var(--radius-button)] bg-nx-overlay hover:bg-nx-wash text-nx-text-secondary transition-all duration-150 disabled:opacity-50"
+          <div className="flex gap-2 mb-5">
+            {ENGINES.map((e) => (
+              <Button
+                key={e.id}
+                onPress={() => e.available && setEngine(e.id)}
+                isDisabled={!e.available}
               >
-                <RefreshCw
-                  size={12}
-                  strokeWidth={1.5}
-                  className={checking ? "animate-spin" : ""}
-                />
-                {checking ? t("common:action.checking") : t("common:action.refresh")}
-              </button>
-            </div>
+                {e.label}
+                {!e.available && (
+                  <Chip size="sm">
+                    {t("common:status.soon")}
+                  </Chip>
+                )}
+              </Button>
+            ))}
+          </div>
 
-            {status === null ? (
-              <div className="text-[13px] text-nx-text-muted">
-                {t("system.checkingEngine")}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        status.running
-                          ? "bg-nx-success"
-                          : status.installed
-                            ? "bg-nx-warning"
-                            : "bg-nx-error"
-                      }`}
-                      style={
-                        status.running
-                          ? { animation: "pulse-status 2s ease-in-out infinite" }
-                          : undefined
-                      }
+          {/* Docker status */}
+          {engine === "docker" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-default-500">{t("system.status")}</span>
+                <Button
+                  onPress={refreshEngine}
+                  isDisabled={checking}
+                  startContent={
+                    <RefreshCw
+                      size={12}
+                      strokeWidth={1.5}
+                      className={checking ? "animate-spin" : ""}
                     />
-                    <span className="text-[13px] text-nx-text-secondary">
-                      {t("system.engine")}
+                  }
+                >
+                  {checking ? t("common:action.checking") : t("common:action.refresh")}
+                </Button>
+              </div>
+
+              {status === null ? (
+                <div className="text-[13px] text-default-500">
+                  {t("system.checkingEngine")}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          status.running
+                            ? "bg-success"
+                            : status.installed
+                              ? "bg-warning"
+                              : "bg-danger"
+                        }`}
+                        style={
+                          status.running
+                            ? { animation: "pulse-status 2s ease-in-out infinite" }
+                            : undefined
+                        }
+                      />
+                      <span className="text-[13px] text-default-500">
+                        {t("system.engine")}
+                      </span>
+                    </div>
+                    <Chip
+                      size="sm"
+                      variant="flat"
+                      color={status.running ? "success" : status.installed ? "warning" : "danger"}
+                    >
+                      {status.running
+                        ? status.version
+                          ? t("system.runningVersion", { version: status.version })
+                          : t("common:status.running")
+                        : status.installed
+                          ? t("system.stopped")
+                          : t("system.notFound")}
+                    </Chip>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-default-500">{t("system.socket")}</span>
+                    <span className="text-[11px] text-default-400 font-mono truncate ml-4">
+                      {status.socket}
                     </span>
                   </div>
-                  <span
-                    className={`text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-tag)] ${
-                      status.running
-                        ? "bg-nx-success-muted text-nx-success"
-                        : status.installed
-                          ? "bg-nx-warning-muted text-nx-warning"
-                          : "bg-nx-error-muted text-nx-error"
-                    }`}
-                  >
-                    {status.running
-                      ? status.version
-                        ? t("system.runningVersion", { version: status.version })
-                        : t("common:status.running")
-                      : status.installed
-                        ? t("system.stopped")
-                        : t("system.notFound")}
-                  </span>
+
+                  <p className="text-[11px] text-default-400">
+                    {status.message}
+                  </p>
                 </div>
+              )}
+            </div>
+          )}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-nx-text-muted">{t("system.socket")}</span>
-                  <span className="text-[11px] text-nx-text-ghost font-mono truncate ml-4">
-                    {status.socket}
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-nx-text-ghost">
-                  {status.message}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {engine !== "docker" && (
-          <div className="text-center py-8">
-            <p className="text-[13px] text-nx-text-muted">
-              {t("system.engineSoon", { engine: engine === "podman" ? "Podman" : "Finch" })}
-            </p>
-            <p className="text-[11px] text-nx-text-ghost mt-1">
-              {t("system.engineFuture")}
-            </p>
-          </div>
-        )}
-      </section>
+          {engine !== "docker" && (
+            <div className="text-center py-8">
+              <p className="text-[13px] text-default-500">
+                {t("system.engineSoon", { engine: engine === "podman" ? "Podman" : "Finch" })}
+              </p>
+              <p className="text-[11px] text-default-400 mt-1">
+                {t("system.engineFuture")}
+              </p>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {/* Live usage */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Gauge size={15} strokeWidth={1.5} className="text-nx-text-muted" />
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            {t("system.resourceUsage")}
-          </h3>
-        </div>
-
-        {usage === null ? (
-          <p className="text-[12px] text-nx-text-ghost">
-            {t("system.waitingStats")}
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-[12px] text-nx-text-muted">{t("system.cpu")}</span>
-                <span className="text-[13px] text-nx-text font-mono">
-                  {t("system.percent", { value: usage.cpu_percent })}
-                </span>
-              </div>
-              <div className="h-2 bg-nx-overlay rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-nx-accent rounded-full transition-[width] duration-500 ease-out"
-                  style={{ width: `${Math.min(usage.cpu_percent, 100)}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-[12px] text-nx-text-muted">{t("system.memory")}</span>
-                <span className="text-[13px] text-nx-text font-mono">
-                  {t("system.mb", { value: usage.memory_mb })}
-                </span>
-              </div>
-              <div className="h-2 bg-nx-overlay rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-nx-info rounded-full transition-[width] duration-500 ease-out"
-                  style={{
-                    width: `${
-                      quotas.memory_mb
-                        ? Math.min((usage.memory_mb / quotas.memory_mb) * 100, 100)
-                        : Math.min(usage.memory_mb / 1024, 100)
-                    }%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <p className="text-[11px] text-nx-text-ghost">
-              {t("system.resourceTotal")}
-            </p>
+      <Card>
+        <CardBody className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Gauge size={15} strokeWidth={1.5} className="text-default-500" />
+            <h3 className="text-[14px] font-semibold">
+              {t("system.resourceUsage")}
+            </h3>
           </div>
-        )}
-      </section>
+
+          {usage === null ? (
+            <p className="text-[12px] text-default-400">
+              {t("system.waitingStats")}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[12px] text-default-500">{t("system.cpu")}</span>
+                  <span className="text-[13px] font-mono">
+                    {t("system.percent", { value: usage.cpu_percent })}
+                  </span>
+                </div>
+                <div className="h-2 bg-default-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-[width] duration-500 ease-out"
+                    style={{ width: `${Math.min(usage.cpu_percent, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[12px] text-default-500">{t("system.memory")}</span>
+                  <span className="text-[13px] font-mono">
+                    {t("system.mb", { value: usage.memory_mb })}
+                  </span>
+                </div>
+                <div className="h-2 bg-default-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-secondary rounded-full transition-[width] duration-500 ease-out"
+                    style={{
+                      width: `${
+                        quotas.memory_mb
+                          ? Math.min((usage.memory_mb / quotas.memory_mb) * 100, 100)
+                          : Math.min(usage.memory_mb / 1024, 100)
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-default-400">
+                {t("system.resourceTotal")}
+              </p>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {/* Quotas */}
-      <section className="bg-nx-surface rounded-[var(--radius-card)] border border-nx-border p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[14px] font-semibold text-nx-text">
-            {t("system.resourceQuotas")}
-          </h3>
-          <Button
-            onClick={handleSave}
-            disabled={!dirty || saving}
-            variant={saved ? "secondary" : dirty ? "default" : "secondary"}
-            size="sm"
-            className={
-              saved
-                ? "bg-nx-success-muted text-nx-success hover:bg-nx-success-muted"
-                : !dirty
-                  ? "text-nx-text-ghost cursor-default"
-                  : undefined
-            }
-          >
-            {saved ? (
-              <>
-                <Check size={12} strokeWidth={1.5} />
-                {t("common:action.saved")}
-              </>
-            ) : (
-              <>
-                <Save size={12} strokeWidth={1.5} />
-                {saving ? t("common:action.saving") : t("common:action.save")}
-              </>
-            )}
-          </Button>
-        </div>
+      <Card>
+        <CardBody className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[14px] font-semibold">
+              {t("system.resourceQuotas")}
+            </h3>
+            <Button
+              onPress={handleSave}
+              isDisabled={!dirty || saving}
+              color={saved ? "success" : dirty ? "primary" : undefined}
+              startContent={saved ? <Check size={12} strokeWidth={1.5} /> : <Save size={12} strokeWidth={1.5} />}
+            >
+              {saved ? t("common:action.saved") : saving ? t("common:action.saving") : t("common:action.save")}
+            </Button>
+          </div>
 
-        <div className="space-y-5">
-          <div>
-            <label className="block text-[12px] text-nx-text-muted mb-2">
-              {t("system.cpuLimit")}
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={quotas.cpu_percent ?? 0}
-                onChange={(e) => updateCpu(e.target.value === "0" ? "" : e.target.value)}
-                className="flex-1 accent-nx-accent h-1.5"
-              />
-              <span className="text-[13px] text-nx-text font-mono w-14 text-right">
-                {quotas.cpu_percent != null ? `${quotas.cpu_percent}%` : t("common:status.none")}
-              </span>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-[12px] text-default-500 mb-2">
+                {t("system.cpuLimit")}
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={quotas.cpu_percent ?? 0}
+                  onChange={(e) => updateCpu(e.target.value === "0" ? "" : e.target.value)}
+                  className="flex-1 accent-primary h-1.5"
+                />
+                <span className="text-[13px] font-mono w-14 text-right">
+                  {quotas.cpu_percent != null ? `${quotas.cpu_percent}%` : t("common:status.none")}
+                </span>
+              </div>
+              <p className="text-[11px] text-default-400 mt-1">
+                {t("system.cpuHint")}
+              </p>
             </div>
-            <p className="text-[11px] text-nx-text-ghost mt-1">
-              {t("system.cpuHint")}
-            </p>
+
+            <div>
+              <label className="block text-[12px] text-default-500 mb-2">
+                {t("system.memoryLimit")}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                step={64}
+                value={String(quotas.memory_mb ?? "")}
+                onChange={(e) => updateMemory(e.target.value)}
+                placeholder={t("system.noLimit")}
+                variant="bordered"
+              />
+              <p className="text-[11px] text-default-400 mt-1">
+                {t("system.memoryHint")}
+              </p>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-[12px] text-nx-text-muted mb-2">
-              {t("system.memoryLimit")}
-            </label>
-            <Input
-              type="number"
-              min={0}
-              step={64}
-              value={quotas.memory_mb ?? ""}
-              onChange={(e) => updateMemory(e.target.value)}
-              placeholder={t("system.noLimit")}
-              className="font-mono"
-            />
-            <p className="text-[11px] text-nx-text-ghost mt-1">
-              {t("system.memoryHint")}
-            </p>
-          </div>
-        </div>
-
-        <p className="text-[11px] text-nx-text-ghost mt-4 pt-4 border-t border-nx-border-subtle">
-          {t("system.quotasApplied")}
-        </p>
-      </section>
+          <Divider className="my-4" />
+          <p className="text-[11px] text-default-400">
+            {t("system.quotasApplied")}
+          </p>
+        </CardBody>
+      </Card>
     </div>
   );
 }

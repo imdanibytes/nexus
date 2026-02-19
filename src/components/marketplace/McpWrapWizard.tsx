@@ -21,15 +21,20 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle, DialogClose } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Modal,
+  ModalContent,
+  ModalBody,
+  Switch,
+  Button,
+  Input,
+  Chip,
+} from "@heroui/react";
 
-const riskColors = {
-  low: "text-nx-success bg-nx-success-muted",
-  medium: "text-nx-warning bg-nx-warning-muted",
-  high: "text-nx-error bg-nx-error-muted",
+const riskChipColors: Record<string, "success" | "warning" | "danger"> = {
+  low: "success",
+  medium: "warning",
+  high: "danger",
 };
 
 type Step = "command" | "tools" | "details" | "permissions" | "build";
@@ -69,7 +74,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
   const [buildError, setBuildError] = useState<string | null>(null);
   const [buildSuccess, setBuildSuccess] = useState(false);
 
-  // ── Step 1: Discover ──────────────────────────────────────────
+  // -- Step 1: Discover --
 
   async function handleDiscover() {
     setDiscoverError(null);
@@ -104,7 +109,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
     }
   }
 
-  // ── Step 5: Build ─────────────────────────────────────────────
+  // -- Step 5: Build --
 
   async function handleBuild() {
     setBuilding(true);
@@ -142,7 +147,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
     }
   }
 
-  // ── Navigation ────────────────────────────────────────────────
+  // -- Navigation --
 
   const steps: { id: Step; label: string }[] = [
     { id: "command", label: t("mcpWrap.stepCommand") },
@@ -152,99 +157,108 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
     { id: "build", label: t("mcpWrap.stepBuild") },
   ];
 
-  // ── Render ────────────────────────────────────────────────────
+  // -- Render --
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent showCloseButton={false} className="max-w-lg p-0 gap-0 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-3">
-          <DialogTitle className="text-[16px] font-bold">
-            {t("mcpWrap.title")}
-          </DialogTitle>
-          <DialogClose asChild>
-            <Button variant="ghost" size="icon-xs" className="text-nx-text-muted">
-              <X size={16} strokeWidth={1.5} />
-            </Button>
-          </DialogClose>
-        </div>
-
-        {/* Step indicator */}
-        <div className="flex border-b border-nx-border-subtle">
-          {steps.map((s) => (
-            <div
-              key={s.id}
-              className={`flex-1 px-2 py-2 text-[10px] font-semibold text-center uppercase tracking-wider transition-colors duration-150 ${
-                step === s.id
-                  ? "text-nx-accent border-b-2 border-nx-accent"
-                  : "text-nx-text-ghost"
-              }`}
-            >
-              {s.label}
+    <Modal
+      isOpen
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      hideCloseButton
+    >
+      <ModalContent>
+        {() => (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-3">
+              <h2 className="text-[16px] font-bold">
+                {t("mcpWrap.title")}
+              </h2>
+              <Button
+                isIconOnly
+                onPress={onClose}
+              >
+                <X size={16} strokeWidth={1.5} />
+              </Button>
             </div>
-          ))}
-        </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {step === "command" && (
-            <CommandStep
-              command={command}
-              setCommand={setCommand}
-              discovering={discovering}
-              error={discoverError}
-              onDiscover={handleDiscover}
-              onClose={onClose}
-            />
-          )}
-          {step === "tools" && (
-            <ToolsStep
-              tools={tools}
-              includedTools={includedTools}
-              setIncludedTools={setIncludedTools}
-              onBack={() => setStep("command")}
-              onNext={() => setStep("details")}
-            />
-          )}
-          {step === "details" && (
-            <DetailsStep
-              metadata={metadata}
-              setMetadata={setMetadata}
-              onBack={() => setStep("tools")}
-              onNext={() => setStep("permissions")}
-            />
-          )}
-          {step === "permissions" && (
-            <PermissionsStep
-              permToggles={permToggles}
-              setPermToggles={setPermToggles}
-              onBack={() => setStep("details")}
-              onNext={() => {
-                setStep("build");
-                handleBuild();
-              }}
-            />
-          )}
-          {step === "build" && (
-            <BuildStep
-              phase={buildPhase}
-              building={building}
-              error={buildError}
-              success={buildSuccess}
-              onRetry={handleBuild}
-              onDone={() => {
-                onInstalled();
-                onClose();
-              }}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+            {/* Step indicator */}
+            <div className="flex border-b border-default-100">
+              {steps.map((s) => (
+                <div
+                  key={s.id}
+                  className={`flex-1 px-2 py-2 text-[10px] font-semibold text-center uppercase tracking-wider transition-colors duration-150 ${
+                    step === s.id
+                      ? "text-primary border-b-2 border-primary"
+                      : "text-default-400"
+                  }`}
+                >
+                  {s.label}
+                </div>
+              ))}
+            </div>
+
+            {/* Content */}
+            <ModalBody className="p-6">
+              {step === "command" && (
+                <CommandStep
+                  command={command}
+                  setCommand={setCommand}
+                  discovering={discovering}
+                  error={discoverError}
+                  onDiscover={handleDiscover}
+                  onClose={onClose}
+                />
+              )}
+              {step === "tools" && (
+                <ToolsStep
+                  tools={tools}
+                  includedTools={includedTools}
+                  setIncludedTools={setIncludedTools}
+                  onBack={() => setStep("command")}
+                  onNext={() => setStep("details")}
+                />
+              )}
+              {step === "details" && (
+                <DetailsStep
+                  metadata={metadata}
+                  setMetadata={setMetadata}
+                  onBack={() => setStep("tools")}
+                  onNext={() => setStep("permissions")}
+                />
+              )}
+              {step === "permissions" && (
+                <PermissionsStep
+                  permToggles={permToggles}
+                  setPermToggles={setPermToggles}
+                  onBack={() => setStep("details")}
+                  onNext={() => {
+                    setStep("build");
+                    handleBuild();
+                  }}
+                />
+              )}
+              {step === "build" && (
+                <BuildStep
+                  phase={buildPhase}
+                  building={building}
+                  error={buildError}
+                  success={buildSuccess}
+                  onRetry={handleBuild}
+                  onDone={() => {
+                    onInstalled();
+                    onClose();
+                  }}
+                />
+              )}
+            </ModalBody>
+          </>
+        )}
+      </ModalContent>
+    </Modal>
   );
 }
 
-// ── Step Components ───────────────────────────────────────────────
+// -- Step Components --
 
 function CommandStep({
   command,
@@ -265,52 +279,52 @@ function CommandStep({
 
   return (
     <>
-      <p className="text-[13px] text-nx-text-secondary mb-4">
+      <p className="text-[13px] text-default-500 mb-4">
         {t("mcpWrap.commandDesc")}
       </p>
 
       <div className="mb-2">
-        <label className="block text-[11px] font-medium text-nx-text-muted mb-1.5 uppercase tracking-wider">
+        <label className="block text-[11px] font-medium text-default-500 mb-1.5 uppercase tracking-wider">
           {t("mcpWrap.mcpServerCommand")}
         </label>
-        <div className="relative">
-          <Terminal
-            size={14}
-            strokeWidth={1.5}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-nx-text-ghost z-10"
-          />
-          <Input
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && command.trim()) onDiscover();
-            }}
-            placeholder={t("mcpWrap.commandPlaceholder")}
-            className="pl-9 font-mono"
-            autoFocus
-          />
-        </div>
+        <Input
+          value={command}
+          onValueChange={setCommand}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && command.trim()) onDiscover();
+          }}
+          placeholder={t("mcpWrap.commandPlaceholder")}
+          startContent={
+            <Terminal
+              size={14}
+              strokeWidth={1.5}
+              className="text-default-400"
+            />
+          }
+          variant="bordered"
+          autoFocus
+        />
       </div>
 
-      <p className="text-[11px] text-nx-text-ghost mb-4">
+      <p className="text-[11px] text-default-400 mb-4">
         {t("mcpWrap.supportedRuntimes", {
           interpolation: { escapeValue: false },
         })}
       </p>
 
       {error && (
-        <div className="mb-4 p-3 rounded-[var(--radius-button)] bg-nx-error-muted/50 border border-nx-error/20">
-          <p className="text-[12px] text-nx-error">{error}</p>
+        <div className="mb-4 p-3 rounded-[8px] bg-danger-50/50 border border-danger/20">
+          <p className="text-[12px] text-danger">{error}</p>
         </div>
       )}
 
       <div className="flex gap-3 justify-end">
-        <Button variant="secondary" onClick={onClose}>
+        <Button onPress={onClose}>
           {t("common:action.cancel")}
         </Button>
         <Button
-          onClick={onDiscover}
-          disabled={!command.trim() || discovering}
+          onPress={onDiscover}
+          isDisabled={!command.trim() || discovering}
         >
           {discovering ? (
             <>
@@ -353,7 +367,7 @@ function ToolsStep({
 
   return (
     <>
-      <p className="text-[13px] text-nx-text-secondary mb-4">
+      <p className="text-[13px] text-default-500 mb-4">
         {t("mcpWrap.toolsDiscovered", { count: tools.length })}
       </p>
 
@@ -363,10 +377,10 @@ function ToolsStep({
           return (
             <div
               key={tool.name}
-              className={`p-3 rounded-[var(--radius-button)] border transition-colors duration-150 cursor-pointer ${
+              className={`p-3 rounded-[8px] border transition-colors duration-150 cursor-pointer ${
                 included
-                  ? "bg-nx-deep border-nx-border-subtle"
-                  : "bg-nx-deep/40 border-nx-border-subtle/40 opacity-50"
+                  ? "bg-background border-default-100"
+                  : "bg-background/40 border-default-100/40 opacity-50"
               }`}
               onClick={() => toggleTool(tool.name)}
             >
@@ -375,36 +389,34 @@ function ToolsStep({
                   <Wrench
                     size={11}
                     strokeWidth={1.5}
-                    className="text-nx-text-muted flex-shrink-0"
+                    className="text-default-500 flex-shrink-0"
                   />
-                  <span className="text-[12px] font-medium font-mono text-nx-text truncate">
+                  <span className="text-[12px] font-medium font-mono truncate">
                     {tool.name}
                   </span>
                   {tool.high_risk && (
                     <AlertTriangle
                       size={12}
                       strokeWidth={1.5}
-                      className="text-nx-error flex-shrink-0"
+                      className="text-danger flex-shrink-0"
                     />
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleTool(tool.name);
                   }}
-                  className="flex-shrink-0 ml-2"
+                  className="flex-shrink-0 ml-2 h-6 w-6 flex items-center justify-center"
                 >
                   {included ? (
-                    <Eye size={14} strokeWidth={1.5} className="text-nx-accent" />
+                    <Eye size={14} strokeWidth={1.5} className="text-primary" />
                   ) : (
-                    <EyeOff size={14} strokeWidth={1.5} className="text-nx-text-ghost" />
+                    <EyeOff size={14} strokeWidth={1.5} className="text-default-400" />
                   )}
-                </Button>
+                </button>
               </div>
-              <p className="text-[11px] text-nx-text-muted ml-[19px] line-clamp-2">
+              <p className="text-[11px] text-default-500 ml-[19px] line-clamp-2">
                 {tool.description}
               </p>
               {tool.permissions.length > 0 && (
@@ -412,12 +424,9 @@ function ToolsStep({
                   {tool.permissions.map((perm) => {
                     const info = getPermissionInfo(perm);
                     return (
-                      <span
-                        key={perm}
-                        className={`text-[9px] font-medium px-1.5 py-0.5 rounded-[var(--radius-tag)] ${riskColors[info.risk]}`}
-                      >
+                      <Chip key={perm} size="sm" variant="flat" color={riskChipColors[info.risk]}>
                         {perm}
-                      </span>
+                      </Chip>
                     );
                   })}
                 </div>
@@ -428,13 +437,13 @@ function ToolsStep({
       </div>
 
       <div className="flex justify-between">
-        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
+        <Button onPress={onBack}>
           <ArrowLeft size={14} strokeWidth={1.5} />
           {t("common:action.back")}
         </Button>
         <Button
-          onClick={onNext}
-          disabled={includedTools.size === 0}
+          onPress={onNext}
+          isDisabled={includedTools.size === 0}
         >
           {t("common:action.continue")}
           <ArrowRight size={14} strokeWidth={1.5} />
@@ -460,7 +469,7 @@ function DetailsStep({
 
   return (
     <>
-      <p className="text-[13px] text-nx-text-secondary mb-4">
+      <p className="text-[13px] text-default-500 mb-4">
         {t("mcpWrap.reviewMetadata")}
       </p>
 
@@ -494,13 +503,13 @@ function DetailsStep({
       </div>
 
       <div className="flex justify-between">
-        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
+        <Button onPress={onBack}>
           <ArrowLeft size={14} strokeWidth={1.5} />
           {t("common:action.back")}
         </Button>
         <Button
-          onClick={onNext}
-          disabled={!metadata.id || !metadata.name || !idValid}
+          onPress={onNext}
+          isDisabled={!metadata.id || !metadata.name || !idValid}
         >
           {t("common:action.continue")}
           <ArrowRight size={14} strokeWidth={1.5} />
@@ -531,18 +540,18 @@ function PermissionsStep({
 
   return (
     <>
-      <p className="text-[13px] text-nx-text-secondary mb-1">
+      <p className="text-[13px] text-default-500 mb-1">
         {t("mcpWrap.reviewPermissions")}
       </p>
       {deferredCount > 0 && (
-        <p className="text-[11px] text-nx-warning mb-4">
+        <p className="text-[11px] text-warning mb-4">
           {t("mcpWrap.deferredCount", { count: deferredCount })}
         </p>
       )}
       {deferredCount === 0 && <div className="mb-4" />}
 
       {permissions.length === 0 ? (
-        <p className="text-[12px] text-nx-text-ghost mb-5">
+        <p className="text-[12px] text-default-400 mb-5">
           {t("mcpWrap.noPermissionsRequired")}
         </p>
       ) : (
@@ -553,30 +562,28 @@ function PermissionsStep({
             return (
               <div
                 key={perm}
-                className={`flex items-center justify-between p-3 rounded-[var(--radius-button)] border transition-colors duration-150 ${
+                className={`flex items-center justify-between p-3 rounded-[8px] border transition-colors duration-150 ${
                   enabled
-                    ? "bg-nx-deep border-nx-border-subtle"
-                    : "bg-nx-deep/50 border-nx-border-subtle/50 opacity-60"
+                    ? "bg-background border-default-100"
+                    : "bg-background/50 border-default-100/50 opacity-60"
                 }`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-[12px] text-nx-text font-medium font-mono">
+                    <p className="text-[12px] font-medium font-mono">
                       {perm}
                     </p>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-[var(--radius-tag)] font-semibold capitalize ${riskColors[info.risk]}`}
-                    >
+                    <Chip size="sm" variant="flat" color={riskChipColors[info.risk]}>
                       {info.risk}
-                    </span>
+                    </Chip>
                   </div>
-                  <p className="text-[11px] text-nx-text-muted mt-0.5">
+                  <p className="text-[11px] text-default-500 mt-0.5">
                     {info.description}
                   </p>
                 </div>
                 <Switch
-                  checked={enabled}
-                  onCheckedChange={() => toggle(perm)}
+                  isSelected={enabled}
+                  onValueChange={() => toggle(perm)}
                   className="ml-3"
                 />
               </div>
@@ -586,11 +593,11 @@ function PermissionsStep({
       )}
 
       <div className="flex justify-between">
-        <Button variant="ghost" onClick={onBack} className="text-nx-text-muted hover:text-nx-text-secondary">
+        <Button onPress={onBack}>
           <ArrowLeft size={14} strokeWidth={1.5} />
           {t("common:action.back")}
         </Button>
-        <Button onClick={onNext}>
+        <Button onPress={onNext}>
           <ShieldCheck size={14} strokeWidth={1.5} />
           {t("marketplace.buildAndInstall")}
         </Button>
@@ -623,10 +630,10 @@ function BuildStep({
           <Loader2
             size={32}
             strokeWidth={1.5}
-            className="animate-spin text-nx-accent mx-auto mb-4"
+            className="animate-spin text-primary mx-auto mb-4"
           />
-          <p className="text-[14px] font-medium text-nx-text mb-1">{phase}</p>
-          <p className="text-[12px] text-nx-text-muted">
+          <p className="text-[14px] font-medium mb-1">{phase}</p>
+          <p className="text-[12px] text-default-500">
             {t("mcpWrap.firstBuildNote")}
           </p>
         </>
@@ -634,16 +641,16 @@ function BuildStep({
 
       {error && !building && (
         <>
-          <div className="w-12 h-12 rounded-full bg-nx-error-muted flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle size={22} strokeWidth={1.5} className="text-nx-error" />
+          <div className="w-12 h-12 rounded-full bg-danger-50 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={22} strokeWidth={1.5} className="text-danger" />
           </div>
-          <p className="text-[14px] font-medium text-nx-text mb-2">
+          <p className="text-[14px] font-medium mb-2">
             {t("mcpWrap.buildFailed")}
           </p>
-          <p className="text-[12px] text-nx-error mb-5 max-w-sm mx-auto break-words">
+          <p className="text-[12px] text-danger mb-5 max-w-sm mx-auto break-words">
             {error}
           </p>
-          <Button onClick={onRetry}>
+          <Button onPress={onRetry}>
             {t("mcpWrap.tryAgain")}
           </Button>
         </>
@@ -651,16 +658,16 @@ function BuildStep({
 
       {success && (
         <>
-          <div className="w-12 h-12 rounded-full bg-nx-success-muted flex items-center justify-center mx-auto mb-4">
-            <Check size={22} strokeWidth={1.5} className="text-nx-success" />
+          <div className="w-12 h-12 rounded-full bg-success-50 flex items-center justify-center mx-auto mb-4">
+            <Check size={22} strokeWidth={1.5} className="text-success" />
           </div>
-          <p className="text-[14px] font-medium text-nx-text mb-2">
+          <p className="text-[14px] font-medium mb-2">
             {t("mcpWrap.pluginInstalledTitle")}
           </p>
-          <p className="text-[12px] text-nx-text-muted mb-5">
+          <p className="text-[12px] text-default-500 mb-5">
             {t("mcpWrap.pluginInstalledDesc")}
           </p>
-          <Button onClick={onDone} className="mx-auto">
+          <Button onPress={onDone} className="mx-auto">
             <Check size={14} strokeWidth={1.5} />
             {t("mcpWrap.goToPlugins")}
           </Button>
@@ -670,7 +677,7 @@ function BuildStep({
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// -- Helpers --
 
 function FieldInput({
   label,
@@ -689,17 +696,18 @@ function FieldInput({
 }) {
   return (
     <div>
-      <label className="block text-[11px] font-medium text-nx-text-muted mb-1 uppercase tracking-wider">
+      <label className="block text-[11px] font-medium text-default-500 mb-1 uppercase tracking-wider">
         {label}
       </label>
       <Input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onValueChange={onChange}
         placeholder={placeholder}
-        className={`${mono ? "font-mono" : ""} ${error ? "border-nx-error" : ""}`}
+        color={error ? "danger" : undefined}
+        variant="bordered"
       />
       {error && (
-        <p className="text-[10px] text-nx-error mt-0.5">{error}</p>
+        <p className="text-[10px] text-danger mt-0.5">{error}</p>
       )}
     </div>
   );

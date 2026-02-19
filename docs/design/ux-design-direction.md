@@ -61,6 +61,8 @@ That's it. One recipe. Used for:
 - Settings card groups
 - Any elevated container
 
+> **Plugin authors:** Use `border-default-200/50` instead of `border-white/5` if your plugin supports both light and dark mode. The `white/5` border is invisible on light backgrounds. The shell app uses `white/5` because it's dark-mode only, but plugins receive theme changes and should handle both.
+
 **Do not** use opaque backgrounds (`bg-default-50`, `bg-default-100`) for containers. Always use the translucent `bg-default-50/40` with backdrop blur.
 
 ### Shell Panels
@@ -115,7 +117,9 @@ We use **HeroUI semantic tokens** exclusively. No custom hex values, no Tailwind
 
 ### Borders
 
-Always `border-white/5`. Never `border-divider` or `border-default`. The white/5 treatment ensures the border is visible in both light and dark mode as a subtle edge on the glass panel.
+**Shell app:** `border-white/5` — the shell is dark-mode only, so white at 5% opacity gives a subtle glass edge.
+
+**Plugins:** `border-default-200/50` — plugins must support light and dark mode via theme sync. This semantic border adapts to both themes. Never use `border-divider` or raw `border-default`.
 
 ---
 
@@ -324,7 +328,8 @@ Plugins render inside sandboxed iframes in the Nexus viewport. To match the host
 1. Install: `@heroui/react`, `framer-motion`, `@imdanibytes/nexus-ui`, `lucide-react`
 2. Wrap root in `<NexusProvider>` from `@imdanibytes/nexus-ui`
 3. Import styles: `@import "@imdanibytes/nexus-ui/styles"` in your CSS
-4. Use HeroUI's Tailwind plugin in your `hero.ts`:
+4. Set `body { background: transparent; }` so the host gradient bleeds through your glass panels
+5. Use HeroUI's Tailwind plugin in your `hero.ts`:
 
 ```ts
 import { heroui } from "@heroui/react";
@@ -349,7 +354,9 @@ The initial theme is passed as a `?nexus_theme=dark` query parameter on the ifra
 ### Visual Checklist for Plugins
 
 - [ ] Dark mode is the default and looks correct
-- [ ] No opaque gray containers — use `bg-default-50/40 backdrop-blur-xl border border-white/5` for panels
+- [ ] Light mode also works (theme sync via `postMessage`)
+- [ ] Body background is `transparent` (not opaque — the host gradient must bleed through)
+- [ ] No opaque gray containers — use `bg-default-50/40 backdrop-blur-xl border border-default-200/50` for panels
 - [ ] Text uses HeroUI semantic colors (`text-foreground`, `text-default-500`), not hardcoded hex
 - [ ] Buttons are HeroUI `<Button>`, not custom styled
 - [ ] Icons are Lucide at 16px / strokeWidth 1.5
@@ -399,7 +406,7 @@ Section gaps: `gap-2` (8px) between Surface panels in sidebar. `space-y-0.5` (2p
 - **No opaque containers.** Every panel is translucent glass.
 - **No Tailwind color palette** (`slate-*`, `gray-*`, `zinc-*`). Use HeroUI semantic tokens.
 - **No custom hex colors** in components. Define them in the theme if needed.
-- **No `border-divider`** for glass panel borders. Use `border-white/5`.
+- **No `border-divider`** for glass panel borders. Use `border-white/5` (shell) or `border-default-200/50` (plugins).
 - **No heavy shadows** on cards. Depth comes from translucency and backdrop blur.
 - **No conditional DOM rendering** during layout animations. CSS transitions only.
 - **No Framer Motion `layoutId`** on elements that change during sidebar collapse.

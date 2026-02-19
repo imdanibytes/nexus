@@ -700,10 +700,15 @@ export function AppSidebar() {
             collapsed={collapsed}
             tooltip={t("common:nav.settings")}
           >
-            <Settings size={16} className="shrink-0" />
+            <span className="relative shrink-0">
+              <Settings size={16} />
+              {badgeCount > 0 && collapsed && (
+                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+              )}
+            </span>
             <span className={cn("truncate whitespace-nowrap transition-all duration-300", collapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{t("common:nav.settings")}</span>
-            {badgeCount > 0 && (
-              <span className={cn("flex h-5 min-w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium px-1.5 shrink-0 transition-all duration-300", collapsed && "scale-75")}>
+            {badgeCount > 0 && !collapsed && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-medium px-1 shrink-0">
                 {badgeCount}
               </span>
             )}

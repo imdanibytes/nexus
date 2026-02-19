@@ -59,10 +59,13 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Cargo cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
+      - name: Configure sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Set Rust compiler cache env
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

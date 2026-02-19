@@ -90,6 +90,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Build workspace packages
+        run: pnpm --filter "@imdanibytes/nexus-ui" build
+
       - name: Cache Tauri CLI
         id: tauri-cli-cache
         uses: actions/cache@v4

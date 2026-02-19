@@ -691,6 +691,7 @@ function FieldInput({
   onChange: (v: string) => void;
   placeholder?: string;
   error?: string;
+  mono?: boolean;
 }) {
   return (
     <div>
@@ -703,6 +704,7 @@ function FieldInput({
         placeholder={placeholder}
         color={error ? "danger" : undefined}
         variant="bordered"
+        classNames={mono ? { input: "font-mono" } : undefined}
       />
       {error && (
         <p className="text-[10px] text-danger mt-0.5">{error}</p>

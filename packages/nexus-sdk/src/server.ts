@@ -92,6 +92,16 @@ export class NexusServer {
   }
 
   /**
+   * Clear cached tokens so the next `getAccessToken()` call re-authenticates.
+   * Call this when the host has restarted and existing tokens are invalid.
+   */
+  invalidateToken(): void {
+    this.accessToken = null;
+    this.expiresAt = 0;
+    this.refreshToken = null;
+  }
+
+  /**
    * Opaque config for the browser SDK. Returns whatever the browser needs
    * to make authenticated calls — no auth protocol details leak.
    */
@@ -118,9 +128,7 @@ export class NexusServer {
 
     if (res.status === 401) {
       // Token may be stale (host restarted). Invalidate and retry once.
-      this.accessToken = null;
-      this.expiresAt = 0;
-      this.refreshToken = null;
+      this.invalidateToken();
       const freshToken = await this.getAccessToken();
       const retryHeaders = new Headers(init?.headers);
       retryHeaders.set("Authorization", `Bearer ${freshToken}`);
@@ -242,6 +250,83 @@ export class NexusServer {
   /** List extensions available to this plugin. */
   async listExtensions(): Promise<unknown[]> {
     return this._get("/api/v1/extensions");
+  }
+
+  // ── MCP client ──────────────────────────────────────────
+
+  private _mcpClient: import("@modelcontextprotocol/sdk/client/index.js").Client | null = null;
+
+  /**
+   * Get an authenticated MCP client connected to the Nexus MCP gateway.
+   * Returns a cached client on subsequent calls. Automatically reconnects
+   * with fresh credentials if the connection fails (e.g. after host restart).
+   *
+   * Requires `@modelcontextprotocol/sdk` as a peer dependency.
+   *
+   * ```ts
+   * const client = await nexus.getMcpClient();
+   * const { tools } = await client.listTools();
+   * ```
+   */
+  async getMcpClient(): Promise<import("@modelcontextprotocol/sdk/client/index.js").Client> {
+    if (this._mcpClient) return this._mcpClient;
+
+    try {
+      return await this._connectMcp();
+    } catch {
+      // Connection failed — token may be stale (host restarted).
+      this.invalidateToken();
+      return await this._connectMcp();
+    }
+  }
+
+  /** Close the cached MCP client connection. */
+  async closeMcpClient(): Promise<void> {
+    if (this._mcpClient) {
+      try {
+        await this._mcpClient.close();
+      } catch {
+        // Already closed
+      }
+      this._mcpClient = null;
+      this.invalidateToken();
+    }
+  }
+
+  private async _connectMcp(): Promise<import("@modelcontextprotocol/sdk/client/index.js").Client> {
+    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+    const { StreamableHTTPClientTransport } = await import(
+      "@modelcontextprotocol/sdk/client/streamableHttp.js"
+    );
+
+    const token = await this.getAccessToken();
+
+    const transport = new StreamableHTTPClientTransport(
+      new URL(`${this.apiUrl}/mcp`),
+      {
+        requestInit: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      },
+    );
+
+    const c = new Client({ name: "nexus-plugin", version: "1.0.0" });
+
+    transport.onclose = () => {
+      this._mcpClient = null;
+      this.invalidateToken();
+    };
+
+    transport.onerror = () => {
+      this._mcpClient = null;
+      this.invalidateToken();
+    };
+
+    await c.connect(transport);
+    this._mcpClient = c;
+    return c;
   }
 
   // ── Internal helpers ──────────────────────────────────────

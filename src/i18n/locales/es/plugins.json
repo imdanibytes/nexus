@@ -163,6 +163,7 @@
     "file_write": "Escritura de Archivos",
     "network_http": "Red HTTP",
     "system_info": "Informacion del Sistema",
-    "native_library": "Biblioteca Nativa"
+    "native_library": "Biblioteca Nativa",
+    "credential_provider": "Proveedor de Credenciales"
   }
 }

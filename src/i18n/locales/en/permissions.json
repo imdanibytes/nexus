@@ -93,6 +93,10 @@
     "extensionPerm": "Extension {{extId}}: {{operation}}",
     "mcp_call": "Call any MCP tool from any plugin",
     "mcpAccess": "Access MCP tools from {{target}}",
+    "credential": "Access host credentials ({{provider}})",
+    "credentialLabel": "Host Credentials",
+    "credentialDescription": "Access host-provisioned credentials",
+    "credentialScopePrompt": "Allow access to {{scope}}?",
     "unknown": "Unknown permission"
   }
 }

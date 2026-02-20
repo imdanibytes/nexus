@@ -93,6 +93,10 @@
     "extensionPerm": "扩展 {{extId}}：{{operation}}",
     "mcp_call": "调用任何插件的 MCP 工具",
     "mcpAccess": "访问 {{target}} 的 MCP 工具",
+    "credential": "访问主机凭证 ({{provider}})",
+    "credentialLabel": "主机凭证",
+    "credentialDescription": "访问主机提供的凭证",
+    "credentialScopePrompt": "允许访问 {{scope}}？",
     "unknown": "未知权限"
   }
 }

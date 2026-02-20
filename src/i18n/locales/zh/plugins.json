@@ -163,6 +163,7 @@
     "file_write": "文件写入",
     "network_http": "网络 HTTP",
     "system_info": "系统信息",
-    "native_library": "原生库"
+    "native_library": "原生库",
+    "credential_provider": "凭证提供者"
   }
 }

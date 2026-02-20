@@ -39,6 +39,9 @@ pub enum Permission {
     /// Grants access to MCP tools exposed by a specific plugin.
     /// More granular than `McpCall` (blanket access to all plugins).
     McpAccess(String),
+    /// Credential vending: "credential:{ext_id}".
+    /// Grants access to credentials provided by a credential provider extension.
+    Credential(String),
 }
 
 /// All known permission string values (excluding dynamic Extension/McpAccess variants).
@@ -71,6 +74,7 @@ impl Permission {
             Permission::ProcessExec => "process:exec",
             Permission::Extension(s) => s.as_str(),
             Permission::McpAccess(s) => s.as_str(),
+            Permission::Credential(s) => s.as_str(),
         }
     }
 
@@ -90,6 +94,7 @@ impl Permission {
             // Extension permissions derive risk from the operation; default to medium
             Permission::Extension(_) => "medium",
             Permission::McpAccess(_) => "medium",
+            Permission::Credential(_) => "high",
         }
     }
 
@@ -107,6 +112,7 @@ impl Permission {
             Permission::ProcessExec => "Execute commands on the host system",
             Permission::Extension(s) => s.as_str(),
             Permission::McpAccess(s) => s.as_str(),
+            Permission::Credential(s) => s.as_str(),
         }
     }
 }
@@ -137,6 +143,7 @@ impl<'de> Deserialize<'de> for Permission {
             "network:internet" => Ok(Permission::NetworkInternet),
             "mcp:call" => Ok(Permission::McpCall),
             "process:exec" => Ok(Permission::ProcessExec),
+            _ if s.starts_with("credential:") => Ok(Permission::Credential(s)),
             _ if s.starts_with("ext:") => Ok(Permission::Extension(s)),
             _ if s.starts_with("mcp:") => Ok(Permission::McpAccess(s)),
             _ => Err(serde::de::Error::unknown_variant(&s, KNOWN_PERMISSIONS)),
@@ -168,6 +175,7 @@ mod tests {
             Permission::McpCall,
             Permission::ProcessExec,
             Permission::McpAccess("mcp:com.nexus.agent".to_string()),
+            Permission::Credential("credential:aws-credentials".to_string()),
         ];
 
         for perm in perms {
@@ -223,6 +231,7 @@ mod tests {
             (Permission::NetworkLocal, "network:local"),
             (Permission::Extension("ext:x:y".into()), "ext:x:y"),
             (Permission::McpAccess("mcp:com.test.plugin".into()), "mcp:com.test.plugin"),
+            (Permission::Credential("credential:aws".into()), "credential:aws"),
         ];
 
         for (perm, expected) in perms {
@@ -230,6 +239,22 @@ mod tests {
             let json = serde_json::to_value(&perm).unwrap();
             assert_eq!(json.as_str().unwrap(), expected);
         }
+    }
+
+    #[test]
+    fn credential_permission_roundtrip() {
+        let perm = Permission::Credential("credential:aws-credentials".to_string());
+        let json = serde_json::to_value(&perm).unwrap();
+        assert_eq!(json, serde_json::json!("credential:aws-credentials"));
+
+        let deserialized: Permission = serde_json::from_value(json).unwrap();
+        assert_eq!(perm, deserialized);
+    }
+
+    #[test]
+    fn credential_permission_risk_is_high() {
+        let perm = Permission::Credential("credential:aws-credentials".to_string());
+        assert_eq!(perm.risk_level(), "high");
     }
 
     #[test]
@@ -246,6 +271,7 @@ mod tests {
             Permission::NetworkInternet,
             Permission::Extension("ext:test:op".into()),
             Permission::McpAccess("mcp:com.test.plugin".into()),
+            Permission::Credential("credential:test-creds".into()),
         ];
 
         for perm in all_perms {

@@ -93,6 +93,10 @@
     "extensionPerm": "확장 기능 {{extId}}: {{operation}}",
     "mcp_call": "모든 플러그인의 MCP 도구 호출",
     "mcpAccess": "{{target}}의 MCP 도구에 접근",
+    "credential": "호스트 자격 증명에 접근 ({{provider}})",
+    "credentialLabel": "호스트 자격 증명",
+    "credentialDescription": "호스트 제공 자격 증명에 접근",
+    "credentialScopePrompt": "{{scope}}에 대한 접근을 허용하시겠습니까?",
     "unknown": "알 수 없는 권한"
   }
 }

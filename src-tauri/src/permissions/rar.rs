@@ -48,6 +48,7 @@ fn permission_to_type_action(perm: &Permission) -> (&'static str, &'static str) 
         Permission::McpCall => ("nexus:mcp", "call"),
         Permission::Extension(_) => ("nexus:extension", ""),
         Permission::McpAccess(_) => ("nexus:mcp", "access"),
+        Permission::Credential(_) => ("nexus:credential", "resolve"),
     }
 }
 
@@ -109,6 +110,25 @@ fn permission_to_detail(
                 identifier: Some(target_plugin_id),
             }
         }
+        Permission::Credential(cred_str) => {
+            // Format: "credential:{ext_id}"
+            let ext_id = cred_str
+                .strip_prefix("credential:")
+                .unwrap_or(cred_str)
+                .to_string();
+
+            let locations = approved_scopes
+                .as_ref()
+                .filter(|s| !s.is_empty())
+                .cloned();
+
+            AuthorizationDetail {
+                detail_type: "nexus:credential".to_string(),
+                actions: vec!["resolve".to_string()],
+                locations,
+                identifier: Some(ext_id),
+            }
+        }
         _ => {
             let (detail_type, action) = permission_to_type_action(perm);
             let locations = approved_scopes
@@ -154,6 +174,14 @@ pub fn details_satisfy(details: &[AuthorizationDetail], required: &Permission) -
                     && d.identifier.as_deref() == Some(target)
             })
         }
+        Permission::Credential(cred_str) => {
+            let ext_id = cred_str.strip_prefix("credential:").unwrap_or(cred_str);
+            details.iter().any(|d| {
+                d.detail_type == "nexus:credential"
+                    && d.actions.iter().any(|a| a == "resolve")
+                    && d.identifier.as_deref() == Some(ext_id)
+            })
+        }
         _ => {
             let (required_type, required_action) = permission_to_type_action(required);
             details.iter().any(|d| {
@@ -173,6 +201,7 @@ pub const SUPPORTED_DETAIL_TYPES: &[&str] = &[
     "nexus:network",
     "nexus:mcp",
     "nexus:extension",
+    "nexus:credential",
 ];
 
 #[cfg(test)]
@@ -487,6 +516,47 @@ mod tests {
         assert!(!details_satisfy(
             &details,
             &Permission::McpAccess("mcp:com.nexus.agent".into())
+        ));
+    }
+
+    // ── Credential ─────────────────────────────────────────
+
+    #[test]
+    fn build_credential_permission() {
+        let grants = vec![grant(
+            Permission::Credential("credential:aws-credentials".to_string()),
+            PermissionState::Active,
+            Some(vec!["default".to_string(), "prod".to_string()]),
+        )];
+
+        let details = build_authorization_details(&grants);
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0].detail_type, "nexus:credential");
+        assert_eq!(details[0].actions, vec!["resolve"]);
+        assert_eq!(details[0].identifier, Some("aws-credentials".to_string()));
+        assert_eq!(
+            details[0].locations,
+            Some(vec!["default".to_string(), "prod".to_string()])
+        );
+    }
+
+    #[test]
+    fn satisfy_credential_permission() {
+        let details = vec![AuthorizationDetail {
+            detail_type: "nexus:credential".to_string(),
+            actions: vec!["resolve".to_string()],
+            locations: Some(vec!["default".to_string()]),
+            identifier: Some("aws-credentials".to_string()),
+        }];
+
+        assert!(details_satisfy(
+            &details,
+            &Permission::Credential("credential:aws-credentials".into())
+        ));
+        // Different provider → denied
+        assert!(!details_satisfy(
+            &details,
+            &Permission::Credential("credential:github-credentials".into())
         ));
     }
 

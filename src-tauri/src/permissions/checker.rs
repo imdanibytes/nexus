@@ -52,6 +52,8 @@ pub fn required_permission_for_endpoint(
         p if p.starts_with("/v1/mcp/") => Some(Permission::McpCall),
         // Extension permissions are checked in the handler (dynamic based on path params)
         p if p.starts_with("/v1/extensions") => None,
+        // Meta endpoints: self-introspection requires only auth, credentials checked in handler
+        p if p.starts_with("/v1/meta/") => None,
         _ => None,
     }
 }
@@ -201,6 +203,26 @@ mod tests {
         );
         assert_eq!(
             required_permission_for_endpoint("/v1/extensions/git-ops/status", &Method::POST),
+            None
+        );
+    }
+
+    #[test]
+    fn meta_defers_to_handler() {
+        assert_eq!(
+            required_permission_for_endpoint("/v1/meta/self", &Method::GET),
+            None
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/meta/stats", &Method::GET),
+            None
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/meta/credentials", &Method::GET),
+            None
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/meta/credentials/aws-credentials", &Method::POST),
             None
         );
     }

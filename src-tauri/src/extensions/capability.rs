@@ -19,6 +19,8 @@ pub enum Capability {
     SystemInfo,
     /// Links native libraries (e.g. ["libopencv", "libcuda"])
     NativeLibrary { scope: Vec<String> },
+    /// Provides credentials to plugins (e.g. AWS profiles, GitHub tokens)
+    CredentialProvider,
     /// Arbitrary capability not covered above (e.g. "bluetooth", "serial_port")
     Custom { name: String, description: String },
 }

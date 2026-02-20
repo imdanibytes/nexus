@@ -163,6 +163,7 @@
     "file_write": "파일 쓰기",
     "network_http": "네트워크 HTTP",
     "system_info": "시스템 정보",
-    "native_library": "네이티브 라이브러리"
+    "native_library": "네이티브 라이브러리",
+    "credential_provider": "자격 증명 제공자"
   }
 }

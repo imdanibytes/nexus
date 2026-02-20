@@ -216,6 +216,65 @@ export class NexusServer {
     return res.json();
   }
 
+  // ── Meta (self-introspection) ─────────────────────────────
+
+  /** GET /api/v1/meta/self — plugin identity and permissions. */
+  readonly meta = {
+    self: (): Promise<{
+      plugin_id: string;
+      name: string;
+      version: string;
+      status: string;
+      permissions: { permission: string; state: string; scopes?: string[] }[];
+    }> => this._get("/api/v1/meta/self"),
+
+    stats: (): Promise<{ container_id: string; [key: string]: unknown }> =>
+      this._get("/api/v1/meta/stats"),
+
+    credentials: (): Promise<{
+      providers: {
+        id: string;
+        name: string;
+        scopes: { id: string; label?: string; description?: string }[];
+      }[];
+    }> => this._get("/api/v1/meta/credentials"),
+  };
+
+  // ── Credentials ────────────────────────────────────────────
+
+  /**
+   * Resolve credentials from a provider extension.
+   *
+   * ```ts
+   * const aws = await nexus.credentials("aws-credentials", { scope: "default" });
+   * ```
+   */
+  async credentials(
+    provider: string,
+    opts: { scope?: string } = {},
+  ): Promise<{
+    provider: string;
+    scope: string;
+    data: Record<string, unknown>;
+    expires_at?: string;
+  }> {
+    const res = await this.fetch(
+      `/api/v1/meta/credentials/${encodeURIComponent(provider)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: opts.scope ?? "default" }),
+      },
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `credentials(${provider}, scope=${opts.scope ?? "default"}) failed: ${res.status} ${body}`,
+      );
+    }
+    return res.json();
+  }
+
   // ── Extensions ────────────────────────────────────────────
 
   /**

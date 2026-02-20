@@ -93,6 +93,10 @@
     "extensionPerm": "エクステンション {{extId}}: {{operation}}",
     "mcp_call": "すべてのプラグインの MCP ツールを呼び出す",
     "mcpAccess": "{{target}} の MCP ツールにアクセス",
+    "credential": "ホスト資格情報にアクセス ({{provider}})",
+    "credentialLabel": "ホスト資格情報",
+    "credentialDescription": "ホスト提供の資格情報にアクセス",
+    "credentialScopePrompt": "{{scope}} へのアクセスを許可しますか？",
     "unknown": "不明な権限"
   }
 }

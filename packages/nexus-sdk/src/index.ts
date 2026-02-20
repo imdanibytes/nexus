@@ -52,6 +52,57 @@ export type {
   PluginOperationView,
 } from "./client/types.gen";
 
+// ── Meta & Credential types ──────────────────────────────────────
+
+/** Permission entry in the self-introspection response. */
+export interface MetaPermission {
+  permission: string;
+  state: "active" | "revoked" | "deferred";
+  scopes?: string[];
+}
+
+/** Response from GET /api/v1/meta/self */
+export interface MetaSelf {
+  plugin_id: string;
+  name: string;
+  version: string;
+  status: string;
+  permissions: MetaPermission[];
+}
+
+/** Response from GET /api/v1/meta/stats */
+export interface MetaStats {
+  container_id: string;
+  [key: string]: unknown;
+}
+
+/** A credential scope entry. */
+export interface CredentialScope {
+  id: string;
+  label?: string;
+  description?: string;
+}
+
+/** A credential provider in the list response. */
+export interface CredentialProviderEntry {
+  id: string;
+  name: string;
+  scopes: CredentialScope[];
+}
+
+/** Response from GET /api/v1/meta/credentials */
+export interface CredentialProviderList {
+  providers: CredentialProviderEntry[];
+}
+
+/** Response from POST /api/v1/meta/credentials/{ext_id} */
+export interface CredentialResponse {
+  provider: string;
+  scope: string;
+  data: Record<string, unknown>;
+  expires_at?: string;
+}
+
 /** Payload shape for host → plugin system events via postMessage. */
 export interface NexusHostEvent {
   type: "nexus:system";
@@ -365,6 +416,51 @@ export class NexusPlugin {
   /** List extensions available to this plugin. */
   async listExtensions() {
     return this._withRetry(() => _listExtensions());
+  }
+
+  // ── Meta (self-introspection) ─────────────────────────────
+
+  /** Namespace for plugin metadata endpoints. */
+  readonly meta = {
+    /** GET /api/v1/meta/self — plugin identity and permissions. */
+    self: (): Promise<MetaSelf> =>
+      this._withRetry(() =>
+        client.get({ url: "/api/v1/meta/self" }) as Promise<{ data?: MetaSelf; error?: unknown; response: Response }>
+      ),
+
+    /** GET /api/v1/meta/stats — container resource statistics. */
+    stats: (): Promise<MetaStats> =>
+      this._withRetry(() =>
+        client.get({ url: "/api/v1/meta/stats" }) as Promise<{ data?: MetaStats; error?: unknown; response: Response }>
+      ),
+
+    /** GET /api/v1/meta/credentials — list available credential providers. */
+    credentials: (): Promise<CredentialProviderList> =>
+      this._withRetry(() =>
+        client.get({ url: "/api/v1/meta/credentials" }) as Promise<{ data?: CredentialProviderList; error?: unknown; response: Response }>
+      ),
+  };
+
+  // ── Credentials ────────────────────────────────────────────
+
+  /**
+   * Resolve credentials from a provider extension.
+   *
+   * ```ts
+   * const aws = await nexus.credentials("aws-credentials", { scope: "default" });
+   * ```
+   */
+  async credentials(
+    provider: string,
+    opts: { scope?: string } = {},
+  ): Promise<CredentialResponse> {
+    return this._withRetry(() =>
+      client.post({
+        url: "/api/v1/meta/credentials/{ext_id}",
+        path: { ext_id: provider },
+        body: { scope: opts.scope ?? "default" },
+      }) as Promise<{ data?: CredentialResponse; error?: unknown; response: Response }>
+    );
   }
 
   // ── Host Events ──────────────────────────────────────────

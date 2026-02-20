@@ -163,6 +163,7 @@
     "file_write": "ファイル書き込み",
     "network_http": "ネットワーク HTTP",
     "system_info": "システム情報",
-    "native_library": "ネイティブライブラリ"
+    "native_library": "ネイティブライブラリ",
+    "credential_provider": "資格情報プロバイダー"
   }
 }

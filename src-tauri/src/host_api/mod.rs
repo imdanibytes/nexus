@@ -5,6 +5,7 @@ pub mod filesystem;
 pub mod mcp;
 pub mod mcp_client;
 pub mod mcp_server;
+pub mod meta;
 mod middleware;
 pub mod nexus_mcp;
 pub mod network;
@@ -15,6 +16,7 @@ pub mod storage;
 pub mod system;
 mod theme;
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{extract::DefaultBodyLimit, middleware as axum_middleware, routing, Extension, Json, Router};
@@ -26,6 +28,7 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
+use crate::api_keys::ApiKeyStore;
 use crate::oauth;
 use crate::ActiveTheme;
 use crate::AppState;
@@ -83,6 +86,10 @@ impl Modify for SecurityAddon {
         settings::put_settings,
         extensions::list_extensions,
         extensions::call_extension,
+        meta::meta_self,
+        meta::meta_stats,
+        meta::meta_credentials_list,
+        meta::meta_credentials_resolve,
     ),
     components(schemas(
         system::SystemInfo,
@@ -113,6 +120,15 @@ impl Modify for SecurityAddon {
         extensions::CallExtensionRequest,
         extensions::CallExtensionResponse,
         extensions::ExtensionErrorResponse,
+        meta::MetaSelf,
+        meta::MetaPermission,
+        meta::MetaStats,
+        meta::CredentialProviderList,
+        meta::CredentialProvider,
+        meta::CredentialScope,
+        meta::CredentialRequest,
+        meta::CredentialResponse,
+        meta::MetaErrorResponse,
     )),
     modifiers(&SecurityAddon),
     tags(
@@ -122,7 +138,8 @@ impl Modify for SecurityAddon {
         (name = "containers", description = "Container, image, volume, and network management"),
         (name = "network", description = "Network proxy for external requests"),
         (name = "settings", description = "Per-plugin settings (scoped to authenticated plugin)"),
-        (name = "extensions", description = "Host extension operations")
+        (name = "extensions", description = "Host extension operations"),
+        (name = "meta", description = "Plugin self-introspection and credential vending")
     )
 )]
 pub struct ApiDoc;
@@ -132,6 +149,7 @@ pub async fn start_server(
     approvals: Arc<ApprovalBridge>,
     oauth_store: Arc<oauth::OAuthStore>,
     active_theme: ActiveTheme,
+    api_key_store: ApiKeyStore,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(|origin, _| {
@@ -229,6 +247,17 @@ pub async fn start_server(
             "/v1/extensions/{ext_id}/{operation}",
             routing::post(extensions::call_extension),
         )
+        // Plugin metadata (self-introspection + credential vending)
+        .route("/v1/meta/self", routing::get(meta::meta_self))
+        .route("/v1/meta/stats", routing::get(meta::meta_stats))
+        .route(
+            "/v1/meta/credentials",
+            routing::get(meta::meta_credentials_list),
+        )
+        .route(
+            "/v1/meta/credentials/{ext_id}",
+            routing::post(meta::meta_credentials_resolve),
+        )
         // Plugin settings (scoped to authenticated plugin)
         .route(
             "/v1/settings",
@@ -287,7 +316,8 @@ pub async fn start_server(
             mcp::gateway_auth_middleware,
         ))
         .layer(Extension(oauth_store.clone()))
-        .layer(Extension(mcp_session_store));
+        .layer(Extension(mcp_session_store))
+        .layer(Extension(api_key_store));
 
     // OAuth 2.1 discovery + authorization endpoints (public, no auth required)
     // Global rate limit: 10 requests per 10 seconds across all callers
@@ -343,7 +373,11 @@ pub async fn start_server(
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:9600").await?;
     log::info!("Host API server listening on 127.0.0.1:9600");
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

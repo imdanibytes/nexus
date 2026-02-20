@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
+use crate::oauth::validation::{validate_bearer, TokenValidation};
 use crate::oauth::OAuthStore;
 use crate::permissions::rar;
 use crate::permissions::Permission;
@@ -86,8 +87,9 @@ impl McpSessionStore {
             // Cap check — if still at cap after eviction, log and skip
             if map.len() >= MCP_SESSION_CAP {
                 log::warn!(
-                    "MCP session store at capacity ({}), new session not cached",
-                    MCP_SESSION_CAP
+                    "MCP session store at capacity ({}), session {} not cached",
+                    MCP_SESSION_CAP,
+                    session_id
                 );
                 return;
             }
@@ -235,88 +237,87 @@ pub async fn gateway_auth_middleware(
     }
 
     // Try Bearer token (OAuth 2.1 — both external AI clients and plugin tokens)
-    let bearer_was_provided = req
-        .headers()
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.starts_with("Bearer "))
-        .unwrap_or(false);
+    let oauth_store = req.extensions().get::<Arc<OAuthStore>>().cloned();
+    let bearer_validation = oauth_store
+        .as_ref()
+        .map(|store| validate_bearer(req.headers(), store))
+        .unwrap_or(TokenValidation::Missing);
 
-    if let Some(bearer) = req
-        .headers()
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-    {
-        if let Some(oauth_store) = req.extensions().get::<Arc<OAuthStore>>().cloned() {
-            if let Some(access_token) = oauth_store.validate_access_token(bearer) {
-                // Plugin tokens (client_credentials) require either blanket mcp:call
-                // or at least one mcp:{target} permission to access the MCP endpoint.
-                if let Some(ref plugin_id) = access_token.plugin_id {
-                    // Fast path: check authorization_details on the token
-                    let has_blanket_mcp = rar::details_satisfy(&access_token.authorization_details, &Permission::McpCall);
-                    let has_any_mcp_access = access_token.authorization_details.iter().any(|d| {
-                        d.detail_type == "nexus:mcp" && d.actions.iter().any(|a| a == "access")
-                    });
-                    if !has_blanket_mcp && !has_any_mcp_access {
-                        // Fallback: check PermissionStore for McpCall or any McpAccess
-                        let mgr = state.read().await;
-                        let has_perm = mgr.permissions.has_permission(plugin_id, &Permission::McpCall)
-                            || mgr.permissions.get_grants(plugin_id).iter().any(|g| {
-                                matches!(&g.permission, Permission::McpAccess(_))
-                                    && g.state == crate::permissions::PermissionState::Active
-                            });
-                        if !has_perm {
-                            log::warn!(
-                                "AUDIT plugin={} tried MCP access without mcp:call or mcp:* permission",
-                                plugin_id
-                            );
-                            return Err(StatusCode::FORBIDDEN);
-                        }
-                        drop(mgr);
+    match bearer_validation {
+        TokenValidation::Valid {
+            plugin_id,
+            authorization_details,
+            client_name,
+            ..
+        } => {
+            // Plugin tokens (client_credentials) require either blanket mcp:call
+            // or at least one mcp:{target} permission to access the MCP endpoint.
+            if let Some(ref pid) = plugin_id {
+                // Fast path: check authorization_details on the token
+                let has_blanket_mcp = rar::details_satisfy(&authorization_details, &Permission::McpCall);
+                let has_any_mcp_access = authorization_details.iter().any(|d| {
+                    d.detail_type == "nexus:mcp" && d.actions.iter().any(|a| a == "access")
+                });
+                if !has_blanket_mcp && !has_any_mcp_access {
+                    // Fallback: check PermissionStore for McpCall or any McpAccess
+                    let mgr = state.read().await;
+                    let has_perm = mgr.permissions.has_permission(pid, &Permission::McpCall)
+                        || mgr.permissions.get_grants(pid).iter().any(|g| {
+                            matches!(&g.permission, Permission::McpAccess(_))
+                                && g.state == crate::permissions::PermissionState::Active
+                        });
+                    if !has_perm {
+                        log::warn!(
+                            "AUDIT plugin={} tried MCP access without mcp:call or mcp:* permission",
+                            pid
+                        );
+                        return Err(StatusCode::FORBIDDEN);
                     }
+                    drop(mgr);
                 }
-
-                log::info!("MCP authenticated via OAuth: client={}", access_token.client_name);
-                let resp = next.run(req).await;
-
-                // rmcp returns 401 for unknown sessions (e.g. after host restart) instead
-                // of 404 per MCP spec. Since OAuth auth already passed, a downstream 401
-                // means stale session — rewrite to 404 so the client re-initializes.
-                if resp.status() == StatusCode::UNAUTHORIZED {
-                    log::info!("MCP session stale after OAuth auth — rewriting 401 → 404");
-                    return Ok(Response::builder()
-                        .status(StatusCode::NOT_FOUND)
-                        .body(Body::empty())
-                        .unwrap());
-                }
-
-                if let Some(session_id) = resp
-                    .headers()
-                    .get("mcp-session-id")
-                    .and_then(|v| v.to_str().ok())
-                {
-                    mcp_sessions.mark_authenticated(session_id);
-                    log::info!("MCP session authenticated (OAuth): {}", session_id);
-                }
-                return Ok(resp);
             }
-        }
-    }
 
-    // Bearer token was provided but failed validation — tell the client to refresh
-    // (RFC 6750 §3.1: error="invalid_token" signals expired/revoked tokens)
-    if bearer_was_provided {
-        log::info!("MCP Bearer token invalid/expired — returning invalid_token hint");
-        let resp = Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .header(
-                "www-authenticate",
-                "Bearer error=\"invalid_token\", resource_metadata=\"http://127.0.0.1:9600/.well-known/oauth-protected-resource/mcp\"",
-            )
-            .body(Body::empty())
-            .unwrap();
-        return Ok(resp);
+            log::info!("MCP authenticated via OAuth: client={}", client_name);
+            let resp = next.run(req).await;
+
+            // rmcp returns 401 for unknown sessions (e.g. after host restart) instead
+            // of 404 per MCP spec. Since OAuth auth already passed, a downstream 401
+            // means stale session — rewrite to 404 so the client re-initializes.
+            if resp.status() == StatusCode::UNAUTHORIZED {
+                log::info!("MCP session stale after OAuth auth — rewriting 401 → 404");
+                return Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::empty())
+                    .unwrap());
+            }
+
+            if let Some(session_id) = resp
+                .headers()
+                .get("mcp-session-id")
+                .and_then(|v| v.to_str().ok())
+            {
+                mcp_sessions.mark_authenticated(session_id);
+                log::info!("MCP session authenticated (OAuth): {}", session_id);
+            }
+            return Ok(resp);
+        }
+        TokenValidation::Invalid => {
+            // Bearer token was provided but failed validation — tell the client to refresh
+            // (RFC 6750 §3.1: error="invalid_token" signals expired/revoked tokens)
+            log::info!("MCP Bearer token invalid/expired — returning invalid_token hint");
+            let resp = Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header(
+                    "www-authenticate",
+                    "Bearer error=\"invalid_token\", resource_metadata=\"http://127.0.0.1:9600/.well-known/oauth-protected-resource/mcp\"",
+                )
+                .body(Body::empty())
+                .unwrap();
+            return Ok(resp);
+        }
+        TokenValidation::Missing => {
+            // Fall through to discovery challenge below
+        }
     }
 
     // No auth provided at all — return discovery challenge

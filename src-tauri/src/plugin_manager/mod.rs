@@ -9,8 +9,8 @@ use crate::extensions::ipc::AppIpcRouter;
 use crate::extensions::loader::ExtensionLoader;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::host_api::mcp_client::McpClientManager;
+use crate::oauth::plugin_auth::PluginAuthService;
 use crate::oauth::store::OAuthStore;
-use crate::permissions::rar;
 use crate::permissions::service::PermissionService;
 use crate::runtime::{ContainerConfig, ContainerRuntime, ResourceLimits, SecurityConfig};
 use crate::update_checker::UpdateCheckState;
@@ -65,6 +65,7 @@ pub struct PluginManager {
     pub storage: PluginStorage,
     pub permissions: Arc<dyn PermissionService>,
     pub oauth_store: Arc<OAuthStore>,
+    pub auth: PluginAuthService,
     pub extensions: ExtensionRegistry,
     pub extension_loader: ExtensionLoader,
     pub registry_store: registry::RegistryStore,
@@ -135,11 +136,14 @@ impl PluginManager {
         // Load all enabled extensions at startup
         extension_loader.load_enabled(&mut extensions);
 
+        let auth = PluginAuthService::new(Arc::clone(&oauth_store), Arc::clone(&permissions));
+
         PluginManager {
             runtime,
             storage,
             permissions,
             oauth_store,
+            auth,
             extensions,
             extension_loader,
             registry_store,
@@ -239,14 +243,6 @@ impl PluginManager {
         log::debug!("Tool list changed (version {})", v);
     }
 
-    /// Build RFC 9396 authorization_details from a plugin's current Active permissions,
-    /// then store them on the OAuthStore so the next `issue_client_credentials` carries them.
-    fn update_plugin_auth_details(&self, plugin_id: &str, oauth_client_id: &str) {
-        let grants = self.permissions.get_grants(plugin_id);
-        let details = rar::build_authorization_details(&grants);
-        self.oauth_store.set_plugin_auth_details(oauth_client_id, details);
-    }
-
     pub async fn install(
         &mut self,
         manifest: PluginManifest,
@@ -344,7 +340,7 @@ impl PluginManager {
         let port = self.storage.allocate_port();
 
         // Register OAuth client for this plugin
-        let (oauth_client, oauth_secret) = self.oauth_store.register_plugin_client(&manifest.id, &manifest.name);
+        let (oauth_client_id, oauth_secret) = self.auth.register(&manifest.id, &manifest.name);
 
         // Build environment variables
         let mut env_vars: Vec<String> = manifest
@@ -352,7 +348,7 @@ impl PluginManager {
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect();
-        env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", oauth_client.client_id));
+        env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", oauth_client_id));
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_SECRET={}", oauth_secret));
         // Browser-accessible URL — the iframe JS runs in the host browser, not inside the container
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
@@ -394,7 +390,7 @@ impl PluginManager {
             container_id: Some(container_id),
             status: PluginStatus::Stopped,
             assigned_port: port,
-            oauth_client_id: oauth_client.client_id,
+            oauth_client_id,
             installed_at: chrono::Utc::now(),
             manifest_url_origin: manifest_url.and_then(storage::extract_url_host),
             dev_mode: prev_dev_mode,
@@ -438,7 +434,7 @@ impl PluginManager {
         }
 
         // Pre-compute authorization_details so the plugin's first token carries permissions
-        self.update_plugin_auth_details(&plugin.manifest.id, &plugin.oauth_client_id);
+        self.auth.refresh_auth_details(&plugin.manifest.id, &plugin.oauth_client_id);
 
         self.storage.add(plugin.clone())?;
 
@@ -496,31 +492,27 @@ impl PluginManager {
             );
         }
 
-        // Rotate OAuth secret for every start (leaked secrets become invalid on restart)
+        // Rotate secret, revoke old tokens, recompute auth details
         let oauth_client_id = plugin.oauth_client_id.clone();
-        let new_secret = match self.oauth_store.rotate_plugin_secret(&oauth_client_id) {
-            Some(secret) => secret,
-            None => {
-                // OAuth client doesn't exist (pre-OAuth install or data loss) — register fresh
-                let (client, secret) = self.oauth_store.register_plugin_client(plugin_id, &manifest.name);
-                if let Some(p) = self.storage.get_mut(plugin_id) {
-                    p.oauth_client_id = client.client_id.clone();
-                }
-                secret
+        let (new_client_id, new_secret) =
+            self.auth.prepare_start(plugin_id, &manifest.name, &oauth_client_id);
+        if new_client_id != oauth_client_id {
+            if let Some(p) = self.storage.get_mut(plugin_id) {
+                p.oauth_client_id = new_client_id.clone();
             }
-        };
-        // Revoke any tokens from the previous run
-        self.oauth_store.revoke_plugin_tokens(&oauth_client_id);
-
-        // Re-compute authorization_details from current permissions
-        self.update_plugin_auth_details(plugin_id, &oauth_client_id);
+        }
 
         let mut env_vars: Vec<String> = manifest
             .env
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect();
-        env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", oauth_client_id));
+        let active_client_id = if new_client_id != oauth_client_id {
+            &new_client_id
+        } else {
+            &oauth_client_id
+        };
+        env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", active_client_id));
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_SECRET={}", new_secret));
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         env_vars.push(format!(
@@ -616,7 +608,7 @@ impl PluginManager {
         self.runtime.stop_container(&container_id).await?;
 
         // Revoke all OAuth tokens — stopped plugins have no valid tokens
-        self.oauth_store.revoke_plugin_tokens(&oauth_client_id);
+        self.auth.on_stop(plugin_id, &oauth_client_id);
 
         if let Some(plugin) = self.storage.get_mut(plugin_id) {
             plugin.status = PluginStatus::Stopped;
@@ -659,7 +651,7 @@ impl PluginManager {
         crate::host_api::storage::remove_plugin_storage(&self.data_dir, plugin_id);
 
         // Remove OAuth client entirely (client + all tokens)
-        self.oauth_store.remove_plugin_client(&oauth_client_id);
+        self.auth.on_remove(plugin_id, &oauth_client_id);
 
         self.storage.remove(plugin_id)?;
         self.permissions.revoke_all(plugin_id)?;
@@ -835,21 +827,10 @@ impl PluginManager {
             }
         }
 
-        // Rotate OAuth secret for the update
+        // Rotate secret, revoke old tokens, recompute auth details
         let oauth_client_id = plugin.oauth_client_id.clone();
-        let new_secret = match self.oauth_store.rotate_plugin_secret(&oauth_client_id) {
-            Some(secret) => secret,
-            None => {
-                let (client, secret) = self.oauth_store.register_plugin_client(&manifest.id, &manifest.name);
-                // Will store client_id below in updated_plugin
-                let _ = client;
-                secret
-            }
-        };
-        self.oauth_store.revoke_plugin_tokens(&oauth_client_id);
-
-        // Re-compute authorization_details from current permissions
-        self.update_plugin_auth_details(&manifest.id, &oauth_client_id);
+        let (new_client_id, new_secret) =
+            self.auth.prepare_start(&manifest.id, &manifest.name, &oauth_client_id);
 
         // Create new container
         let mut env_vars: Vec<String> = manifest
@@ -857,7 +838,12 @@ impl PluginManager {
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect();
-        env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", oauth_client_id));
+        let active_client_id = if new_client_id != oauth_client_id {
+            new_client_id.clone()
+        } else {
+            oauth_client_id.clone()
+        };
+        env_vars.push(format!("NEXUS_OAUTH_CLIENT_ID={}", active_client_id));
         env_vars.push(format!("NEXUS_OAUTH_CLIENT_SECRET={}", new_secret));
         env_vars.push("NEXUS_API_URL=http://localhost:9600".to_string());
         env_vars.push(format!(
@@ -893,7 +879,7 @@ impl PluginManager {
             container_id: Some(new_container_id.clone()),
             status: PluginStatus::Stopped,
             assigned_port: port,
-            oauth_client_id: oauth_client_id.clone(),
+            oauth_client_id: active_client_id,
             installed_at: chrono::Utc::now(),
             manifest_url_origin: preserved_origin,
             dev_mode: preserved_dev_mode,

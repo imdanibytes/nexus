@@ -11,9 +11,12 @@
 
 pub mod authorize;
 pub mod metadata;
+pub mod plugin_auth;
 pub mod registration;
 pub mod store;
 pub mod token;
 pub mod types;
+pub mod validation;
 
+pub use plugin_auth::PluginAuthService;
 pub use store::OAuthStore;

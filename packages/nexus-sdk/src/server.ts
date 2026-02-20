@@ -271,13 +271,23 @@ export class NexusServer {
   async getMcpClient(): Promise<import("@modelcontextprotocol/sdk/client/index.js").Client> {
     if (this._mcpClient) return this._mcpClient;
 
-    try {
-      return await this._connectMcp();
-    } catch {
-      // Connection failed — token may be stale (host restarted).
-      this.invalidateToken();
-      return await this._connectMcp();
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await this._connectMcp();
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        this.invalidateToken();
+        if (attempt < 3) {
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          console.warn(
+            `[nexus-sdk] MCP connect attempt ${attempt}/3 failed, retrying in ${delay}ms...`,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
     }
+    throw lastError!;
   }
 
   /** Close the cached MCP client connection. */
@@ -353,22 +363,37 @@ export class NexusServer {
   }
 
   private async _clientCredentialsGrant(): Promise<string> {
-    const res = await globalThis.fetch(`${this.hostUrl}/oauth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "client_credentials",
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-      }),
-    });
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await globalThis.fetch(`${this.hostUrl}/oauth/token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: this.clientId,
+            client_secret: this.clientSecret,
+          }),
+        });
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`Auth failed: ${res.status} ${body}`);
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(`Auth failed: ${res.status} ${body}`);
+        }
+
+        return this._handleTokenResponse(await res.json());
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < 3) {
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          console.warn(
+            `[nexus-sdk] client_credentials attempt ${attempt}/3 failed, retrying in ${delay}ms...`,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
     }
-
-    return this._handleTokenResponse(await res.json());
+    throw lastError!;
   }
 
   private async _refreshGrant(): Promise<string | null> {
@@ -382,17 +407,26 @@ export class NexusServer {
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(
+        `[nexus-sdk] refresh_token grant failed (${res.status}), falling back to client_credentials`,
+      );
+      return null;
+    }
 
     return this._handleTokenResponse(await res.json());
   }
 
-  private _handleTokenResponse(data: TokenResponse): string {
-    this.accessToken = data.access_token;
-    if (data.refresh_token) {
-      this.refreshToken = data.refresh_token;
+  private _handleTokenResponse(data: unknown): string {
+    const resp = data as TokenResponse;
+    if (!resp?.access_token || typeof resp.expires_in !== "number") {
+      throw new Error(
+        "[nexus-sdk] Invalid token response: missing access_token or expires_in",
+      );
     }
-    this.expiresAt = Date.now() + data.expires_in * 1000;
+    this.accessToken = resp.access_token;
+    if (resp.refresh_token) this.refreshToken = resp.refresh_token;
+    this.expiresAt = Date.now() + resp.expires_in * 1000;
     return this.accessToken;
   }
 }

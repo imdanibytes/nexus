@@ -570,12 +570,16 @@ impl OAuthStore {
         }
     }
 
-    fn save_refresh_tokens(&self) {
+    fn save_refresh_tokens(&self) -> bool {
         let tokens = self.refresh_tokens.lock().unwrap_or_else(|e| e.into_inner());
         let json = serde_json::to_string_pretty(&*tokens).unwrap_or_default();
         let path = self.data_dir.join("oauth_refresh.json");
-        if let Err(e) = crate::util::atomic_write(&path, json.as_bytes()) {
-            log::error!("Failed to save OAuth refresh tokens: {}", e);
+        match crate::util::atomic_write(&path, json.as_bytes()) {
+            Ok(()) => true,
+            Err(e) => {
+                log::warn!("Failed to save OAuth refresh tokens: {}", e);
+                false
+            }
         }
     }
 }

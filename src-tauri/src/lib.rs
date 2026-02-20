@@ -6,7 +6,7 @@ pub mod lifecycle_events;
 pub mod mcp_wrap;
 mod notification;
 pub mod oauth;
-mod permissions;
+pub mod permissions;
 mod plugin_manager;
 pub mod runtime;
 mod update_checker;

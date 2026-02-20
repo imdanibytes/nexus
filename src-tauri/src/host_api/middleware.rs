@@ -137,3 +137,311 @@ pub async fn auth_middleware(
 
     Ok(response)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{routing::get, Extension, Router, middleware as axum_mw};
+    use tower::ServiceExt;
+
+    use crate::permissions::{DefaultPermissionService, Permission, PermissionStore};
+    use crate::runtime::mock::MockRuntime;
+    use crate::plugin_manager::PluginManager;
+
+    const PLUGIN_ID: &str = "com.test.plugin";
+
+    /// Build an AppState + OAuthStore for tests. Returns (state, oauth_store).
+    fn test_state(
+        data_dir: &std::path::Path,
+        permissions: Arc<dyn crate::permissions::service::PermissionService>,
+    ) -> (AppState, Arc<OAuthStore>) {
+        let oauth_store = Arc::new(OAuthStore::load(data_dir));
+        let mock = Arc::new(MockRuntime::new());
+        let mgr = PluginManager::new(
+            data_dir.to_path_buf(),
+            mock,
+            permissions,
+            oauth_store.clone(),
+        );
+        let state: AppState = Arc::new(tokio::sync::RwLock::new(mgr));
+        (state, oauth_store)
+    }
+
+    /// Create a plugin Bearer token (client_credentials flow).
+    fn plugin_token(
+        oauth_store: &OAuthStore,
+        details: Vec<crate::permissions::rar::AuthorizationDetail>,
+    ) -> String {
+        let (client, secret) = oauth_store.register_plugin_client(PLUGIN_ID, "Test Plugin");
+        oauth_store.set_plugin_auth_details(&client.client_id, details.clone());
+        let (access, _) = oauth_store
+            .issue_client_credentials(&client.client_id, &secret, "".into(), details)
+            .unwrap();
+        access.token
+    }
+
+    /// Create a non-plugin Bearer token (no plugin_id).
+    fn non_plugin_token(oauth_store: &OAuthStore) -> String {
+        let token = oauth_store.create_access_token(
+            "external-client".into(),
+            "External".into(),
+            vec![],
+            "".into(),
+            None,
+            vec![],
+        );
+        token.token
+    }
+
+    /// Build a test router with auth_middleware on the given path.
+    fn test_app(state: AppState, oauth_store: Arc<OAuthStore>, path: &str) -> Router {
+        Router::new()
+            .route(path, get(|| async { "ok" }))
+            .layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
+            .layer(Extension(oauth_store))
+            .with_state(state)
+    }
+
+    // =====================================================================
+    // Token validation
+    // =====================================================================
+
+    #[tokio::test]
+    async fn missing_token_returns_401() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+        let app = test_app(state, oauth_store, "/v1/settings");
+
+        let req = Request::get("/v1/settings").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn invalid_token_returns_401() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+        let app = test_app(state, oauth_store, "/v1/settings");
+
+        let req = Request::get("/v1/settings")
+            .header("authorization", "Bearer bogus-token")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn expired_token_returns_401() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+
+        let token = plugin_token(&oauth_store, vec![]);
+        oauth_store.expire_access_token(&token);
+
+        let app = test_app(state, oauth_store, "/v1/settings");
+        let req = Request::get("/v1/settings")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn non_plugin_token_returns_403() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+
+        let token = non_plugin_token(&oauth_store);
+        let app = test_app(state, oauth_store, "/v1/settings");
+
+        let req = Request::get("/v1/settings")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    // =====================================================================
+    // Endpoints with no required permission (auth-only)
+    // =====================================================================
+
+    #[tokio::test]
+    async fn auth_only_endpoint_passes_with_valid_plugin_token() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+
+        let token = plugin_token(&oauth_store, vec![]);
+        // /v1/settings requires no permission, only auth
+        let app = test_app(state, oauth_store, "/v1/settings");
+
+        let req = Request::get("/v1/settings")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    // =====================================================================
+    // RAR fast path: permission satisfied by token's authorization_details
+    // =====================================================================
+
+    #[tokio::test]
+    async fn rar_fast_path_allows_request() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+
+        // Build token with SystemInfo in authorization_details
+        let details = rar::build_authorization_details(&[
+            crate::permissions::GrantedPermission {
+                plugin_id: PLUGIN_ID.to_string(),
+                permission: Permission::SystemInfo,
+                granted_at: chrono::Utc::now(),
+                approved_scopes: None,
+                state: PermissionState::Active,
+                revoked_at: None,
+            },
+        ]);
+        let token = plugin_token(&oauth_store, details);
+
+        let app = test_app(state, oauth_store, "/v1/system/info");
+        let req = Request::get("/v1/system/info")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    // =====================================================================
+    // Store fallback: stale token, but Active in PermissionStore
+    // =====================================================================
+
+    #[tokio::test]
+    async fn stale_token_active_in_store_passes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        // Grant permission in store, but token has no RAR (stale scenario)
+        perms.grant(PLUGIN_ID, Permission::SystemInfo, None).unwrap();
+
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+        let token = plugin_token(&oauth_store, vec![]); // no RAR on token
+
+        let app = test_app(state, oauth_store, "/v1/system/info");
+        let req = Request::get("/v1/system/info")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    // =====================================================================
+    // Store fallback: Revoked → 403
+    // =====================================================================
+
+    #[tokio::test]
+    async fn revoked_permission_returns_403() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        perms.grant(PLUGIN_ID, Permission::SystemInfo, None).unwrap();
+        perms.revoke(PLUGIN_ID, &Permission::SystemInfo).unwrap();
+
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+        let token = plugin_token(&oauth_store, vec![]);
+
+        let app = test_app(state, oauth_store, "/v1/system/info");
+        let req = Request::get("/v1/system/info")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    // =====================================================================
+    // Store fallback: no grant at all → 403
+    // =====================================================================
+
+    #[tokio::test]
+    async fn no_permission_grant_returns_403() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+        let token = plugin_token(&oauth_store, vec![]);
+
+        let app = test_app(state, oauth_store, "/v1/system/info");
+        let req = Request::get("/v1/system/info")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    // =====================================================================
+    // Different permission types route correctly
+    // =====================================================================
+
+    #[tokio::test]
+    async fn fs_read_permission_checked() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        // Grant SystemInfo but NOT FilesystemRead
+        perms.grant(PLUGIN_ID, Permission::SystemInfo, None).unwrap();
+
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+        let token = plugin_token(&oauth_store, vec![]);
+
+        let app = test_app(state, oauth_store, "/v1/fs/read");
+        let req = Request::get("/v1/fs/read")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "SystemInfo grant should not satisfy FilesystemRead"
+        );
+    }
+
+    #[tokio::test]
+    async fn correct_permission_for_endpoint_passes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let perms: Arc<dyn crate::permissions::service::PermissionService> =
+            Arc::new(DefaultPermissionService::new(PermissionStore::load(tmp.path()).unwrap()));
+        perms.grant(PLUGIN_ID, Permission::FilesystemRead, None).unwrap();
+
+        let (state, oauth_store) = test_state(tmp.path(), perms);
+        let token = plugin_token(&oauth_store, vec![]);
+
+        let app = test_app(state, oauth_store, "/v1/fs/read");
+        let req = Request::get("/v1/fs/read")
+            .header("authorization", format!("Bearer {}", token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+}

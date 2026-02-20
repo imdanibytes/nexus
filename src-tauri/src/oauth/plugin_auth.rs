@@ -213,4 +213,131 @@ mod tests {
         assert!(!details.is_empty());
         assert_eq!(details[0].detail_type, "nexus:system");
     }
+
+    // =====================================================================
+    // Edge cases
+    // =====================================================================
+
+    #[test]
+    fn prepare_start_revokes_old_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        let svc = test_service(dir.path());
+
+        let (client_id, secret) = svc.register("com.test.plugin", "Test Plugin");
+
+        // Issue a token using the original secret
+        let (access, _) = svc
+            .oauth_store
+            .issue_client_credentials(&client_id, &secret, "".into(), vec![])
+            .unwrap();
+        assert!(svc.oauth_store.validate_access_token(&access.token).is_some());
+
+        // prepare_start should revoke that token
+        let (_, _new_secret) = svc.prepare_start("com.test.plugin", "Test Plugin", &client_id);
+        assert!(
+            svc.oauth_store.validate_access_token(&access.token).is_none(),
+            "old token should be revoked after prepare_start"
+        );
+    }
+
+    #[test]
+    fn prepare_start_old_secret_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        let svc = test_service(dir.path());
+
+        let (client_id, old_secret) = svc.register("com.test.plugin", "Test Plugin");
+        let (_, new_secret) = svc.prepare_start("com.test.plugin", "Test Plugin", &client_id);
+
+        // Old secret should fail
+        assert!(
+            svc.oauth_store
+                .issue_client_credentials(&client_id, &old_secret, "".into(), vec![])
+                .is_err(),
+            "old secret should be rejected after rotation"
+        );
+        // New secret should work
+        assert!(
+            svc.oauth_store
+                .issue_client_credentials(&client_id, &new_secret, "".into(), vec![])
+                .is_ok(),
+            "new secret should be accepted"
+        );
+    }
+
+    #[test]
+    fn prepare_start_refreshes_auth_details() {
+        let dir = tempfile::tempdir().unwrap();
+        let oauth_store = Arc::new(OAuthStore::load(dir.path()));
+        let perm_store = PermissionStore::load(dir.path()).unwrap_or_default();
+        let permissions: Arc<dyn PermissionService> =
+            Arc::new(DefaultPermissionService::new(perm_store));
+
+        permissions
+            .grant("com.test.plugin", Permission::FilesystemRead, None)
+            .unwrap();
+
+        let svc = PluginAuthService::new(oauth_store.clone(), permissions);
+        let (client_id, _) = svc.register("com.test.plugin", "Test Plugin");
+
+        // Before prepare_start, no auth details
+        assert!(oauth_store.get_plugin_auth_details(&client_id).is_empty());
+
+        svc.prepare_start("com.test.plugin", "Test Plugin", &client_id);
+
+        // After prepare_start, auth details should be populated
+        let details = oauth_store.get_plugin_auth_details(&client_id);
+        assert!(!details.is_empty(), "prepare_start should refresh auth details");
+    }
+
+    #[test]
+    fn refresh_auth_details_nonexistent_client_is_noop() {
+        let dir = tempfile::tempdir().unwrap();
+        let svc = test_service(dir.path());
+
+        // Should not panic — just sets details for a client that doesn't exist
+        svc.refresh_auth_details("com.test.plugin", "nonexistent-client-id");
+
+        // Verify it stored something (the store accepts any client_id)
+        let details = svc.oauth_store.get_plugin_auth_details("nonexistent-client-id");
+        // With no permissions granted, details should be empty
+        assert!(details.is_empty());
+    }
+
+    #[test]
+    fn on_remove_then_on_stop_does_not_panic() {
+        let dir = tempfile::tempdir().unwrap();
+        let svc = test_service(dir.path());
+
+        let (client_id, _) = svc.register("com.test.plugin", "Test Plugin");
+        svc.on_remove("com.test.plugin", &client_id);
+        // Calling on_stop after remove shouldn't panic
+        svc.on_stop("com.test.plugin", &client_id);
+    }
+
+    #[test]
+    fn register_same_plugin_returns_same_client() {
+        let dir = tempfile::tempdir().unwrap();
+        let svc = test_service(dir.path());
+
+        let (id1, _) = svc.register("com.test.plugin", "Test Plugin");
+        let (id2, _) = svc.register("com.test.plugin", "Test Plugin");
+
+        assert_eq!(id1, id2, "re-registering same plugin should return same client_id");
+    }
+
+    #[test]
+    fn prepare_start_fallback_returns_valid_credentials() {
+        let dir = tempfile::tempdir().unwrap();
+        let svc = test_service(dir.path());
+
+        // No pre-existing client — fallback registration
+        let (client_id, secret) =
+            svc.prepare_start("com.test.plugin", "Test Plugin", "nonexistent-id");
+
+        // Should be able to authenticate with the returned credentials
+        let result = svc
+            .oauth_store
+            .issue_client_credentials(&client_id, &secret, "".into(), vec![]);
+        assert!(result.is_ok(), "fallback credentials should be functional");
+    }
 }

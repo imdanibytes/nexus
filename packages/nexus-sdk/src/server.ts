@@ -433,7 +433,7 @@ export class NexusServer {
 
 // ── One-shot http.createServer patch for /__nexus/* routes ────────
 
-import type { IncomingMessage, ServerResponse } from "node:http";
+import http, { type IncomingMessage, type ServerResponse } from "node:http";
 
 type RequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
@@ -443,9 +443,6 @@ function _patchCreateServer(): void {
   if (_patched) return;
   _patched = true;
 
-  // Dynamic import avoided — http is always available in Node.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const http = require("node:http") as typeof import("node:http");
   const originalCreateServer = http.createServer.bind(http);
 
   // Replace http.createServer with a one-shot wrapper.

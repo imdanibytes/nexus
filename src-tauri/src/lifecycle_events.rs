@@ -1,7 +1,9 @@
 use crate::commands::extensions::ExtensionStatus;
+use crate::event_bus::cloud_event::CloudEvent;
+use crate::event_bus::SharedEventBus;
 use crate::plugin_manager::storage::InstalledPlugin;
 use serde::Serialize;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 pub const LIFECYCLE_CHANNEL: &str = "nexus://lifecycle";
 
@@ -88,5 +90,34 @@ pub enum LifecycleEvent {
 pub fn emit(app: Option<&tauri::AppHandle>, event: LifecycleEvent) {
     if let Some(app) = app {
         let _ = app.emit(LIFECYCLE_CHANNEL, &event);
+
+        // Bridge lifecycle events onto the CloudEvents bus.
+        // Serialize the event to extract the `kind` tag and full data payload.
+        if let Ok(data) = serde_json::to_value(&event) {
+            let kind = data
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let event_type = format!(
+                "nexus.lifecycle.{}",
+                kind.replace(':', ".")
+            );
+
+            let cloud_event = CloudEvent::builder()
+                .source("nexus://core")
+                .event_type(&event_type)
+                .data(data)
+                .build();
+
+            if let Ok(ce) = cloud_event {
+                if let Some(bus) = app.try_state::<SharedEventBus>() {
+                    let bus: SharedEventBus = bus.inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        let mut b = bus.write().await;
+                        b.publish(ce);
+                    });
+                }
+            }
+        }
     }
 }

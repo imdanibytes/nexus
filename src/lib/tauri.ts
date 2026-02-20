@@ -462,6 +462,49 @@ export async function apiKeyRegenerateDefault(): Promise<GeneratedApiKey> {
   return invoke("api_key_regenerate_default");
 }
 
+// Extension Resources
+
+export async function extensionResourceList(
+  extId: string,
+  resourceType: string,
+  params?: { page?: number; page_size?: number; sort_by?: string; sort_order?: string }
+): Promise<{ items: Record<string, unknown>[]; total: number }> {
+  return invoke("extension_resource_list", { extId, resourceType, params });
+}
+
+export async function extensionResourceGet(
+  extId: string,
+  resourceType: string,
+  resourceId: string
+): Promise<Record<string, unknown>> {
+  return invoke("extension_resource_get", { extId, resourceType, resourceId });
+}
+
+export async function extensionResourceCreate(
+  extId: string,
+  resourceType: string,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  return invoke("extension_resource_create", { extId, resourceType, data });
+}
+
+export async function extensionResourceUpdate(
+  extId: string,
+  resourceType: string,
+  resourceId: string,
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  return invoke("extension_resource_update", { extId, resourceType, resourceId, data });
+}
+
+export async function extensionResourceDelete(
+  extId: string,
+  resourceType: string,
+  resourceId: string
+): Promise<Record<string, unknown>> {
+  return invoke("extension_resource_delete", { extId, resourceType, resourceId });
+}
+
 // MCP Wrap
 
 export async function mcpDiscoverTools(

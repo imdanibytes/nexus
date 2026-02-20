@@ -1,4 +1,10 @@
+use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
 use crate::extensions::capability::Capability;
+use crate::extensions::manifest::ResourceTypeDef;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::extensions::storage::InstalledExtension;
 use crate::extensions::RiskLevel;
@@ -7,7 +13,6 @@ use crate::permissions::Permission;
 use crate::plugin_manager::registry::ExtensionRegistryEntry;
 use crate::plugin_manager::PluginManager;
 use crate::AppState;
-use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ExtensionOperationStatus {
@@ -35,6 +40,8 @@ pub struct ExtensionStatus {
     pub consumers: Vec<ExtensionConsumer>,
     pub installed: bool,
     pub enabled: bool,
+    #[serde(default)]
+    pub resources: HashMap<String, ResourceTypeDef>,
 }
 
 /// Build an `ExtensionStatus` for a single extension by ID.
@@ -72,6 +79,9 @@ pub(crate) fn build_extension_status(mgr: &PluginManager, ext_id: &str) -> Optio
         }
 
         let installed_ext = mgr.extension_loader.storage.get(&ext_info.id);
+        let resources = installed_ext
+            .map(|ie| ie.manifest.resources.clone())
+            .unwrap_or_default();
         return Some(ExtensionStatus {
             id: ext_info.id,
             display_name: ext_info.display_name,
@@ -81,6 +91,7 @@ pub(crate) fn build_extension_status(mgr: &PluginManager, ext_id: &str) -> Optio
             consumers,
             installed: installed_ext.is_some(),
             enabled: installed_ext.is_some_and(|e| e.enabled),
+            resources,
         });
     }
 
@@ -109,6 +120,7 @@ pub(crate) fn build_extension_status(mgr: &PluginManager, ext_id: &str) -> Optio
                 consumers: Vec::new(),
                 installed: true,
                 enabled: false,
+                resources: installed.manifest.resources.clone(),
             });
         }
     }
@@ -159,6 +171,9 @@ pub async fn extension_list(
 
         // Check if this extension is in the installed storage
         let installed_ext = mgr.extension_loader.storage.get(&ext_info.id);
+        let resources = installed_ext
+            .map(|ie| ie.manifest.resources.clone())
+            .unwrap_or_default();
 
         result.push(ExtensionStatus {
             id: ext_info.id,
@@ -169,6 +184,7 @@ pub async fn extension_list(
             consumers,
             installed: installed_ext.is_some(),
             enabled: installed_ext.is_some_and(|e| e.enabled),
+            resources,
         });
     }
 
@@ -199,6 +215,7 @@ pub async fn extension_list(
                     consumers: Vec::new(),
                     installed: true,
                     enabled: false,
+                    resources: installed.manifest.resources.clone(),
                 });
             }
         }
@@ -375,18 +392,96 @@ pub async fn extension_preview(
         .map_err(|e| e.to_string())
 }
 
+/// Read the `[package] name` from a Cargo.toml file.
+fn read_cargo_package_name(cargo_toml: &std::path::Path) -> Result<String, String> {
+    let contents = std::fs::read_to_string(cargo_toml)
+        .map_err(|e| format!("Failed to read Cargo.toml: {}", e))?;
+
+    let mut in_package = false;
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_package = trimmed == "[package]";
+            continue;
+        }
+        if in_package {
+            if let Some(rest) = trimmed.strip_prefix("name") {
+                let rest = rest.trim_start();
+                if let Some(rest) = rest.strip_prefix('=') {
+                    let name = rest.trim().trim_matches('"').trim_matches('\'');
+                    if !name.is_empty() {
+                        return Ok(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    Err("Could not find [package] name in Cargo.toml".into())
+}
+
+/// Build a Cargo extension project in release mode.
+/// Returns the path to the built binary on success.
+async fn cargo_build_extension(
+    manifest_dir: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    let cargo_toml = manifest_dir.join("Cargo.toml");
+    if !cargo_toml.exists() {
+        return Err(format!(
+            "No Cargo.toml found in {}",
+            manifest_dir.display()
+        ));
+    }
+
+    let crate_name = read_cargo_package_name(&cargo_toml)?;
+
+    log::info!("Building extension '{}' with cargo build --release", crate_name);
+
+    let output = tokio::process::Command::new("cargo")
+        .args(["build", "--release"])
+        .current_dir(manifest_dir)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run cargo build: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("cargo build failed:\n{}", stderr));
+    }
+
+    let binary_name = if cfg!(target_os = "windows") {
+        format!("{}.exe", crate_name)
+    } else {
+        crate_name.clone()
+    };
+
+    let binary_path = manifest_dir.join("target").join("release").join(&binary_name);
+    if !binary_path.exists() {
+        return Err(format!(
+            "Build succeeded but binary not found at {}",
+            binary_path.display()
+        ));
+    }
+
+    log::info!("Built extension binary: {}", binary_path.display());
+    Ok(binary_path)
+}
+
 /// Install an extension from a local manifest (for development).
-/// Binary path is resolved from the manifest's `binaries` field.
+/// If the manifest has no binary for the current platform and a `Cargo.toml`
+/// exists alongside it, the extension is built from source first.
 #[tauri::command]
 pub async fn extension_install_local(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
     manifest_path: String,
 ) -> Result<InstalledExtension, String> {
+    use crate::extensions::manifest::ExtensionManifest;
+
     // Read the manifest to get the ext_id for events before the install
     let manifest_data = std::fs::read_to_string(&manifest_path)
         .map_err(|e| format!("Failed to read manifest: {}", e))?;
-    let manifest: crate::extensions::manifest::ExtensionManifest =
+    let manifest: ExtensionManifest =
         serde_json::from_str(&manifest_data)
             .map_err(|e| format!("Invalid manifest: {}", e))?;
     let ext_id = manifest.id.clone();
@@ -395,8 +490,34 @@ pub async fn extension_install_local(
         ext_id: ext_id.clone(),
     });
 
+    // If no binary for current platform, try building from source with cargo
+    let manifest_dir = std::path::Path::new(&manifest_path)
+        .parent()
+        .unwrap_or(std::path::Path::new("."));
+    let needs_build = manifest.binary_for_current_platform().is_none()
+        && manifest_dir.join("Cargo.toml").exists();
+
+    let binary_override = if needs_build {
+        match cargo_build_extension(manifest_dir).await {
+            Ok(path) => Some(path),
+            Err(e) => {
+                lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
+                    ext_id,
+                    action: "building".into(),
+                    message: e.clone(),
+                });
+                return Err(e);
+            }
+        }
+    } else {
+        None
+    };
+
     let mut mgr = state.write().await;
-    match mgr.install_extension_local(std::path::Path::new(&manifest_path)) {
+    match mgr.install_extension_local(
+        std::path::Path::new(&manifest_path),
+        binary_override.as_deref(),
+    ) {
         Ok(installed) => {
             if let Some(status) = build_extension_status(&mgr, &ext_id) {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
@@ -424,4 +545,167 @@ pub async fn extension_marketplace_search(
 ) -> Result<Vec<ExtensionRegistryEntry>, String> {
     let mgr = state.read().await;
     Ok(mgr.search_extension_marketplace(&query))
+}
+
+// -- Extension Resource CRUD commands --
+// These delegate to the extension process via JSON-RPC `resources.*` methods.
+
+#[derive(Debug, Deserialize)]
+pub struct ResourceListParams {
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub page_size: Option<u32>,
+    #[serde(default)]
+    pub sort_by: Option<String>,
+    #[serde(default)]
+    pub sort_order: Option<String>,
+}
+
+/// List resources of a given type from an extension.
+#[tauri::command]
+pub async fn extension_resource_list(
+    state: tauri::State<'_, AppState>,
+    ext_id: String,
+    resource_type: String,
+    params: Option<ResourceListParams>,
+) -> Result<Value, String> {
+    let mgr = state.read().await;
+    let ext = mgr
+        .extensions
+        .get_arc(&ext_id)
+        .ok_or_else(|| format!("Extension '{}' not running", ext_id))?;
+    drop(mgr);
+
+    let mut rpc_params = serde_json::json!({ "resource_type": resource_type });
+    if let Some(p) = params {
+        if let Some(page) = p.page {
+            rpc_params["page"] = serde_json::json!(page);
+        }
+        if let Some(ps) = p.page_size {
+            rpc_params["page_size"] = serde_json::json!(ps);
+        }
+        if let Some(sb) = p.sort_by {
+            rpc_params["sort_by"] = serde_json::json!(sb);
+        }
+        if let Some(so) = p.sort_order {
+            rpc_params["sort_order"] = serde_json::json!(so);
+        }
+    }
+
+    let result = ext
+        .execute("__resources_list", rpc_params)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.data)
+}
+
+/// Get a single resource by ID from an extension.
+#[tauri::command]
+pub async fn extension_resource_get(
+    state: tauri::State<'_, AppState>,
+    ext_id: String,
+    resource_type: String,
+    resource_id: String,
+) -> Result<Value, String> {
+    let mgr = state.read().await;
+    let ext = mgr
+        .extensions
+        .get_arc(&ext_id)
+        .ok_or_else(|| format!("Extension '{}' not running", ext_id))?;
+    drop(mgr);
+
+    let rpc_params = serde_json::json!({
+        "resource_type": resource_type,
+        "id": resource_id,
+    });
+
+    let result = ext
+        .execute("__resources_get", rpc_params)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.data)
+}
+
+/// Create a new resource via an extension.
+#[tauri::command]
+pub async fn extension_resource_create(
+    state: tauri::State<'_, AppState>,
+    ext_id: String,
+    resource_type: String,
+    data: Value,
+) -> Result<Value, String> {
+    let mgr = state.read().await;
+    let ext = mgr
+        .extensions
+        .get_arc(&ext_id)
+        .ok_or_else(|| format!("Extension '{}' not running", ext_id))?;
+    drop(mgr);
+
+    let rpc_params = serde_json::json!({
+        "resource_type": resource_type,
+        "data": data,
+    });
+
+    let result = ext
+        .execute("__resources_create", rpc_params)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.data)
+}
+
+/// Update a resource via an extension.
+#[tauri::command]
+pub async fn extension_resource_update(
+    state: tauri::State<'_, AppState>,
+    ext_id: String,
+    resource_type: String,
+    resource_id: String,
+    data: Value,
+) -> Result<Value, String> {
+    let mgr = state.read().await;
+    let ext = mgr
+        .extensions
+        .get_arc(&ext_id)
+        .ok_or_else(|| format!("Extension '{}' not running", ext_id))?;
+    drop(mgr);
+
+    let rpc_params = serde_json::json!({
+        "resource_type": resource_type,
+        "id": resource_id,
+        "data": data,
+    });
+
+    let result = ext
+        .execute("__resources_update", rpc_params)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.data)
+}
+
+/// Delete a resource via an extension.
+#[tauri::command]
+pub async fn extension_resource_delete(
+    state: tauri::State<'_, AppState>,
+    ext_id: String,
+    resource_type: String,
+    resource_id: String,
+) -> Result<Value, String> {
+    let mgr = state.read().await;
+    let ext = mgr
+        .extensions
+        .get_arc(&ext_id)
+        .ok_or_else(|| format!("Extension '{}' not running", ext_id))?;
+    drop(mgr);
+
+    let rpc_params = serde_json::json!({
+        "resource_type": resource_type,
+        "id": resource_id,
+    });
+
+    let result = ext
+        .execute("__resources_delete", rpc_params)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.data)
 }

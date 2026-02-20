@@ -87,9 +87,13 @@ pub struct ProcessExtension {
     /// The child process handle + IO, protected by a mutex for thread safety.
     child: Mutex<Option<ProcessHandle>>,
     binary_path: PathBuf,
+    /// Dedicated storage directory for extension data (passed in initialize).
+    data_dir: Option<PathBuf>,
     next_id: AtomicU64,
     /// IPC router for calling other extensions. Set after registration.
     ipc_router: Mutex<Option<Arc<dyn IpcRouter>>>,
+    /// Event bus for event.publish / event.subscribe IPC. Set after creation.
+    event_bus: Mutex<Option<crate::event_bus::SharedEventBus>>,
 }
 
 struct ProcessHandle {
@@ -109,9 +113,22 @@ impl ProcessExtension {
             manifest,
             child: Mutex::new(None),
             binary_path,
+            data_dir: None,
             next_id: AtomicU64::new(0),
             ipc_router: Mutex::new(None),
+            event_bus: Mutex::new(None),
         }
+    }
+
+    /// Set the data directory for this extension (passed in initialize params).
+    pub fn set_data_dir(&mut self, dir: PathBuf) {
+        self.data_dir = Some(dir);
+    }
+
+    /// Set the event bus for event.publish / event.subscribe IPC.
+    pub fn set_event_bus(&self, bus: crate::event_bus::SharedEventBus) {
+        let mut guard = self.event_bus.lock().expect("event_bus lock poisoned");
+        *guard = Some(bus);
     }
 
     /// Spawn the child process and send the `initialize` message.
@@ -140,13 +157,19 @@ impl ProcessExtension {
 
         // Send initialize message
         let init_id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let mut init_params = serde_json::json!({
+            "extension_id": self.manifest.id,
+            "version": self.manifest.version,
+        });
+        if let Some(ref dd) = self.data_dir {
+            // Create the data directory if it doesn't exist
+            let _ = std::fs::create_dir_all(dd);
+            init_params["data_dir"] = serde_json::json!(dd.to_string_lossy());
+        }
         let init_request = JsonRpcRequest {
             jsonrpc: "2.0",
             method: "initialize".to_string(),
-            params: serde_json::json!({
-                "extension_id": self.manifest.id,
-                "version": self.manifest.version,
-            }),
+            params: init_params,
             id: init_id,
         };
 
@@ -297,17 +320,25 @@ impl ProcessExtension {
         }
 
         let call_id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let mut params = serde_json::json!({
-            "operation": operation,
-            "input": input,
-        });
-        if let Some(caller) = caller_plugin_id {
-            params["caller_plugin_id"] = Value::String(caller.to_string());
-        }
+
+        // Resource CRUD operations use dedicated JSON-RPC methods instead of `execute`
+        let (method, params) = if let Some(resource_method) = operation.strip_prefix("__resources_") {
+            let method = format!("resources.{}", resource_method);
+            (method, input)
+        } else {
+            let mut params = serde_json::json!({
+                "operation": operation,
+                "input": input,
+            });
+            if let Some(caller) = caller_plugin_id {
+                params["caller_plugin_id"] = Value::String(caller.to_string());
+            }
+            ("execute".to_string(), params)
+        };
 
         let request = JsonRpcRequest {
             jsonrpc: "2.0",
-            method: "execute".to_string(),
+            method,
             params,
             id: call_id,
         };
@@ -440,6 +471,110 @@ impl ProcessExtension {
                             id: req.id.clone(),
                         }
                     }
+                }
+            }
+            "event.publish" => {
+                let bus = self.event_bus.lock().expect("event_bus lock poisoned").clone();
+                match bus {
+                    Some(bus) => {
+                        let publish_req: Result<crate::event_bus::cloud_event::PublishRequest, _> =
+                            serde_json::from_value(req.params.clone());
+                        match publish_req {
+                            Ok(pr) => {
+                                let source = format!("nexus://extension/{}", self.id_str);
+                                let event = pr.into_cloud_event(source);
+                                let event_id = event.id.clone();
+                                // Publish synchronously using block_in_place since we hold the process mutex
+                                let actions = tokio::task::block_in_place(|| {
+                                    tokio::runtime::Handle::current().block_on(async {
+                                        let mut bus = bus.write().await;
+                                        bus.publish(event)
+                                    })
+                                });
+                                // TODO: execute route actions (spawned by caller)
+                                let _ = actions;
+                                JsonRpcResponseOut {
+                                    jsonrpc: "2.0",
+                                    result: Some(serde_json::json!({"event_id": event_id})),
+                                    error: None,
+                                    id: req.id.clone(),
+                                }
+                            }
+                            Err(e) => JsonRpcResponseOut {
+                                jsonrpc: "2.0",
+                                result: None,
+                                error: Some(JsonRpcErrorOut {
+                                    code: -32602,
+                                    message: format!("Invalid event.publish params: {}", e),
+                                }),
+                                id: req.id.clone(),
+                            },
+                        }
+                    }
+                    None => JsonRpcResponseOut {
+                        jsonrpc: "2.0",
+                        result: None,
+                        error: Some(JsonRpcErrorOut {
+                            code: -32603,
+                            message: "Event bus not available".into(),
+                        }),
+                        id: req.id.clone(),
+                    },
+                }
+            }
+            "event.subscribe" => {
+                let bus = self.event_bus.lock().expect("event_bus lock poisoned").clone();
+                match bus {
+                    Some(bus) => {
+                        let type_pattern = req.params.get("type_pattern")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("*");
+                        let source_pattern = req.params.get("source_pattern")
+                            .and_then(|v| v.as_str());
+
+                        let result = tokio::task::block_in_place(|| {
+                            tokio::runtime::Handle::current().block_on(async {
+                                let mut bus = bus.write().await;
+                                bus.subscribe(
+                                    type_pattern,
+                                    source_pattern,
+                                    crate::event_bus::subscription::SubscriberKind::Extension {
+                                        ext_id: self.id_str.clone(),
+                                    },
+                                )
+                            })
+                        });
+
+                        match result {
+                            Ok((sub_id, _rx)) => {
+                                // The receiver will be used for event delivery (future: spawn delivery task)
+                                JsonRpcResponseOut {
+                                    jsonrpc: "2.0",
+                                    result: Some(serde_json::json!({"subscription_id": sub_id})),
+                                    error: None,
+                                    id: req.id.clone(),
+                                }
+                            }
+                            Err(e) => JsonRpcResponseOut {
+                                jsonrpc: "2.0",
+                                result: None,
+                                error: Some(JsonRpcErrorOut {
+                                    code: -32602,
+                                    message: format!("Invalid subscription pattern: {}", e),
+                                }),
+                                id: req.id.clone(),
+                            },
+                        }
+                    }
+                    None => JsonRpcResponseOut {
+                        jsonrpc: "2.0",
+                        result: None,
+                        error: Some(JsonRpcErrorOut {
+                            code: -32603,
+                            message: "Event bus not available".into(),
+                        }),
+                        id: req.id.clone(),
+                    },
                 }
             }
             _ => {

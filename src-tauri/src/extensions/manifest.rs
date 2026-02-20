@@ -1,9 +1,51 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::capability::Capability;
 use super::OperationDef;
+
+/// Declares a configurable resource type that an extension manages.
+/// The app renders generic CRUD UI based on this schema.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceTypeDef {
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// JSON Schema describing the resource fields, with x-resource-role and x-display extensions.
+    pub schema: Value,
+    #[serde(default)]
+    pub list_view: Option<ResourceListView>,
+    #[serde(default)]
+    pub capabilities: Option<ResourceCapabilities>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceListView {
+    #[serde(default)]
+    pub columns: Vec<String>,
+    #[serde(default)]
+    pub sort_by: Option<String>,
+    #[serde(default)]
+    pub sort_order: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceCapabilities {
+    #[serde(default = "default_true")]
+    pub create: bool,
+    #[serde(default = "default_true")]
+    pub update: bool,
+    #[serde(default = "default_true")]
+    pub delete: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
 
 /// Per-platform binary entry in an extension manifest.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,11 +81,16 @@ pub struct ExtensionManifest {
     /// IPC calls to undeclared targets are rejected at runtime.
     #[serde(default)]
     pub extension_dependencies: Vec<String>,
+    /// Configurable resource types managed by this extension.
+    /// The app renders schema-driven CRUD UI for each declared type.
+    #[serde(default)]
+    pub resources: HashMap<String, ResourceTypeDef>,
 }
 
 impl ExtensionManifest {
-    /// Validate the manifest for completeness and safety.
-    pub fn validate(&self) -> Result<(), String> {
+    /// Validate metadata fields (everything except binaries).
+    /// Used by both full validation and local installs that build from source.
+    pub fn validate_metadata(&self) -> Result<(), String> {
         if self.id.is_empty() || self.id.len() > 100 {
             return Err("id must be 1-100 characters".into());
         }
@@ -102,22 +149,6 @@ impl ExtensionManifest {
             }
         }
 
-        // Validate binaries — must have at least one platform
-        if self.binaries.is_empty() {
-            return Err("at least one binary platform entry is required".into());
-        }
-        for (platform, entry) in &self.binaries {
-            if entry.url.is_empty() {
-                return Err(format!("binary url is empty for platform '{}'", platform));
-            }
-            if entry.signature.is_empty() {
-                return Err(format!("binary signature is empty for platform '{}'", platform));
-            }
-            if entry.sha256.is_empty() {
-                return Err(format!("binary sha256 is empty for platform '{}'", platform));
-            }
-        }
-
         // Validate extension_dependencies
         for dep in &self.extension_dependencies {
             if dep.is_empty() || dep.len() > 100 {
@@ -140,6 +171,29 @@ impl ExtensionManifest {
         for field in [&self.display_name, &self.description, &self.author] {
             if field.chars().any(|c| bidi_chars.contains(&c)) {
                 return Err("display fields must not contain Unicode bidirectional override characters".into());
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate the manifest for completeness and safety (includes binary entries).
+    pub fn validate(&self) -> Result<(), String> {
+        self.validate_metadata()?;
+
+        // Validate binaries — must have at least one platform
+        if self.binaries.is_empty() {
+            return Err("at least one binary platform entry is required".into());
+        }
+        for (platform, entry) in &self.binaries {
+            if entry.url.is_empty() {
+                return Err(format!("binary url is empty for platform '{}'", platform));
+            }
+            if entry.signature.is_empty() {
+                return Err(format!("binary signature is empty for platform '{}'", platform));
+            }
+            if entry.sha256.is_empty() {
+                return Err(format!("binary sha256 is empty for platform '{}'", platform));
             }
         }
 

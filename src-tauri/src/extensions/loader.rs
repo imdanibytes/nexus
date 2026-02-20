@@ -120,6 +120,8 @@ async fn fetch_binary(
 pub struct ExtensionLoader {
     /// Root directory for extension packages: ~/.nexus/extensions/
     extensions_dir: PathBuf,
+    /// Root directory for extension data: ~/.nexus/extension_data/
+    extension_data_dir: PathBuf,
     /// Persistence for installed extension metadata
     pub storage: ExtensionStorage,
     /// Trusted author public keys
@@ -131,11 +133,15 @@ impl ExtensionLoader {
         let extensions_dir = data_dir.join("extensions");
         std::fs::create_dir_all(&extensions_dir).ok();
 
+        let extension_data_dir = data_dir.join("extension_data");
+        std::fs::create_dir_all(&extension_data_dir).ok();
+
         let storage = ExtensionStorage::load(data_dir);
         let trusted_keys = TrustedKeyStore::load(data_dir);
 
         Self {
             extensions_dir,
+            extension_data_dir,
             storage,
             trusted_keys,
         }
@@ -162,7 +168,8 @@ impl ExtensionLoader {
                 continue;
             }
 
-            let ext = ProcessExtension::new(installed.manifest.clone(), binary_path);
+            let mut ext = ProcessExtension::new(installed.manifest.clone(), binary_path);
+            ext.set_data_dir(self.extension_data_dir.join(&installed.manifest.id));
             match ext.start() {
                 Ok(()) => {
                     log::info!("Loaded extension: {}", installed.manifest.id);
@@ -321,7 +328,8 @@ impl ExtensionLoader {
             )));
         }
 
-        let ext = ProcessExtension::new(installed.manifest.clone(), binary_path);
+        let mut ext = ProcessExtension::new(installed.manifest.clone(), binary_path);
+        ext.set_data_dir(self.extension_data_dir.join(ext_id));
         ext.start()?;
         registry.register(Arc::new(ext));
 
@@ -499,18 +507,30 @@ impl ExtensionLoader {
     /// Idempotent: if already installed, stops the running process, swaps the
     /// binary and manifest in place, and updates storage. The extension is left
     /// disabled so the caller can re-enable it with the new binary.
+    ///
+    /// When `binary_override` is provided (e.g. from a `cargo build`), it is used
+    /// directly instead of resolving from the manifest's `binaries` field.
     pub fn install_local(
         &mut self,
         manifest_path: &Path,
         registry: &mut ExtensionRegistry,
+        binary_override: Option<&Path>,
     ) -> Result<InstalledExtension, ExtensionError> {
         let manifest_data = std::fs::read_to_string(manifest_path)?;
         let manifest: ExtensionManifest = serde_json::from_str(&manifest_data)
             .map_err(|e| ExtensionError::Other(format!("Invalid manifest JSON: {}", e)))?;
 
-        manifest
-            .validate()
-            .map_err(|e| ExtensionError::Other(format!("Invalid manifest: {}", e)))?;
+        // When a binary override is provided (cargo build), skip binary validation
+        // since the manifest won't have binaries entries for local dev.
+        if binary_override.is_some() {
+            manifest
+                .validate_metadata()
+                .map_err(|e| ExtensionError::Other(format!("Invalid manifest: {}", e)))?;
+        } else {
+            manifest
+                .validate()
+                .map_err(|e| ExtensionError::Other(format!("Invalid manifest: {}", e)))?;
+        }
 
         let reinstall = self.storage.get(&manifest.id).is_some();
         if reinstall {
@@ -520,29 +540,31 @@ impl ExtensionLoader {
             log::info!("Reinstalling extension '{}' (replacing existing)", manifest.id);
         }
 
-        // Resolve binary from manifest
-        let binary_entry = manifest
-            .binary_for_current_platform()
-            .ok_or_else(|| {
-                ExtensionError::Other(format!(
-                    "No binary for platform '{}' in manifest",
-                    ExtensionManifest::current_platform()
-                ))
-            })?;
-
-        let binary_source = if let Some(path) = binary_entry.url.strip_prefix("file://") {
-            let p = PathBuf::from(path);
-            if p.is_absolute() {
-                p
-            } else {
-                // Resolve relative file:// paths against the manifest directory
-                let manifest_dir = manifest_path.parent().unwrap_or(Path::new("."));
-                manifest_dir.join(path)
-            }
+        // Resolve binary source: override takes priority over manifest entry
+        let binary_source = if let Some(override_path) = binary_override {
+            override_path.to_path_buf()
         } else {
-            // Treat as a path relative to the manifest directory
-            let manifest_dir = manifest_path.parent().unwrap_or(Path::new("."));
-            manifest_dir.join(&binary_entry.url)
+            let binary_entry = manifest
+                .binary_for_current_platform()
+                .ok_or_else(|| {
+                    ExtensionError::Other(format!(
+                        "No binary for platform '{}' in manifest",
+                        ExtensionManifest::current_platform()
+                    ))
+                })?;
+
+            if let Some(path) = binary_entry.url.strip_prefix("file://") {
+                let p = PathBuf::from(path);
+                if p.is_absolute() {
+                    p
+                } else {
+                    let manifest_dir = manifest_path.parent().unwrap_or(Path::new("."));
+                    manifest_dir.join(path)
+                }
+            } else {
+                let manifest_dir = manifest_path.parent().unwrap_or(Path::new("."));
+                manifest_dir.join(&binary_entry.url)
+            }
         };
 
         if !binary_source.exists() {

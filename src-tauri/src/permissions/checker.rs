@@ -50,6 +50,8 @@ pub fn required_permission_for_endpoint(
         p if p.starts_with("/v1/storage") => None,
         // MCP tool access for plugins (gateway auth checks mcp:call directly)
         p if p.starts_with("/v1/mcp/") => Some(Permission::McpCall),
+        // Event bus: auth required, no additional permission (events are bus-level)
+        p if p.starts_with("/v1/events") => None,
         // Extension permissions are checked in the handler (dynamic based on path params)
         p if p.starts_with("/v1/extensions") => None,
         // Meta endpoints: self-introspection requires only auth, credentials checked in handler
@@ -192,6 +194,22 @@ mod tests {
         assert_eq!(
             required_permission_for_endpoint("/v1/mcp/events", &Method::GET),
             Some(Permission::McpCall)
+        );
+    }
+
+    #[test]
+    fn events_defers_to_handler() {
+        assert_eq!(
+            required_permission_for_endpoint("/v1/events", &Method::POST),
+            None
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/events/subscribe", &Method::GET),
+            None
+        );
+        assert_eq!(
+            required_permission_for_endpoint("/v1/events/log", &Method::GET),
+            None
         );
     }
 

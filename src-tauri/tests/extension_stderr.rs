@@ -62,6 +62,7 @@ fn test_manifest() -> ExtensionManifest {
             },
         )]),
         extension_dependencies: vec![],
+        resources: HashMap::new(),
     }
 }
 

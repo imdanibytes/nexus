@@ -609,6 +609,182 @@
         ]
       }
     },
+    "/api/v1/events": {
+      "post": {
+        "tags": [
+          "events"
+        ],
+        "operationId": "publish_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Event published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/events/log": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "operationId": "query_event_log",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by event type (glob)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Filter by source (glob)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "RFC 3339 timestamp lower bound",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max results to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventLogResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/events/subscribe": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "operationId": "subscribe_events",
+        "parameters": [
+          {
+            "name": "type_pattern",
+            "in": "query",
+            "description": "Glob pattern for event type (default: *)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source_pattern",
+            "in": "query",
+            "description": "Glob pattern for event source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of matching events"
+          },
+          "400": {
+            "description": "Invalid pattern",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/extensions": {
       "get": {
         "tags": [
@@ -1638,6 +1814,67 @@
           }
         }
       },
+      "EventErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "EventLogEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "type",
+          "time",
+          "data"
+        ],
+        "properties": {
+          "data": {},
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "time": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "EventLogResponse": {
+        "type": "object",
+        "required": [
+          "events",
+          "total"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventLogEntry"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "ExecRequest": {
         "type": "object",
         "required": [
@@ -2119,6 +2356,52 @@
           }
         }
       },
+      "PublishRequest": {
+        "type": "object",
+        "description": "Lightweight publish request from extensions — the host fills in the rest.",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "data": {},
+          "datacontenttype": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "extensions": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "PublishResponse": {
+        "type": "object",
+        "required": [
+          "event_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          }
+        }
+      },
       "StatusMessage": {
         "type": "object",
         "required": [
@@ -2250,6 +2533,10 @@
     {
       "name": "meta",
       "description": "Plugin self-introspection and credential vending"
+    },
+    {
+      "name": "events",
+      "description": "CloudEvents event bus — publish, subscribe (SSE), query log"
     }
   ]
 }

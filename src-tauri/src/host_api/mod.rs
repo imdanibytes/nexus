@@ -1,5 +1,6 @@
 pub mod approval;
 pub mod containers;
+pub mod events;
 pub mod extensions;
 pub mod filesystem;
 pub mod mcp;
@@ -29,6 +30,7 @@ use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
 use crate::api_keys::ApiKeyStore;
+use crate::event_bus::SharedEventBus;
 use crate::oauth;
 use crate::ActiveTheme;
 use crate::AppState;
@@ -90,6 +92,9 @@ impl Modify for SecurityAddon {
         meta::meta_stats,
         meta::meta_credentials_list,
         meta::meta_credentials_resolve,
+        events::publish_event,
+        events::subscribe_events,
+        events::query_event_log,
     ),
     components(schemas(
         system::SystemInfo,
@@ -129,6 +134,10 @@ impl Modify for SecurityAddon {
         meta::CredentialRequest,
         meta::CredentialResponse,
         meta::MetaErrorResponse,
+        events::PublishResponse,
+        events::EventLogEntry,
+        events::EventLogResponse,
+        events::EventErrorResponse,
     )),
     modifiers(&SecurityAddon),
     tags(
@@ -139,7 +148,8 @@ impl Modify for SecurityAddon {
         (name = "network", description = "Network proxy for external requests"),
         (name = "settings", description = "Per-plugin settings (scoped to authenticated plugin)"),
         (name = "extensions", description = "Host extension operations"),
-        (name = "meta", description = "Plugin self-introspection and credential vending")
+        (name = "meta", description = "Plugin self-introspection and credential vending"),
+        (name = "events", description = "CloudEvents event bus — publish, subscribe (SSE), query log")
     )
 )]
 pub struct ApiDoc;
@@ -150,6 +160,7 @@ pub async fn start_server(
     oauth_store: Arc<oauth::OAuthStore>,
     active_theme: ActiveTheme,
     api_key_store: ApiKeyStore,
+    event_bus: SharedEventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(|origin, _| {
@@ -258,6 +269,13 @@ pub async fn start_server(
             "/v1/meta/credentials/{ext_id}",
             routing::post(meta::meta_credentials_resolve),
         )
+        // Events (CloudEvents bus)
+        .route("/v1/events", routing::post(events::publish_event))
+        .route(
+            "/v1/events/subscribe",
+            routing::get(events::subscribe_events),
+        )
+        .route("/v1/events/log", routing::get(events::query_event_log))
         // Plugin settings (scoped to authenticated plugin)
         .route(
             "/v1/settings",
@@ -280,6 +298,7 @@ pub async fn start_server(
         ))
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(approvals.clone()))
+        .layer(Extension(event_bus))
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 

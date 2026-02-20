@@ -125,7 +125,16 @@
     "pluginConsumers": "Plugin-Nutzer",
     "noConsumers": "Keine Plugins verwenden diese Erweiterung.",
     "allPermsGranted": "Alle Erweiterungsberechtigungen erteilt",
-    "somePermsMissing": "Einige Erweiterungsberechtigungen fehlen"
+    "somePermsMissing": "Einige Erweiterungsberechtigungen fehlen",
+    "resources": "Resources",
+    "resourceCreate": "New {{label}}",
+    "resourceEdit": "Edit {{label}}",
+    "resourceDelete": "Delete {{label}}",
+    "resourceDeleteConfirm": "Are you sure you want to delete this {{label}}?",
+    "resourceDeleteAction": "Delete",
+    "resourceEmpty": "No {{label}} configured yet",
+    "resourceSave": "Save",
+    "resourceCancel": "Cancel"
   },
   "updates": {
     "availableUpdates": "Verfugbare Updates",

@@ -943,11 +943,14 @@ impl PluginManager {
 
     /// Install (or reinstall) an extension from a local manifest.
     /// Idempotent: if already installed, hot-swaps the binary in place.
+    /// When `binary_override` is provided (e.g. from a cargo build), it is used
+    /// instead of resolving from the manifest's `binaries` field.
     pub fn install_extension_local(
         &mut self,
         manifest_path: &std::path::Path,
+        binary_override: Option<&std::path::Path>,
     ) -> Result<crate::extensions::storage::InstalledExtension, crate::extensions::ExtensionError> {
-        self.extension_loader.install_local(manifest_path, &mut self.extensions)
+        self.extension_loader.install_local(manifest_path, &mut self.extensions, binary_override)
     }
 
     /// Create the IPC router and inject it into all registered extensions.

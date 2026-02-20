@@ -125,7 +125,16 @@
     "pluginConsumers": "使用プラグイン",
     "noConsumers": "このエクステンションを使用しているプラグインはありません。",
     "allPermsGranted": "エクステンションの全権限が付与済み",
-    "somePermsMissing": "一部のエクステンション権限が不足しています"
+    "somePermsMissing": "一部のエクステンション権限が不足しています",
+    "resources": "Resources",
+    "resourceCreate": "New {{label}}",
+    "resourceEdit": "Edit {{label}}",
+    "resourceDelete": "Delete {{label}}",
+    "resourceDeleteConfirm": "Are you sure you want to delete this {{label}}?",
+    "resourceDeleteAction": "Delete",
+    "resourceEmpty": "No {{label}} configured yet",
+    "resourceSave": "Save",
+    "resourceCancel": "Cancel"
   },
   "updates": {
     "availableUpdates": "利用可能なアップデート",

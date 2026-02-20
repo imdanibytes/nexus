@@ -125,7 +125,16 @@
     "pluginConsumers": "사용 중인 플러그인",
     "noConsumers": "이 확장 기능을 사용하는 플러그인이 없어요.",
     "allPermsGranted": "모든 확장 기능 권한이 부여되었어요",
-    "somePermsMissing": "일부 확장 기능 권한이 누락되었어요"
+    "somePermsMissing": "일부 확장 기능 권한이 누락되었어요",
+    "resources": "Resources",
+    "resourceCreate": "New {{label}}",
+    "resourceEdit": "Edit {{label}}",
+    "resourceDelete": "Delete {{label}}",
+    "resourceDeleteConfirm": "Are you sure you want to delete this {{label}}?",
+    "resourceDeleteAction": "Delete",
+    "resourceEmpty": "No {{label}} configured yet",
+    "resourceSave": "Save",
+    "resourceCancel": "Cancel"
   },
   "updates": {
     "availableUpdates": "사용 가능한 업데이트",

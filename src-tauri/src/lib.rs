@@ -1,6 +1,7 @@
 pub mod api_keys;
 mod commands;
 mod error;
+pub mod event_bus;
 pub mod extensions;
 pub mod host_api;
 pub mod lifecycle_events;
@@ -14,6 +15,7 @@ mod update_checker;
 pub(crate) mod util;
 mod version;
 
+use event_bus::SharedEventBus;
 use host_api::approval::ApprovalBridge;
 use plugin_manager::dev_watcher::DevWatcher;
 use plugin_manager::PluginManager;
@@ -143,6 +145,10 @@ pub fn run() {
             PluginManager::wire_extension_ipc(&state);
             app.manage(state.clone());
 
+            // CloudEvents event bus — shared with Host API, Tauri commands, and extensions
+            let event_bus: SharedEventBus = event_bus::create_event_bus(&data_dir);
+            app.manage(event_bus.clone());
+
             // Active theme — shared between Tauri UI and Axum (OAuth consent page)
             let theme = {
                 let mgr = state.blocking_read();
@@ -199,6 +205,7 @@ pub fn run() {
             let oauth_clone = oauth_store.clone();
             let theme_clone = theme.clone();
             let api_keys_clone = api_key_store.clone();
+            let event_bus_clone = event_bus.clone();
             tauri::async_runtime::spawn(async move {
                 // Ensure nexus-bridge Docker network exists
                 if let Err(e) = runtime_clone.ensure_network("nexus-bridge").await {
@@ -206,7 +213,7 @@ pub fn run() {
                 }
 
                 // Start the Host API server
-                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone, api_keys_clone).await {
+                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone, api_keys_clone, event_bus_clone).await {
                     log::error!("Host API server failed: {}", e);
                 }
             });
@@ -307,6 +314,18 @@ pub fn run() {
             commands::extensions::extension_remove,
             commands::extensions::extension_preview,
             commands::extensions::extension_marketplace_search,
+            commands::extensions::extension_resource_list,
+            commands::extensions::extension_resource_get,
+            commands::extensions::extension_resource_create,
+            commands::extensions::extension_resource_update,
+            commands::extensions::extension_resource_delete,
+            commands::events::event_log_query,
+            commands::events::event_log_count,
+            commands::events::routing_rule_list,
+            commands::events::routing_rule_get,
+            commands::events::routing_rule_create,
+            commands::events::routing_rule_update,
+            commands::events::routing_rule_delete,
             commands::permissions::permission_remove_scope,
             commands::updates::check_updates,
             commands::updates::get_cached_updates,

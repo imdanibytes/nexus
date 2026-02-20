@@ -125,7 +125,16 @@
     "pluginConsumers": "使用此扩展的插件",
     "noConsumers": "暂无插件使用此扩展。",
     "allPermsGranted": "所有扩展权限已授予",
-    "somePermsMissing": "部分扩展权限缺失"
+    "somePermsMissing": "部分扩展权限缺失",
+    "resources": "Resources",
+    "resourceCreate": "New {{label}}",
+    "resourceEdit": "Edit {{label}}",
+    "resourceDelete": "Delete {{label}}",
+    "resourceDeleteConfirm": "Are you sure you want to delete this {{label}}?",
+    "resourceDeleteAction": "Delete",
+    "resourceEmpty": "No {{label}} configured yet",
+    "resourceSave": "Save",
+    "resourceCancel": "Cancel"
   },
   "updates": {
     "availableUpdates": "可用更新",

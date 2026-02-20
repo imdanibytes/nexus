@@ -22,6 +22,27 @@ export type Capability =
   | { type: "native_library"; scope: string[] }
   | { type: "custom"; name: string; description: string };
 
+export interface ResourceListView {
+  columns: string[];
+  sort_by?: string;
+  sort_order?: string;
+}
+
+export interface ResourceCapabilities {
+  create: boolean;
+  update: boolean;
+  delete: boolean;
+}
+
+export interface ResourceTypeDef {
+  label: string;
+  description?: string;
+  icon?: string;
+  schema: Record<string, unknown>;
+  list_view?: ResourceListView;
+  capabilities?: ResourceCapabilities;
+}
+
 export interface ExtensionStatus {
   id: string;
   display_name: string;
@@ -29,6 +50,7 @@ export interface ExtensionStatus {
   operations: ExtensionOperation[];
   capabilities: Capability[];
   consumers: ExtensionConsumer[];
+  resources: Record<string, ResourceTypeDef>;
   installed: boolean;
   enabled: boolean;
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useExtensionActions } from "../../hooks/useExtensions";
 import { useAppStore } from "../../stores/appStore";
+import { ResourcePanel } from "../extensions/resources/ResourcePanel";
 import {
   Blocks,
   ChevronDown,
@@ -303,6 +304,13 @@ export function ExtensionsTab() {
                           </Chip>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Resources (if extension declares any and is enabled) */}
+                  {ext.enabled && Object.keys(ext.resources || {}).length > 0 && (
+                    <div className="px-4 pb-4">
+                      <ResourcePanel extension={ext} />
                     </div>
                   )}
 

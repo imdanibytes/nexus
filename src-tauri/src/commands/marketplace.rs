@@ -15,3 +15,11 @@ pub async fn marketplace_refresh(state: tauri::State<'_, AppState>) -> Result<()
     let mut mgr = state.write().await;
     mgr.refresh_registry().await.map_err(|e| e.to_string())
 }
+
+/// Load registry data from the local disk cache (no network).
+/// Returns instantly — used for marketplace page open and startup.
+#[tauri::command]
+pub async fn marketplace_load(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let mut mgr = state.write().await;
+    mgr.load_registry_cache().map_err(|e| e.to_string())
+}

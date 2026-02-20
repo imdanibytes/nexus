@@ -685,10 +685,47 @@ impl PluginManager {
         self.storage.list()
     }
 
+    /// Load the registry from the on-disk cache (no network). Used for instant
+    /// marketplace loads on startup and page open.
+    pub fn load_registry_cache(&mut self) -> NexusResult<()> {
+        if let Some(cache) = registry::load_cache(&self.data_dir) {
+            log::info!(
+                "Loaded registry cache: {} plugins, {} extensions (refreshed {})",
+                cache.plugins.len(),
+                cache.extensions.len(),
+                cache.last_refreshed,
+            );
+            self.registry_cache = cache.plugins;
+            self.extension_registry_cache = cache.extensions;
+        } else {
+            log::info!("No registry cache found on disk");
+        }
+        Ok(())
+    }
+
+    /// Refresh the registry using conditional GET (ETag / If-None-Match).
+    /// Saves the result to disk cache after fetching.
     pub async fn refresh_registry(&mut self) -> NexusResult<()> {
-        let result = registry::fetch_all(&self.registry_store).await;
-        self.registry_cache = result.plugins;
-        self.extension_registry_cache = result.extensions;
+        let existing_cache = registry::load_cache(&self.data_dir)
+            .unwrap_or_default();
+
+        let (result, new_etags) =
+            registry::fetch_all_conditional(&self.registry_store, &existing_cache).await;
+
+        self.registry_cache = result.plugins.clone();
+        self.extension_registry_cache = result.extensions.clone();
+
+        // Persist to disk for future instant loads.
+        let cache = registry::RegistryCache {
+            plugins: result.plugins,
+            extensions: result.extensions,
+            last_refreshed: chrono::Utc::now().to_rfc3339(),
+            etags: new_etags,
+        };
+        if let Err(e) = registry::save_cache(&self.data_dir, &cache) {
+            log::warn!("Failed to save registry cache: {}", e);
+        }
+
         Ok(())
     }
 

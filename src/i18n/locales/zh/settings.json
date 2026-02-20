@@ -131,9 +131,6 @@
     "reviewKeyChange": "审查密钥变更",
     "updating": "更新中...",
     "update": "更新",
-    "every30min": "每 30 分钟",
-    "hourly": "每小时",
-    "every6hours": "每 6 小时",
     "daily": "每天",
     "weekly": "每周",
     "manualOnly": "仅手动"

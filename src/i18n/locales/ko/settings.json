@@ -131,9 +131,6 @@
     "reviewKeyChange": "키 변경 검토",
     "updating": "업데이트 중...",
     "update": "업데이트",
-    "every30min": "30분마다",
-    "hourly": "매시간",
-    "every6hours": "6시간마다",
     "daily": "매일",
     "weekly": "매주",
     "manualOnly": "수동만"

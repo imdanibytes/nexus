@@ -131,9 +131,6 @@
     "reviewKeyChange": "Revisar Cambio de Clave",
     "updating": "Actualizando...",
     "update": "Actualizar",
-    "every30min": "Cada 30 min",
-    "hourly": "Cada hora",
-    "every6hours": "Cada 6 horas",
     "daily": "Diariamente",
     "weekly": "Semanalmente",
     "manualOnly": "Solo manual"

@@ -1,5 +1,6 @@
 use crate::error::{NexusError, NexusResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_REGISTRY_URL: &str =
@@ -289,29 +290,6 @@ async fn fetch_text(response: reqwest::Response) -> NexusResult<String> {
         .map_err(|_| NexusError::Other("Response is not valid UTF-8".to_string()))
 }
 
-/// Fetch a registry from any source type.
-pub async fn fetch_from_source(source: &RegistrySource) -> NexusResult<Registry> {
-    match source.kind {
-        RegistryKind::Remote => fetch_remote(&source.url).await,
-        RegistryKind::Local => fetch_local(&source.url),
-    }
-}
-
-async fn fetch_remote(url: &str) -> NexusResult<Registry> {
-    let client = http_client()?;
-    let response = client.get(url).send().await.map_err(NexusError::Http)?;
-
-    if !response.status().is_success() {
-        return Err(NexusError::Other(format!(
-            "Registry returned status {}",
-            response.status()
-        )));
-    }
-
-    let text = fetch_text(response).await?;
-    serde_json::from_str(&text).map_err(|e| NexusError::Other(format!("Invalid registry JSON: {}", e)))
-}
-
 fn fetch_local(path_str: &str) -> NexusResult<Registry> {
     let dir = PathBuf::from(path_str);
 
@@ -428,40 +406,180 @@ fn scan_yaml_registry(dir: &Path) -> NexusResult<Registry> {
 }
 
 /// Result of fetching all registries — both plugin and extension entries.
+#[derive(Serialize, Deserialize)]
 pub struct FetchAllResult {
     pub plugins: Vec<RegistryEntry>,
     pub extensions: Vec<ExtensionRegistryEntry>,
 }
 
-/// Fetch all enabled registries and return merged plugin + extension entries.
-pub async fn fetch_all(store: &RegistryStore) -> FetchAllResult {
+// ---------------------------------------------------------------------------
+// Local registry cache (Homebrew-style disk persistence + conditional GET)
+// ---------------------------------------------------------------------------
+
+/// Persisted registry cache on disk. Avoids network round-trips when the
+/// registry hasn't changed (uses HTTP conditional GET with ETags per RFC 9111).
+#[derive(Serialize, Deserialize, Default)]
+pub struct RegistryCache {
+    pub plugins: Vec<RegistryEntry>,
+    pub extensions: Vec<ExtensionRegistryEntry>,
+    /// ISO-8601 timestamp of last successful remote fetch.
+    pub last_refreshed: String,
+    /// Per-source ETags for conditional GET (source_id → etag).
+    #[serde(default)]
+    pub etags: HashMap<String, String>,
+}
+
+const CACHE_FILE: &str = "registry-cache.json";
+
+/// Load the persisted registry cache from disk. Returns `None` if the file
+/// doesn't exist or can't be parsed.
+pub fn load_cache(data_dir: &Path) -> Option<RegistryCache> {
+    let path = data_dir.join(CACHE_FILE);
+    let data = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&data).ok()
+}
+
+/// Atomically persist the registry cache to disk.
+pub fn save_cache(data_dir: &Path, cache: &RegistryCache) -> NexusResult<()> {
+    let path = data_dir.join(CACHE_FILE);
+    let data = serde_json::to_string_pretty(cache)?;
+    crate::util::atomic_write(&path, data.as_bytes())?;
+    Ok(())
+}
+
+/// Outcome of a conditional fetch against a single remote source.
+pub enum FetchOutcome {
+    /// 200 OK — new data + new ETag (if provided by server).
+    Fresh(Registry, Option<String>),
+    /// 304 Not Modified — cached data is still current.
+    NotModified,
+}
+
+/// Fetch a remote registry with conditional GET (If-None-Match).
+async fn fetch_remote_conditional(url: &str, etag: Option<&str>) -> NexusResult<FetchOutcome> {
+    let client = http_client()?;
+    let mut request = client.get(url);
+    if let Some(etag_val) = etag {
+        request = request.header("If-None-Match", etag_val);
+    }
+
+    let response = request.send().await.map_err(NexusError::Http)?;
+
+    if response.status() == reqwest::StatusCode::NOT_MODIFIED {
+        return Ok(FetchOutcome::NotModified);
+    }
+
+    if !response.status().is_success() {
+        return Err(NexusError::Other(format!(
+            "Registry returned status {}",
+            response.status()
+        )));
+    }
+
+    let new_etag = response
+        .headers()
+        .get("etag")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    let text = fetch_text(response).await?;
+    let registry: Registry = serde_json::from_str(&text)
+        .map_err(|e| NexusError::Other(format!("Invalid registry JSON: {}", e)))?;
+
+    Ok(FetchOutcome::Fresh(registry, new_etag))
+}
+
+/// Fetch all enabled registries using conditional GET for remote sources.
+/// Reuses cached entries for sources that returned 304 Not Modified.
+pub async fn fetch_all_conditional(
+    store: &RegistryStore,
+    existing_cache: &RegistryCache,
+) -> (FetchAllResult, HashMap<String, String>) {
     let mut all_plugins = Vec::new();
     let mut all_extensions = Vec::new();
+    let mut new_etags = existing_cache.etags.clone();
 
     for source in store.enabled_sources() {
-        match fetch_from_source(source).await {
-            Ok(registry) => {
-                let trust_str = format!("{:?}", source.trust).to_lowercase();
-                for mut entry in registry.plugins {
-                    entry.source = source.name.clone();
-                    entry.source_trust = Some(trust_str.clone());
-                    all_plugins.push(entry);
-                }
-                for mut entry in registry.extensions {
-                    entry.source = source.name.clone();
-                    all_extensions.push(entry);
+        match source.kind {
+            RegistryKind::Local => {
+                // Local sources always read from disk — no caching needed.
+                match fetch_local(&source.url) {
+                    Ok(registry) => {
+                        let trust_str = format!("{:?}", source.trust).to_lowercase();
+                        for mut entry in registry.plugins {
+                            entry.source = source.name.clone();
+                            entry.source_trust = Some(trust_str.clone());
+                            all_plugins.push(entry);
+                        }
+                        for mut entry in registry.extensions {
+                            entry.source = source.name.clone();
+                            all_extensions.push(entry);
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to fetch local registry '{}': {}", source.name, e);
+                    }
                 }
             }
-            Err(e) => {
-                log::warn!("Failed to fetch registry '{}': {}", source.name, e);
+            RegistryKind::Remote => {
+                let cached_etag = existing_cache.etags.get(&source.id).map(|s| s.as_str());
+                match fetch_remote_conditional(&source.url, cached_etag).await {
+                    Ok(FetchOutcome::NotModified) => {
+                        log::info!("Registry '{}': 304 Not Modified (cached)", source.name);
+                        // Reuse entries from disk cache for this source.
+                        for entry in &existing_cache.plugins {
+                            if entry.source == source.name {
+                                all_plugins.push(entry.clone());
+                            }
+                        }
+                        for entry in &existing_cache.extensions {
+                            if entry.source == source.name {
+                                all_extensions.push(entry.clone());
+                            }
+                        }
+                    }
+                    Ok(FetchOutcome::Fresh(registry, new_etag)) => {
+                        log::info!("Registry '{}': 200 OK (fresh data)", source.name);
+                        if let Some(etag) = new_etag {
+                            new_etags.insert(source.id.clone(), etag);
+                        }
+                        let trust_str = format!("{:?}", source.trust).to_lowercase();
+                        for mut entry in registry.plugins {
+                            entry.source = source.name.clone();
+                            entry.source_trust = Some(trust_str.clone());
+                            all_plugins.push(entry);
+                        }
+                        for mut entry in registry.extensions {
+                            entry.source = source.name.clone();
+                            all_extensions.push(entry);
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to fetch registry '{}': {}", source.name, e);
+                        // Fall back to cached entries for this source.
+                        for entry in &existing_cache.plugins {
+                            if entry.source == source.name {
+                                all_plugins.push(entry.clone());
+                            }
+                        }
+                        for entry in &existing_cache.extensions {
+                            if entry.source == source.name {
+                                all_extensions.push(entry.clone());
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    FetchAllResult {
-        plugins: all_plugins,
-        extensions: all_extensions,
-    }
+    (
+        FetchAllResult {
+            plugins: all_plugins,
+            extensions: all_extensions,
+        },
+        new_etags,
+    )
 }
 
 /// Fetch a manifest from a URL or file:// path.

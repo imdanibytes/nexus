@@ -131,9 +131,6 @@
     "reviewKeyChange": "Button label — review a signing key change before updating",
     "updating": "Button label — in-progress state while updating",
     "update": "Button label — install an available update",
-    "every30min": "Dropdown option — check every 30 minutes",
-    "hourly": "Dropdown option — check every hour",
-    "every6hours": "Dropdown option — check every 6 hours",
     "daily": "Dropdown option — check once a day",
     "weekly": "Dropdown option — check once a week",
     "manualOnly": "Dropdown option — never auto-check"

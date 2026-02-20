@@ -382,7 +382,7 @@ pub struct NexusSettings {
 }
 
 fn default_update_interval() -> u32 {
-    30
+    1440
 }
 
 fn default_language() -> String {
@@ -398,12 +398,29 @@ fn default_update_channel() -> String {
 }
 
 impl NexusSettings {
+    /// Interval values that were valid in older releases but are now removed.
+    /// Migrated to daily (1440) on load.
+    const STALE_INTERVALS: &[u32] = &[30, 60, 360];
+
     pub fn load(data_dir: &std::path::Path) -> NexusResult<Self> {
         let path = data_dir.join("settings.json");
         if path.exists() {
             let data = std::fs::read_to_string(&path)?;
             let mut settings: NexusSettings = serde_json::from_str(&data)?;
             settings.path = path;
+
+            // Migrate stale auto-check intervals to daily.
+            if Self::STALE_INTERVALS.contains(&settings.update_check_interval_minutes) {
+                log::info!(
+                    "Migrating update_check_interval from {} to 1440 (daily)",
+                    settings.update_check_interval_minutes,
+                );
+                settings.update_check_interval_minutes = 1440;
+                if let Err(e) = settings.save() {
+                    log::warn!("Failed to save migrated settings: {}", e);
+                }
+            }
+
             Ok(settings)
         } else {
             Ok(NexusSettings {

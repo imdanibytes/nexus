@@ -131,9 +131,6 @@
     "reviewKeyChange": "鍵の変更を確認",
     "updating": "更新中...",
     "update": "アップデート",
-    "every30min": "30分ごと",
-    "hourly": "1時間ごと",
-    "every6hours": "6時間ごと",
     "daily": "毎日",
     "weekly": "毎週",
     "manualOnly": "手動のみ"

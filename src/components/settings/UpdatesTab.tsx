@@ -31,9 +31,6 @@ import { Button, Chip, Card, CardBody, Select, SelectItem } from "@heroui/react"
 function useCheckIntervalOptions() {
   const { t } = useTranslation("settings");
   return [
-    { value: 30, label: t("updates.every30min") },
-    { value: 60, label: t("updates.hourly") },
-    { value: 360, label: t("updates.every6hours") },
     { value: 1440, label: t("updates.daily") },
     { value: 10080, label: t("updates.weekly") },
     { value: 0, label: t("updates.manualOnly") },

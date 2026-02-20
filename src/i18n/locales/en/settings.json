@@ -131,9 +131,6 @@
     "reviewKeyChange": "Review Key Change",
     "updating": "Updating...",
     "update": "Update",
-    "every30min": "Every 30 min",
-    "hourly": "Hourly",
-    "every6hours": "Every 6 hours",
     "daily": "Daily",
     "weekly": "Weekly",
     "manualOnly": "Manual only"

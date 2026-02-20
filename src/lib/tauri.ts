@@ -101,6 +101,10 @@ export async function marketplaceRefresh(): Promise<void> {
   return invoke("marketplace_refresh");
 }
 
+export async function marketplaceLoad(): Promise<void> {
+  return invoke("marketplace_load");
+}
+
 export async function permissionGrant(
   pluginId: string,
   permissions: Permission[]

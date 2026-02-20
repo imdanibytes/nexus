@@ -112,7 +112,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   extensionMarketplaceEntries: [],
   selectedExtensionEntry: null,
   availableUpdates: [],
-  updateCheckInterval: 30,
+  updateCheckInterval: 1440,
   installStatus: { active: false, message: "" },
   showLogsPluginId: null,
   settingsTab: "general",

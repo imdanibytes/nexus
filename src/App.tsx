@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Shell } from "./components/layout/Shell";
 import { PluginViewport } from "./components/plugins/PluginViewport";
 import { PluginLogs } from "./components/plugins/PluginLogs";
@@ -11,7 +11,8 @@ import { useAppStore } from "./stores/appStore";
 import { usePluginActions, usePluginSync } from "./hooks/usePlugins";
 import { useExtensionActions, useExtensionSync } from "./hooks/useExtensions";
 import { useLifecycleEvents } from "./hooks/useLifecycleEvents";
-import { checkEngine, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
+import { useUpdateScheduler } from "./hooks/useUpdateScheduler";
+import { checkEngine, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
 import { Button } from "@heroui/react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -124,34 +125,15 @@ function App() {
   const selectedRegistryEntry = useAppStore((s) => s.selectedRegistryEntry);
   const selectedExtensionEntry = useAppStore((s) => s.selectedExtensionEntry);
   const installedPlugins = useAppStore((s) => s.installedPlugins);
-  const updateCheckInterval = useAppStore((s) => s.updateCheckInterval);
 
   const { refresh } = usePluginActions();
   const { refresh: extensionRefresh } = useExtensionActions();
   useLifecycleEvents();
   usePluginSync();
   useExtensionSync();
+  useUpdateScheduler();
 
-  const checkForPluginUpdates = useCallback(async () => {
-    try {
-      await marketplaceRefresh();
-      const updates = await checkUpdates();
-      if (updates.length > 0) {
-        const { setAvailableUpdates, dismissByCategory, notify } = useAppStore.getState();
-        setAvailableUpdates(updates);
-        dismissByCategory("updates.plugins");
-        dismissByCategory("updates.extensions");
-        for (const u of updates) {
-          const cat = u.item_type === "plugin" ? "updates.plugins" : "updates.extensions";
-          notify(cat, u.item_name, { data: u });
-        }
-      }
-    } catch {
-      // Silently ignore — offline or registry unreachable
-    }
-  }, []);
-
-  // One-time startup: docker check, app update check, initial plugin check, load interval setting
+  // One-time startup: docker check, app update check, plugin/extension list
   useEffect(() => {
     refresh();
     extensionRefresh();
@@ -182,19 +164,7 @@ function App() {
         }
       })
       .catch(() => {});
-
-    checkForPluginUpdates();
-    getUpdateCheckInterval()
-      .then((interval) => useAppStore.getState().setUpdateCheckInterval(interval))
-      .catch(() => {});
-  }, [refresh, extensionRefresh, checkForPluginUpdates]);
-
-  // Reactive timer — restarts whenever the interval setting changes
-  useEffect(() => {
-    if (updateCheckInterval <= 0) return;
-    const id = setInterval(checkForPluginUpdates, updateCheckInterval * 60 * 1000);
-    return () => clearInterval(id);
-  }, [updateCheckInterval, checkForPluginUpdates]);
+  }, [refresh, extensionRefresh]);
 
   return (
     <NexusProvider>

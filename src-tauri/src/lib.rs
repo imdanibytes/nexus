@@ -261,6 +261,7 @@ pub fn run() {
             commands::plugins::plugin_rebuild,
             commands::marketplace::marketplace_search,
             commands::marketplace::marketplace_refresh,
+            commands::marketplace::marketplace_load,
             commands::permissions::permission_grant,
             commands::permissions::permission_revoke,
             commands::permissions::permission_unrevoke,

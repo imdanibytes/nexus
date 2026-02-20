@@ -36,28 +36,7 @@ body {
 }
 
 /* ============================================
-   Scrollbar
-   ============================================ */
-
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--heroui-default-300));
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--heroui-default-400));
-}
-
-/* ============================================
-   Animations
+   Animations (app-specific)
    ============================================ */
 
 @keyframes pulse-status {
@@ -74,35 +53,6 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* Drifting gradient blobs — each one takes a different path */
-@keyframes drift1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(15vw, 20vh) scale(1.1); }
-  50% { transform: translate(5vw, 40vh) scale(0.9); }
-  75% { transform: translate(-10vw, 15vh) scale(1.05); }
-}
-
-@keyframes drift2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(-20vw, -10vh) scale(0.95); }
-  50% { transform: translate(-10vw, 15vh) scale(1.1); }
-  75% { transform: translate(10vw, -20vh) scale(1); }
-}
-
-@keyframes drift3 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(10vw, -25vh) scale(1.05); }
-  50% { transform: translate(-15vw, -10vh) scale(0.95); }
-  75% { transform: translate(5vw, 10vh) scale(1.1); }
-}
-
-@keyframes drift4 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(-10vw, 10vh) scale(1.1); }
-  50% { transform: translate(20vw, -15vh) scale(0.9); }
-  75% { transform: translate(-5vw, -25vh) scale(1.05); }
 }
 
 /* ============================================

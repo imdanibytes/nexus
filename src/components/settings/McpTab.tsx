@@ -9,8 +9,6 @@ import {
 import type { McpSettings, McpToolStatus } from "../../types/mcp";
 import {
   Cpu,
-  Copy,
-  Check,
   ChevronDown,
   Shield,
   ShieldAlert,
@@ -18,46 +16,10 @@ import {
   Wrench,
   Terminal,
 } from "lucide-react";
-import { Switch, Button, Chip, Card, CardBody, Tabs, Tab, Tooltip } from "@heroui/react";
+import { Switch, Chip, Card, CardBody, Tabs, Tab, Tooltip } from "@heroui/react";
+import { CodeBlock } from "@imdanibytes/nexus-ui";
 
 type ConfigTab = "desktop" | "code";
-
-function CopyButton({ text }: { text: string }) {
-  const { t } = useTranslation("settings");
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <Button
-      isIconOnly
-      onPress={copy}
-      className="absolute top-2 right-2"
-      title={t("common:action.copyToClipboard")}
-    >
-      {copied ? (
-        <Check size={12} strokeWidth={1.5} className="text-success" />
-      ) : (
-        <Copy size={12} strokeWidth={1.5} className="text-default-400" />
-      )}
-    </Button>
-  );
-}
-
-function CodeBlock({ text }: { text: string }) {
-  return (
-    <div className="relative">
-      <pre className="bg-background border border-default-100 rounded-[8px] p-3 text-[11px] text-default-500 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
-        {text}
-      </pre>
-      <CopyButton text={text} />
-    </div>
-  );
-}
 
 export function McpTab() {
   const { t } = useTranslation("settings");

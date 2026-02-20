@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Search } from "lucide-react";
-import { Input } from "@heroui/react";
+import { SearchBar as NxSearchBar } from "@imdanibytes/nexus-ui";
 
 interface Props {
   onSearch: (query: string) => void;
@@ -10,24 +9,13 @@ interface Props {
 
 export function SearchBar({ onSearch, initialQuery = "" }: Props) {
   const { t } = useTranslation("plugins");
-  const [value, setValue] = useState(initialQuery);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onSearch(value);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [value, onSearch]);
 
   return (
-    <Input
-      type="text"
-      value={value}
-      onValueChange={setValue}
+    <NxSearchBar
+      value={initialQuery}
+      onChange={onSearch}
       placeholder={t("marketplace.searchPlaceholder")}
-      isClearable
-      onClear={() => setValue("")}
-      startContent={
+      icon={
         <Search
           size={15}
           strokeWidth={1.5}

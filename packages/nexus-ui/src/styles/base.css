@@ -54,3 +54,115 @@
   font-display: swap;
   src: url("./fonts/GeistMono-Medium.woff2") format("woff2");
 }
+
+/* ============================================
+   HeroUI Semantic Token Bridge
+
+   The HeroUI Tailwind v4 plugin registers `foreground` and `background`
+   as static @theme colors (using the defaultTheme's values). This means
+   `text-foreground` and `bg-background` don't react to .light/.dark class
+   switches. The `default-*` scale and `primary` DO switch correctly.
+
+   These unlayered overrides beat the plugin's @layer utilities rules and
+   use the dynamic --heroui-* CSS custom properties that DO react to theme.
+   ============================================ */
+
+.text-foreground {
+  color: hsl(var(--heroui-foreground));
+}
+.bg-background {
+  background-color: hsl(var(--heroui-background));
+}
+.bg-foreground {
+  background-color: hsl(var(--heroui-foreground));
+}
+
+/* ============================================
+   Glass Scrollbar
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--heroui-default-300) / 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--heroui-default-400) / 0.5);
+}
+
+/* ============================================
+   Glass Surface Utilities
+
+   .nx-glass       — standard card: rounded, blurred, bordered
+   .nx-glass-strong — structural chrome: stronger blur, no rounding
+
+   Wrapped in @layer components so Tailwind utilities can override
+   individual properties (e.g. rounded-2xl beating border-radius).
+   Light mode is opaque; dark mode is translucent glass.
+   ============================================ */
+
+@layer components {
+  .nx-glass {
+    border-radius: 0.75rem;
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    background-color: hsl(var(--heroui-default-100));
+    border: 1px solid hsl(var(--heroui-default-200));
+  }
+  :is(.dark) .nx-glass {
+    background-color: hsl(var(--heroui-default-50) / 0.4);
+    border-color: hsl(var(--heroui-default-200) / 0.5);
+  }
+
+  .nx-glass-strong {
+    -webkit-backdrop-filter: blur(40px);
+    backdrop-filter: blur(40px);
+    background-color: hsl(var(--heroui-background) / 0.4);
+  }
+}
+
+/* ============================================
+   Core Animation Keyframes
+   ============================================ */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* Gradient blob drift — GPU-safe translate3d only */
+
+@keyframes drift-1 {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(40px, 30px, 0); }
+}
+
+@keyframes drift-2 {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-30px, 40px, 0); }
+}
+
+@keyframes drift-3 {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-25px, -30px, 0); }
+}
+
+@keyframes drift-4 {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(25px, -35px, 0); }
+}

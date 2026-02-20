@@ -174,7 +174,7 @@ const PluginMenuBar = memo(function PluginMenuBar({ pluginId, disabled, onOpenCh
   return (
     <>
       <div
-        className="flex items-center gap-0 mx-2 mt-2 px-1 h-8 rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50"
+        className="flex items-center gap-0 mx-2 mt-2 px-1 h-8 nx-glass"
       >
         {/* App menu */}
         <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
@@ -559,7 +559,7 @@ function BusyOverlay({ action, pluginName }: { action: PluginAction; pluginName:
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-default-50/40 backdrop-blur-xl">
-      <div className="flex flex-col items-center gap-4 rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50 px-10 py-8">
+      <div className="flex flex-col items-center gap-4 nx-glass px-10 py-8">
         <div className={`w-16 h-16 rounded-[14px] ${config.bg} flex items-center justify-center`}>
           <Icon size={28} strokeWidth={1.5} className={config.color} />
         </div>

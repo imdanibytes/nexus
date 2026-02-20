@@ -30,7 +30,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <AppSidebar />
       </ErrorBoundary>
 
-      <main className="relative flex-1 overflow-hidden backdrop-blur-2xl bg-background/40 border-l border-default-200/50">
+      <main className="relative flex-1 overflow-hidden nx-glass-strong border-l border-default-200/50">
         {children}
       </main>
 

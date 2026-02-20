@@ -39,7 +39,7 @@ import {
   Tooltip,
   useDisclosure,
 } from "@heroui/react";
-import { cn } from "@imdanibytes/nexus-ui";
+import { cn, Surface, StatusDot } from "@imdanibytes/nexus-ui";
 import { NexusLogo } from "../brand/NexusLogo";
 import { LazyMotion, domAnimation, m } from "framer-motion";
 
@@ -99,15 +99,6 @@ function NavItem({
   return button;
 }
 
-/* ─── Surface layer — each section is its own card ─── */
-function Surface({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn("rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50 p-2", className)}>
-      {children}
-    </div>
-  );
-}
-
 /* ─── Plugin row ─── */
 function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?: boolean }) {
   const { t } = useTranslation(["common", "plugins"]);
@@ -159,23 +150,10 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
   }
 
   const statusDot = (
-    <span className="flex items-center justify-center w-4 shrink-0">
-      <span className="relative flex h-2 w-2">
-        <span
-          className={cn(
-            "absolute inline-flex h-full w-full rounded-full",
-            statusColor[plugin.status] ?? "bg-default-400",
-            isRunning && !isWarm && "animate-ping opacity-75",
-          )}
-        />
-        <span
-          className={cn(
-            "relative inline-flex rounded-full h-2 w-2",
-            statusColor[plugin.status] ?? "bg-default-400",
-          )}
-        />
-      </span>
-    </span>
+    <StatusDot
+      status={plugin.status as "running" | "stopped" | "error" | "installing"}
+      ping={isRunning && !isWarm}
+    />
   );
 
   if (collapsed) {
@@ -612,7 +590,7 @@ export function AppSidebar() {
     <m.aside
       animate={{ width: collapsed ? 68 : 240 }}
       transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-      className="flex-shrink-0 flex flex-col h-full backdrop-blur-2xl bg-background/40 p-3 gap-2 overflow-hidden"
+      className="flex-shrink-0 flex flex-col h-full nx-glass-strong p-3 gap-2 overflow-hidden"
     >
       <div className="flex flex-col flex-1 gap-2 overflow-hidden">
         {/* Layer 0 — Brand */}
@@ -621,7 +599,7 @@ export function AppSidebar() {
         </Surface>
 
         {/* Layer 1 — Installed items (scrollable, sectioned) */}
-        <Surface className="flex-1 overflow-y-auto">
+        <Surface className="flex-1 overflow-y-auto p-2">
           {installedPlugins.length === 0 && installedExtensions.length === 0 ? (
             collapsed ? (
               <div className="flex justify-center py-3">
@@ -686,7 +664,7 @@ export function AppSidebar() {
         </Surface>
 
         {/* Layer 2 — Navigation */}
-        <Surface className="space-y-0.5">
+        <Surface className="space-y-0.5 p-2">
           <NavItem
             isActive={currentView === "marketplace" || currentView === "plugin-detail"}
             onClick={() => useAppStore.getState().setView("marketplace")}

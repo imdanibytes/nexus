@@ -84,7 +84,7 @@ export function NexusProvider({
   }, [])
 
   return (
-    <HeroUIProvider>
+    <HeroUIProvider style={{ display: "contents" }}>
       <NexusContext.Provider value={{ apiUrl }}>
         {children}
         {toaster && <Toaster />}

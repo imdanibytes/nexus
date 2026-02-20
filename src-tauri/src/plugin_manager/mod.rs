@@ -33,10 +33,14 @@ fn data_volume_name(plugin_id: &str) -> String {
 }
 
 /// Reject install/update if the plugin requires a newer Nexus version.
+/// Dev builds (prerelease tags like `0.0.0-dev`) skip this check.
 fn check_min_nexus_version(manifest: &PluginManifest) -> NexusResult<()> {
     if let Some(ref required) = manifest.min_nexus_version {
         let current = semver::Version::parse(env!("CARGO_PKG_VERSION"))
             .expect("CARGO_PKG_VERSION is valid semver");
+        if !current.pre.is_empty() {
+            return Ok(());
+        }
         let minimum = semver::Version::parse(required).map_err(|e| {
             NexusError::InvalidManifest(format!("invalid min_nexus_version \"{required}\": {e}"))
         })?;

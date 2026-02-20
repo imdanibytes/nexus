@@ -1,0 +1,242 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # 4am UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for new commits since last nightly
+        id: check
+        run: |
+          LAST_NIGHTLY_COMMIT=$(git rev-parse refs/tags/nightly 2>/dev/null || echo "")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "$LAST_NIGHTLY_COMMIT" = "$HEAD_COMMIT" ]; then
+            echo "No new commits since last nightly — skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "New commits found — proceeding"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Compute nightly version
+        if: steps.check.outputs.skip != 'true'
+        id: version
+        run: |
+          # Find latest stable tag (exclude any prerelease suffixes)
+          LATEST_STABLE=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST_STABLE" ]; then
+            echo "::error::No stable tags found"
+            exit 1
+          fi
+          echo "Latest stable: $LATEST_STABLE"
+
+          # Strip v prefix and bump patch
+          STABLE_VERSION="${LATEST_STABLE#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$STABLE_VERSION"
+          PATCH=$((PATCH + 1))
+
+          DATE=$(date -u +%Y%m%d)
+          VERSION="${MAJOR}.${MINOR}.${PATCH}-nightly.${DATE}"
+          TAG="v${VERSION}"
+
+          echo "Nightly version: $VERSION"
+          echo "Nightly tag: $TAG"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+  build-app:
+    needs: [prepare]
+    if: needs.prepare.outputs.skip != 'true'
+    uses: ./.github/workflows/_build-app.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  publish-nightly:
+    needs: [prepare, build-app]
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate latest.json and prepare release files
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          REPO="${{ github.repository }}"
+
+          echo "=== Artifact structure ==="
+          find artifacts -type f | sort
+
+          mkdir -p release
+
+          # Copy installers
+          find artifacts -name "*.dmg" -type f -exec cp {} release/ \;
+          find artifacts -name "*.deb" -type f -exec cp {} release/ \;
+          find artifacts -name "*.AppImage" -type f ! -name "*.tar.gz" -exec cp {} release/ \;
+          find artifacts -name "*.exe" -type f -exec cp {} release/ \;
+
+          NOTES="Nightly build ${TAG} — built from $(git rev-parse --short HEAD)"
+
+          # Build updater platform entries (same logic as release.yml)
+          PLATFORMS="{}"
+
+          # --- macOS ---
+          for arch_dir in artifacts/nexus-*-apple-darwin; do
+            [ -d "$arch_dir" ] || continue
+            arch=$(basename "$arch_dir")
+
+            tarball=$(find "$arch_dir" -name "*.app.tar.gz" ! -name "*.sig" -type f | head -1)
+            sig=$(find "$arch_dir" -name "*.app.tar.gz.sig" -type f | head -1)
+            [ -z "$tarball" ] || [ -z "$sig" ] && continue
+
+            if echo "$arch" | grep -q "aarch64"; then
+              PLATFORM_KEY="darwin-aarch64"
+              RENAMED="Nexus_aarch64.app.tar.gz"
+            else
+              PLATFORM_KEY="darwin-x86_64"
+              RENAMED="Nexus_x86_64.app.tar.gz"
+            fi
+
+            cp "$tarball" "release/$RENAMED"
+            SIG_CONTENT=$(cat "$sig")
+            # Nightly updater URLs point to the rolling 'nightly' tag
+            URL="https://github.com/${REPO}/releases/download/nightly/${RENAMED}"
+            PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "$PLATFORM_KEY" \
+              --arg url "$URL" --arg sig "$SIG_CONTENT" \
+              '. + {($key): {"url": $url, "signature": $sig}}')
+          done
+
+          # --- Linux ---
+          LINUX_DIR="artifacts/nexus-x86_64-unknown-linux-gnu"
+          if [ -d "$LINUX_DIR" ]; then
+            tarball=$(find "$LINUX_DIR" -name "*.AppImage.tar.gz" ! -name "*.sig" -type f | head -1)
+            sig=$(find "$LINUX_DIR" -name "*.AppImage.tar.gz.sig" -type f | head -1)
+            if [ -n "$tarball" ] && [ -n "$sig" ]; then
+              RENAMED="Nexus_x86_64.AppImage.tar.gz"
+              cp "$tarball" "release/$RENAMED"
+              SIG_CONTENT=$(cat "$sig")
+              URL="https://github.com/${REPO}/releases/download/nightly/${RENAMED}"
+              PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "linux-x86_64" \
+                --arg url "$URL" --arg sig "$SIG_CONTENT" \
+                '. + {($key): {"url": $url, "signature": $sig}}')
+            fi
+          fi
+
+          # --- Windows ---
+          WINDOWS_DIR="artifacts/nexus-x86_64-pc-windows-msvc"
+          if [ -d "$WINDOWS_DIR" ]; then
+            nsis_zip=$(find "$WINDOWS_DIR" -name "*.nsis.zip" ! -name "*.sig" -type f | head -1)
+            sig=$(find "$WINDOWS_DIR" -name "*.nsis.zip.sig" -type f | head -1)
+            if [ -n "$nsis_zip" ] && [ -n "$sig" ]; then
+              RENAMED="Nexus_x86_64-setup.nsis.zip"
+              cp "$nsis_zip" "release/$RENAMED"
+              SIG_CONTENT=$(cat "$sig")
+              URL="https://github.com/${REPO}/releases/download/nightly/${RENAMED}"
+              PLATFORMS=$(echo "$PLATFORMS" | jq --arg key "windows-x86_64" \
+                --arg url "$URL" --arg sig "$SIG_CONTENT" \
+                '. + {($key): {"url": $url, "signature": $sig}}')
+            fi
+          fi
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "$NOTES" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson platforms "$PLATFORMS" \
+            '{version: $version, notes: $notes, pub_date: $date, platforms: $platforms}' \
+            > release/latest.json
+
+          echo "=== latest.json ==="
+          cat release/latest.json
+
+          echo "=== Release files ==="
+          ls -la release/
+
+      - name: Force-update nightly tag
+        run: |
+          git tag -f nightly
+          git push -f origin nightly
+
+      - name: Delete old rolling nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete nightly --yes 2>/dev/null || true
+
+      - name: Create rolling nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          mv release/latest.json /tmp/latest.json
+
+          gh release create nightly \
+            --title "Nightly Build (${TAG})" \
+            --notes "Automated nightly build. Updated daily at 4am UTC when new commits exist on main.
+
+          **Version:** ${TAG}
+          **Commit:** $(git rev-parse --short HEAD)
+
+          > This is a pre-release build and may be unstable." \
+            --prerelease \
+            release/*
+
+          # Upload latest.json last so the updater sees it only after all artifacts are available
+          gh release upload nightly /tmp/latest.json
+
+      - name: Create dated nightly release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          gh release create "$TAG" \
+            --title "Nightly ${TAG}" \
+            --notes "Dated nightly archive. Auto-deleted after 14 days." \
+            --prerelease \
+            release/*
+
+      - name: Clean up old dated nightlies (>14 days)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CUTOFF=$(date -u -d '14 days ago' +%Y%m%d 2>/dev/null || date -u -v-14d +%Y%m%d)
+          gh release list --limit 100 --json tagName,isPrerelease \
+            | jq -r '.[] | select(.isPrerelease) | .tagName' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}$' \
+            | while read -r tag; do
+                DATE_PART="${tag##*nightly.}"
+                if [ "$DATE_PART" -lt "$CUTOFF" ] 2>/dev/null; then
+                  echo "Deleting old nightly: $tag"
+                  gh release delete "$tag" --yes 2>/dev/null || true
+                  git push origin --delete "refs/tags/$tag" 2>/dev/null || true
+                fi
+              done

@@ -2,6 +2,11 @@ name: Build App (reusable)
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: "Version override (without v prefix). If empty, derived from git tag."
+        required: false
+        type: string
     secrets:
       APPLE_CERTIFICATE:
         required: false
@@ -44,11 +49,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync version from git tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Sync version
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          elif [[ "$GITHUB_REF_NAME" == v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            echo "No version to sync — skipping"
+            exit 0
+          fi
           echo "Syncing version to $VERSION"
 
           # package.json (root)

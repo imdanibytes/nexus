@@ -60,6 +60,7 @@ interface AppState {
   settingsTab: string;
   focusExtensionId: string | null;
   warmViewports: Record<string, true>;
+  updateChannel: "stable" | "nightly";
   notifications: Notification[];
 
   setView: (view: View) => void;
@@ -85,6 +86,7 @@ interface AppState {
   setShowLogs: (pluginId: string | null) => void;
   setSettingsTab: (tab: string) => void;
   setFocusExtensionId: (id: string | null) => void;
+  setUpdateChannel: (channel: "stable" | "nightly") => void;
   setWarmViewports: (ids: string[]) => void;
   notify: (
     category: string,
@@ -116,6 +118,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   settingsTab: "general",
   focusExtensionId: null,
   warmViewports: {},
+  updateChannel: "stable",
 
   setView: (view) => set({ currentView: view }),
   notifications: [],
@@ -199,6 +202,7 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   setShowLogs: (pluginId) => set({ showLogsPluginId: pluginId }),
   setSettingsTab: (tab) => set({ settingsTab: tab }),
   setFocusExtensionId: (id) => set({ focusExtensionId: id }),
+  setUpdateChannel: (channel) => set({ updateChannel: channel }),
   setWarmViewports: (ids) => {
     const next: Record<string, true> = {};
     for (const id of ids) next[id] = true;

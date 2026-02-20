@@ -145,7 +145,10 @@
     "latestVersion": "You're on the latest version",
     "whatsNew": "What's New",
     "version": "v{{version}}",
-    "downloading": "Downloading... {{percent}}%"
+    "downloading": "Downloading... {{percent}}%",
+    "updateChannel": "Update Channel",
+    "channelStable": "Stable",
+    "channelNightly": "Nightly"
   },
   "keyChange": {
     "securityWarning": "Security Warning",

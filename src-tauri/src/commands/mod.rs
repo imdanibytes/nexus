@@ -1,3 +1,4 @@
+pub mod app_updater;
 pub mod extensions;
 pub mod marketplace;
 pub mod mcp;

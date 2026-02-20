@@ -145,7 +145,10 @@
     "latestVersion": "已是最新版本",
     "whatsNew": "更新内容",
     "version": "v{{version}}",
-    "downloading": "下载中... {{percent}}%"
+    "downloading": "下载中... {{percent}}%",
+    "updateChannel": "更新频道",
+    "channelStable": "稳定版",
+    "channelNightly": "每夜构建"
   },
   "keyChange": {
     "securityWarning": "安全警告",

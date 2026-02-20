@@ -145,7 +145,10 @@
     "latestVersion": "Info text — user is on the latest version",
     "whatsNew": "Section heading — release notes",
     "version": "Version display — formatted version. {{version}} is semver",
-    "downloading": "Progress text — downloading update. {{percent}} is 0-100"
+    "downloading": "Progress text — downloading update. {{percent}} is 0-100",
+    "updateChannel": "Radio group label — choose between stable and nightly update channels",
+    "channelStable": "Radio option label — stable release channel (recommended)",
+    "channelNightly": "Radio option label — nightly pre-release builds"
   },
   "keyChange": {
     "securityWarning": "Dialog heading — signing key changed (security concern)",

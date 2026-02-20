@@ -148,6 +148,11 @@ pub fn run() {
             let approval_bridge = Arc::new(ApprovalBridge::new(app_handle.clone()));
             app.manage(approval_bridge.clone());
 
+            // Pending app update — shared between check and download commands
+            app.manage(commands::app_updater::PendingAppUpdate(
+                tokio::sync::Mutex::new(None),
+            ));
+
             let dev_watcher = Arc::new(DevWatcher::new());
             app.manage(dev_watcher.clone());
 
@@ -301,6 +306,10 @@ pub fn run() {
             commands::mcp_wrap::mcp_generate_and_install,
             commands::oauth::oauth_list_clients,
             commands::oauth::oauth_revoke_client,
+            commands::app_updater::check_app_update,
+            commands::app_updater::download_app_update,
+            commands::app_updater::get_update_channel,
+            commands::app_updater::set_update_channel,
             notification::send_notification,
         ])
         .build(tauri::generate_context!())

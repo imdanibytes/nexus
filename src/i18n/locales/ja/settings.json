@@ -145,7 +145,10 @@
     "latestVersion": "最新バージョンです",
     "whatsNew": "新機能",
     "version": "v{{version}}",
-    "downloading": "ダウンロード中... {{percent}}%"
+    "downloading": "ダウンロード中... {{percent}}%",
+    "updateChannel": "アップデートチャンネル",
+    "channelStable": "安定版",
+    "channelNightly": "ナイトリー"
   },
   "keyChange": {
     "securityWarning": "セキュリティ警告",

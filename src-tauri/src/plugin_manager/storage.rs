@@ -374,6 +374,9 @@ pub struct NexusSettings {
     /// UI theme identifier. "default" = teal accent, "nebula" = purple accent.
     #[serde(default = "default_theme")]
     pub theme: String,
+    /// App update channel: "stable" or "nightly".
+    #[serde(default = "default_update_channel")]
+    pub update_channel: String,
     #[serde(skip)]
     path: PathBuf,
 }
@@ -388,6 +391,10 @@ fn default_language() -> String {
 
 fn default_theme() -> String {
     "default".to_string()
+}
+
+fn default_update_channel() -> String {
+    "stable".to_string()
 }
 
 impl NexusSettings {

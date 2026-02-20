@@ -386,6 +386,30 @@ export async function pluginRebuild(pluginId: string): Promise<void> {
   return invoke("plugin_rebuild", { pluginId });
 }
 
+// App Updater
+
+export interface AppUpdateInfo {
+  version: string;
+  body: string | null;
+  date: string | null;
+}
+
+export async function checkAppUpdate(): Promise<AppUpdateInfo | null> {
+  return invoke("check_app_update");
+}
+
+export async function downloadAppUpdate(): Promise<void> {
+  return invoke("download_app_update");
+}
+
+export async function getUpdateChannel(): Promise<string> {
+  return invoke("get_update_channel");
+}
+
+export async function setUpdateChannel(channel: string): Promise<void> {
+  return invoke("set_update_channel", { channel });
+}
+
 // OAuth
 
 import type { OAuthClientInfo } from "../types/oauth";

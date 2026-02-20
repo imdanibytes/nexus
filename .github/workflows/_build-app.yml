@@ -83,13 +83,21 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Configure sccache
-        uses: mozilla-actions/sccache-action@v0.0.7
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Set Rust compiler cache env
         shell: bash
         run: |
           echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          # Test that sccache can start before setting it as RUSTC_WRAPPER.
+          # If the GHA cache backend is down, build without caching instead of failing.
+          if sccache --start-server 2>/dev/null; then
+            sccache --stop-server 2>/dev/null || true
+            echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+            echo "sccache: enabled"
+          else
+            echo "::warning::sccache server failed to start — building without cache"
+          fi
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

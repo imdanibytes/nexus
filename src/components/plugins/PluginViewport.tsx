@@ -75,13 +75,17 @@ export const PluginViewport = memo(function PluginViewport({ pluginId }: Props) 
 
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const iframe = e.currentTarget;
+    // Derive the explicit target origin from the iframe src to avoid postMessage("*").
+    // Using "*" would broadcast to any origin if an attacker could inject a different
+    // iframe src. Explicit origin restricts delivery to the plugin's actual origin.
+    const targetOrigin = new URL(iframe.src).origin;
 
     // Register this iframe as a message surface
     registerSurface(pluginId, (event, data) => {
       try {
         iframe.contentWindow?.postMessage(
           { type: "nexus:system", event, data },
-          "*",
+          targetOrigin,
         );
       } catch {
         // cross-origin or unmounted
@@ -121,6 +125,8 @@ export const PluginViewport = memo(function PluginViewport({ pluginId }: Props) 
             title={plugin.manifest.name}
             data-nexus-plugin={plugin.manifest.id}
             sandbox="allow-scripts allow-same-origin"
+            allow="clipboard-write"
+            referrerPolicy="no-referrer"
             onLoad={handleIframeLoad}
           />
         ) : isRunning && !isBusy && !hasUi ? (

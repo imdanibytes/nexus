@@ -140,14 +140,14 @@ const PluginMenuBar = memo(function PluginMenuBar({ pluginId, disabled, onOpenCh
   const { t } = useTranslation("plugins");
   const plugin = usePlugin(pluginId);
   const { start, stop, restart, remove, rebuild, toggleDevMode } = usePluginActions();
+  const removeModal = useDisclosure();
+  const aboutModal = useDisclosure();
 
   if (!plugin) return null;
 
   const isRunning = plugin.status === "running";
   const isLocal = !!plugin.local_manifest_path;
   const id = pluginId;
-  const removeModal = useDisclosure();
-  const aboutModal = useDisclosure();
 
   const handleStart = () => start(id);
   const handleStop = () => stop(id);

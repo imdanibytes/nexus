@@ -20,8 +20,8 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
-import { cn } from "@imdanibytes/nexus-ui";
-import { LazyMotion, domAnimation, m, AnimatePresence } from "framer-motion";
+import { SettingsShell } from "@imdanibytes/nexus-ui";
+import type { SettingsTab as SettingsTabDef } from "@imdanibytes/nexus-ui";
 
 type SettingsTab =
   | "general"
@@ -33,7 +33,7 @@ type SettingsTab =
   | "updates"
   | "help";
 
-const TABS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] = [
+const TAB_DEFS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] = [
   { id: "general", labelKey: "tabs.general", icon: Settings },
   { id: "system", labelKey: "tabs.system", icon: Monitor },
   { id: "plugins", labelKey: "tabs.plugins", icon: Puzzle },
@@ -44,7 +44,7 @@ const TABS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] = [
   { id: "help", labelKey: "tabs.help", icon: HelpCircle },
 ];
 
-const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
+const TAB_IDS = new Set<string>(TAB_DEFS.map((t) => t.id));
 
 const TAB_NOTIFICATION_PREFIX: Partial<Record<SettingsTab, string>> = {
   updates: "updates",
@@ -85,70 +85,36 @@ export function SettingsPage() {
   const active = (TAB_IDS.has(resolved) ? resolved : "general") as SettingsTab;
   const ActiveComponent = TAB_COMPONENTS[active];
 
+  // Translate tab labels for SettingsShell
+  const tabs: SettingsTabDef[] = TAB_DEFS.map((tab) => ({
+    id: tab.id,
+    label: t(tab.labelKey),
+    icon: tab.icon,
+  }));
+
   return (
-    <div className="flex h-full gap-3 p-3">
-      {/* Nav surface */}
-      <div className="w-[200px] flex-shrink-0 nx-glass p-4">
-        <h2 className="text-lg font-bold mb-1 px-3">{t("title")}</h2>
-        <p className="text-xs text-default-400 mb-4 px-3">{t("subtitle")}</p>
-
-        <nav className="space-y-0.5">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = tab.id === active;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setSettingsTab(tab.id)}
-                className={cn(
-                  "relative w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-left transition-colors duration-200",
-                  isActive
-                    ? "text-foreground font-medium"
-                    : "text-default-500 hover:text-foreground hover:bg-default-50",
-                )}
-              >
-                {isActive && (
-                  <m.div
-                    layoutId="settings-nav"
-                    className="absolute inset-0 rounded-xl bg-default-100"
-                    transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
-                  />
-                )}
-                <span className="relative flex items-center gap-3 w-full">
-                  <Icon size={16} />
-                  <span className="flex-1">{t(tab.labelKey)}</span>
-                  <TabDot tabId={tab.id} />
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Content surface — animated transitions */}
-      <div className="flex-1 nx-glass overflow-y-auto p-8">
-        <LazyMotion features={domAnimation}>
-          <AnimatePresence mode="wait">
-            <m.div
-              key={active}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-            >
-              <ErrorBoundary
-                label={
-                  TABS.find((tab) => tab.id === active)?.labelKey
-                    ? t(TABS.find((tab) => tab.id === active)!.labelKey)
-                    : undefined
-                }
-              >
-                <ActiveComponent />
-              </ErrorBoundary>
-            </m.div>
-          </AnimatePresence>
-        </LazyMotion>
-      </div>
-    </div>
+    <SettingsShell
+      tabs={tabs}
+      activeTab={active}
+      onTabChange={(id) => setSettingsTab(id)}
+      variant="panel"
+      navHeader={
+        <div className="px-3 mb-4">
+          <h2 className="text-lg font-bold mb-1">{t("title")}</h2>
+          <p className="text-xs text-default-400">{t("subtitle")}</p>
+        </div>
+      }
+      tabBadge={(tabId) => <TabDot tabId={tabId as SettingsTab} />}
+    >
+      <ErrorBoundary
+        label={
+          TAB_DEFS.find((tab) => tab.id === active)?.labelKey
+            ? t(TAB_DEFS.find((tab) => tab.id === active)!.labelKey)
+            : undefined
+        }
+      >
+        <ActiveComponent />
+      </ErrorBoundary>
+    </SettingsShell>
   );
 }

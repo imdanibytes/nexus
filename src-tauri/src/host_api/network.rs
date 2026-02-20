@@ -122,14 +122,23 @@ async fn resolve_and_classify(
 }
 
 /// Returns true if the URL targets a cloud metadata endpoint.
+///
+/// Covers AWS/Azure (169.254.169.254), Google Cloud (metadata.google.internal),
+/// and Alibaba Cloud (100.100.100.200). Also catches IPv6 unique-local (fd00::/7)
+/// and IPv4-mapped representations of metadata IPs.
+///
+/// Note: `reqwest::Url` lowercases hostnames per the WHATWG URL Living Standard §4.1,
+/// so the case-insensitive check on "metadata.google.internal" is defense-in-depth
+/// against future callers that skip URL normalization.
 fn is_metadata_ip(host: &str) -> bool {
     let host = strip_brackets(host);
 
-    // Check string matches first
-    if matches!(
-        host,
-        "169.254.169.254" | "metadata.google.internal" | "100.100.100.200"
-    ) || host.starts_with("fd00:")
+    // Check well-known metadata hostnames and IPs (case-insensitive for hostnames).
+    if host == "169.254.169.254"
+        || host.eq_ignore_ascii_case("metadata.google.internal")
+        || host == "100.100.100.200"
+        || host.starts_with("fd00:")
+        || host.starts_with("FD00:")
     {
         return true;
     }

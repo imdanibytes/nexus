@@ -1,3 +1,4 @@
+pub mod api_keys;
 mod commands;
 mod error;
 pub mod extensions;
@@ -132,6 +133,10 @@ pub fn run() {
             let oauth_store = Arc::new(oauth::OAuthStore::load(&data_dir));
             app.manage(oauth_store.clone());
 
+            // API key store — for MCP gateway authentication (localhost, RFC 6750 Bearer)
+            let api_key_store = api_keys::ApiKeyStore::load(&data_dir);
+            app.manage(api_key_store.clone());
+
             let mgr = PluginManager::new(data_dir.clone(), runtime.clone(), perm_service, oauth_store.clone());
 
             let state = Arc::new(RwLock::new(mgr));
@@ -193,6 +198,7 @@ pub fn run() {
             let runtime_clone = runtime.clone();
             let oauth_clone = oauth_store.clone();
             let theme_clone = theme.clone();
+            let api_keys_clone = api_key_store.clone();
             tauri::async_runtime::spawn(async move {
                 // Ensure nexus-bridge Docker network exists
                 if let Err(e) = runtime_clone.ensure_network("nexus-bridge").await {
@@ -200,7 +206,7 @@ pub fn run() {
                 }
 
                 // Start the Host API server
-                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone).await {
+                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone, api_keys_clone).await {
                     log::error!("Host API server failed: {}", e);
                 }
             });
@@ -314,6 +320,11 @@ pub fn run() {
             commands::mcp_wrap::mcp_generate_and_install,
             commands::oauth::oauth_list_clients,
             commands::oauth::oauth_revoke_client,
+            commands::api_keys::api_key_list,
+            commands::api_keys::api_key_generate,
+            commands::api_keys::api_key_revoke,
+            commands::api_keys::api_key_get_default,
+            commands::api_keys::api_key_regenerate_default,
             commands::app_updater::check_app_update,
             commands::app_updater::download_app_update,
             commands::app_updater::get_update_channel,

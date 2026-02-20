@@ -35,7 +35,9 @@
     "copyToClipboard": "In die Zwischenablage kopieren",
     "checking": "Prufen...",
     "loading": "Laden...",
-    "showMore": "Mehr anzeigen"
+    "showMore": "Mehr anzeigen",
+    "show": "Anzeigen",
+    "hide": "Ausblenden"
   },
   "status": {
     "running": "Aktiv",

@@ -35,7 +35,9 @@
     "copyToClipboard": "复制到剪贴板",
     "checking": "检查中...",
     "loading": "加载中...",
-    "showMore": "显示更多"
+    "showMore": "显示更多",
+    "show": "显示",
+    "hide": "隐藏"
   },
   "status": {
     "running": "运行中",

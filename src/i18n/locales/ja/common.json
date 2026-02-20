@@ -35,7 +35,9 @@
     "copyToClipboard": "クリップボードにコピー",
     "checking": "確認中...",
     "loading": "読み込み中...",
-    "showMore": "もっと見る"
+    "showMore": "もっと見る",
+    "show": "表示",
+    "hide": "非表示"
   },
   "status": {
     "running": "実行中",

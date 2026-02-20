@@ -1,3 +1,4 @@
+use crate::api_keys::ApiKeyStore;
 use crate::plugin_manager::storage::{McpPluginSettings, McpSettings};
 use crate::AppState;
 use serde::Serialize;
@@ -171,22 +172,70 @@ pub async fn mcp_list_tools(
 #[tauri::command]
 pub async fn mcp_config_snippet(
     _state: tauri::State<'_, AppState>,
+    api_keys: tauri::State<'_, ApiKeyStore>,
 ) -> Result<serde_json::Value, String> {
-    // OAuth-based config — no tokens/headers needed.
-    // Clients discover OAuth endpoints via RFC 8414 metadata at the server URL.
+    let default_key = api_keys.get_default_raw().unwrap_or_default();
+
     let desktop_config = serde_json::json!({
         "mcpServers": {
             "nexus": {
-                "url": "http://127.0.0.1:9600/mcp"
+                "url": "http://127.0.0.1:9600/mcp",
+                "headers": {
+                    "Authorization": format!("Bearer {}", default_key)
+                }
             }
         }
     });
 
-    let claude_code_command =
-        "claude mcp add nexus \\\n  --transport http \\\n  http://127.0.0.1:9600/mcp".to_string();
+    let claude_code_command = format!(
+        "claude mcp add -s user --transport http \\\n  nexus http://127.0.0.1:9600/mcp \\\n  -H \"Authorization: Bearer {}\"",
+        default_key
+    );
+
+    let bearer = format!("Bearer {}", default_key);
+
+    // Cursor: ~/.cursor/mcp.json — plain url + headers
+    let cursor_config = serde_json::json!({
+        "mcpServers": {
+            "nexus": {
+                "url": "http://127.0.0.1:9600/mcp",
+                "headers": {
+                    "Authorization": &bearer
+                }
+            }
+        }
+    });
+
+    // Cline: cline_mcp_settings.json — requires "type": "streamableHttp" (camelCase)
+    let cline_config = serde_json::json!({
+        "mcpServers": {
+            "nexus": {
+                "type": "streamableHttp",
+                "url": "http://127.0.0.1:9600/mcp",
+                "headers": {
+                    "Authorization": &bearer
+                }
+            }
+        }
+    });
+
+    // Kiro: ~/.kiro/settings/mcp.json — plain url + headers
+    let kiro_config = serde_json::json!({
+        "mcpServers": {
+            "nexus": {
+                "url": "http://127.0.0.1:9600/mcp",
+                "headers": {
+                    "Authorization": &bearer
+                }
+            }
+        }
+    });
 
     Ok(serde_json::json!({
         "desktop_config": desktop_config,
-        "claude_code_command": claude_code_command
+        "claude_code_command": claude_code_command,
+        "cursor_config": cursor_config,
+        "cline_config": cline_config,
+        "kiro_config": kiro_config
     }))
 }

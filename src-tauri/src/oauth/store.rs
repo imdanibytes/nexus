@@ -13,7 +13,8 @@ use super::types::*;
 use crate::permissions::rar::AuthorizationDetail;
 
 const AUTH_CODE_TTL: Duration = Duration::from_secs(10 * 60); // 10 minutes
-const ACCESS_TOKEN_TTL: Duration = Duration::from_secs(60 * 60); // 1 hour
+const PLUGIN_ACCESS_TOKEN_SECS: i64 = 60 * 60; // 1 hour
+const PUBLIC_ACCESS_TOKEN_SECS: i64 = 24 * 60 * 60; // 24 hours
 const REFRESH_TOKEN_DAYS: i64 = 30;
 
 // ---------------------------------------------------------------------------
@@ -32,9 +33,11 @@ pub struct OAuthStore {
 }
 
 impl OAuthStore {
-    /// Load persisted clients and refresh tokens from disk, or create empty store.
+    /// Load persisted clients, access tokens, and refresh tokens from disk,
+    /// or create empty store. Expired tokens are pruned on load.
     pub fn load(data_dir: &Path) -> Self {
         let clients_path = data_dir.join("oauth_clients.json");
+        let access_path = data_dir.join("oauth_access.json");
         let refresh_path = data_dir.join("oauth_refresh.json");
 
         let clients: HashMap<String, OAuthClient> =
@@ -43,21 +46,32 @@ impl OAuthStore {
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default();
 
+        let now = Utc::now();
+
+        let access_tokens: HashMap<String, AccessToken> =
+            std::fs::read_to_string(&access_path)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+        let access_tokens: HashMap<String, AccessToken> = access_tokens
+            .into_iter()
+            .filter(|(_, t)| t.expires_at > now)
+            .collect();
+
         let refresh_tokens: HashMap<String, RefreshToken> =
             std::fs::read_to_string(&refresh_path)
                 .ok()
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default();
-
-        let now = Utc::now();
         let refresh_tokens: HashMap<String, RefreshToken> = refresh_tokens
             .into_iter()
             .filter(|(_, t)| t.expires_at > now)
             .collect();
 
         log::info!(
-            "OAuth store loaded: {} clients, {} refresh tokens",
+            "OAuth store loaded: {} clients, {} access tokens, {} refresh tokens",
             clients.len(),
+            access_tokens.len(),
             refresh_tokens.len()
         );
 
@@ -65,7 +79,7 @@ impl OAuthStore {
             data_dir: data_dir.to_path_buf(),
             clients: Mutex::new(clients),
             auth_codes: Mutex::new(HashMap::new()),
-            access_tokens: Mutex::new(HashMap::new()),
+            access_tokens: Mutex::new(access_tokens),
             refresh_tokens: Mutex::new(refresh_tokens),
             plugin_auth_details: Mutex::new(HashMap::new()),
         }
@@ -268,21 +282,31 @@ impl OAuthStore {
         plugin_id: Option<String>,
         authorization_details: Vec<AuthorizationDetail>,
     ) -> AccessToken {
+        let ttl_secs = if plugin_id.is_some() {
+            PLUGIN_ACCESS_TOKEN_SECS
+        } else {
+            PUBLIC_ACCESS_TOKEN_SECS
+        };
         let token = AccessToken {
             token: uuid::Uuid::new_v4().to_string(),
             client_id,
             client_name,
             scopes,
             resource,
-            expires_at: Instant::now() + ACCESS_TOKEN_TTL,
+            expires_at: Utc::now() + chrono::Duration::seconds(ttl_secs),
             plugin_id,
             authorization_details,
         };
         let mut tokens = self.access_tokens.lock().unwrap_or_else(|e| e.into_inner());
         // Lazy cleanup
-        let now = Instant::now();
-        tokens.retain(|_, t| now < t.expires_at);
+        let now = Utc::now();
+        tokens.retain(|_, t| t.expires_at > now);
+        let is_public = token.plugin_id.is_none();
         tokens.insert(token.token.clone(), token.clone());
+        drop(tokens);
+        if is_public {
+            self.save_access_tokens();
+        }
         token
     }
 
@@ -290,7 +314,7 @@ impl OAuthStore {
     pub fn validate_access_token(&self, token: &str) -> Option<AccessToken> {
         let tokens = self.access_tokens.lock().unwrap_or_else(|e| e.into_inner());
         tokens.get(token).and_then(|t| {
-            if Instant::now() < t.expires_at {
+            if t.expires_at > Utc::now() {
                 Some(t.clone())
             } else {
                 None
@@ -383,6 +407,7 @@ impl OAuthStore {
             clients.remove(client_id);
         }
         self.save_clients();
+        self.save_access_tokens();
         self.save_refresh_tokens();
     }
 
@@ -555,7 +580,7 @@ impl OAuthStore {
     pub fn expire_access_token(&self, token: &str) {
         let mut tokens = self.access_tokens.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(t) = tokens.get_mut(token) {
-            t.expires_at = Instant::now() - Duration::from_secs(1);
+            t.expires_at = Utc::now() - chrono::Duration::seconds(1);
         }
     }
 
@@ -567,6 +592,21 @@ impl OAuthStore {
         let path = self.data_dir.join("oauth_clients.json");
         if let Err(e) = crate::util::atomic_write(&path, json.as_bytes()) {
             log::error!("Failed to save OAuth clients: {}", e);
+        }
+    }
+
+    /// Persist public-client access tokens to disk. Plugin tokens (short-lived,
+    /// re-issued on every start) are not persisted.
+    fn save_access_tokens(&self) {
+        let tokens = self.access_tokens.lock().unwrap_or_else(|e| e.into_inner());
+        let public_tokens: HashMap<&String, &AccessToken> = tokens
+            .iter()
+            .filter(|(_, t)| t.plugin_id.is_none())
+            .collect();
+        let json = serde_json::to_string_pretty(&public_tokens).unwrap_or_default();
+        let path = self.data_dir.join("oauth_access.json");
+        if let Err(e) = crate::util::atomic_write(&path, json.as_bytes()) {
+            log::error!("Failed to save OAuth access tokens: {}", e);
         }
     }
 
@@ -1248,6 +1288,87 @@ mod tests {
         // Expired token should have been pruned during load
         let result = store.refresh("expired-token", "some-client");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn persistence_public_access_tokens_survive_reload() {
+        let dir = TempDir::new().unwrap();
+
+        let token_str = {
+            let store = OAuthStore::load(dir.path());
+            // Public client (plugin_id = None) → persisted, 24hr TTL
+            let access = store.create_access_token(
+                "public-client".into(),
+                "Claude Code".into(),
+                vec!["mcp".into()],
+                "http://127.0.0.1:9600/mcp".into(),
+                None,
+                vec![],
+            );
+            assert!(store.validate_access_token(&access.token).is_some());
+            access.token
+        };
+        // store dropped — only disk state remains
+
+        let store2 = OAuthStore::load(dir.path());
+        assert!(
+            store2.validate_access_token(&token_str).is_some(),
+            "public-client access token should survive reload"
+        );
+    }
+
+    #[test]
+    fn persistence_plugin_access_tokens_not_persisted() {
+        let dir = TempDir::new().unwrap();
+
+        let token_str = {
+            let store = OAuthStore::load(dir.path());
+            // Plugin client (plugin_id = Some) → not persisted, 1hr TTL
+            let access = store.create_access_token(
+                "plugin-client".into(),
+                "Test Plugin".into(),
+                vec!["plugin".into()],
+                "http://127.0.0.1:9600".into(),
+                Some("com.test.plugin".into()),
+                vec![],
+            );
+            access.token
+        };
+
+        let store2 = OAuthStore::load(dir.path());
+        assert!(
+            store2.validate_access_token(&token_str).is_none(),
+            "plugin access token should not survive reload"
+        );
+    }
+
+    #[test]
+    fn persistence_expired_access_tokens_pruned_on_load() {
+        let dir = TempDir::new().unwrap();
+
+        // Write an access token file with an already-expired token
+        let mut tokens = HashMap::new();
+        tokens.insert(
+            "expired-access".to_string(),
+            AccessToken {
+                token: "expired-access".into(),
+                client_id: "some-client".into(),
+                client_name: "Expired Client".into(),
+                scopes: vec!["mcp".into()],
+                resource: "http://127.0.0.1:9600/mcp".into(),
+                expires_at: Utc::now() - chrono::Duration::days(1),
+                plugin_id: None,
+                authorization_details: vec![],
+            },
+        );
+        let json = serde_json::to_string_pretty(&tokens).unwrap();
+        std::fs::write(dir.path().join("oauth_access.json"), json).unwrap();
+
+        let store = OAuthStore::load(dir.path());
+        assert!(
+            store.validate_access_token("expired-access").is_none(),
+            "expired access token should be pruned on load"
+        );
     }
 
     #[test]

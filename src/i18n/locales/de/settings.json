@@ -67,14 +67,23 @@
     "claudeCode": "Claude Code",
     "desktopHint": "Fugen Sie dies Ihrer Claude-Desktop-Konfigurationsdatei hinzu.",
     "codeHint": "Fuhren Sie dies in Ihrem Terminal aus, um den MCP-Server zu registrieren.",
-    "allProjects": "Alle Projekte",
+    "cursorHint": "Fugen Sie dies zu ~/.cursor/mcp.json oder .cursor/mcp.json in Ihrem Projekt hinzu.",
+    "clineHint": "Fugen Sie dies zu Ihren Cline MCP-Einstellungen (cline_mcp_settings.json) hinzu.",
+    "kiroHint": "Fugen Sie dies zu ~/.kiro/settings/mcp.json oder .kiro/settings/mcp.json in Ihrem Projekt hinzu.",
     "toolRegistry": "Tool-Verzeichnis",
     "noTools": "Keine MCP-Tools verfugbar.",
     "toolCount_one": "{{count}} Tool",
     "toolCount_other": "{{count}} Tools",
     "allPermissionsGranted": "Alle erforderlichen Berechtigungen erteilt",
     "missingPermissions": "Fehlende Berechtigungen: {{permissions}}",
-    "loadingSettings": "MCP-Einstellungen werden geladen..."
+    "loadingSettings": "MCP-Einstellungen werden geladen...",
+    "apiKey": {
+      "label": "API-Schlussel",
+      "description": "Verwenden Sie diesen Schlussel, um MCP-Clients ohne browserbasiertes OAuth zu authentifizieren.",
+      "regenerate": "Neu generieren",
+      "copied": "In Zwischenablage kopiert",
+      "regenerateConfirm": "Neugenerierung macht den aktuellen Schlussel ungultig. Verbundene Clients mussen aktualisiert werden."
+    }
   },
   "pluginsTab": {
     "pluginSettings": "Plugin-Einstellungen",

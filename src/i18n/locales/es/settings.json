@@ -67,14 +67,23 @@
     "claudeCode": "Claude Code",
     "desktopHint": "Agregue esto a su archivo de configuracion de Claude Desktop.",
     "codeHint": "Ejecute esto en su terminal para registrar el servidor MCP.",
-    "allProjects": "Todos los proyectos",
+    "cursorHint": "Agregue esto a ~/.cursor/mcp.json o .cursor/mcp.json en su proyecto.",
+    "clineHint": "Agregue esto a la configuracion MCP de Cline (cline_mcp_settings.json).",
+    "kiroHint": "Agregue esto a ~/.kiro/settings/mcp.json o .kiro/settings/mcp.json en su proyecto.",
     "toolRegistry": "Registro de Herramientas",
     "noTools": "No hay herramientas MCP disponibles.",
     "toolCount_one": "{{count}} herramienta",
     "toolCount_other": "{{count}} herramientas",
     "allPermissionsGranted": "Todos los permisos requeridos otorgados",
     "missingPermissions": "Permisos faltantes: {{permissions}}",
-    "loadingSettings": "Cargando configuracion MCP..."
+    "loadingSettings": "Cargando configuracion MCP...",
+    "apiKey": {
+      "label": "Clave API",
+      "description": "Usa esta clave para autenticar clientes MCP sin OAuth basado en navegador.",
+      "regenerate": "Regenerar",
+      "copied": "Copiado al portapapeles",
+      "regenerateConfirm": "Regenerar invalidara la clave actual. Los clientes conectados necesitaran ser actualizados."
+    }
   },
   "pluginsTab": {
     "pluginSettings": "Configuracion de Plugins",

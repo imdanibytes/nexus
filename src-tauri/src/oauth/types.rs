@@ -106,18 +106,21 @@ pub struct AuthorizationCode {
 // Tokens
 // ---------------------------------------------------------------------------
 
-/// In-memory access token (lost on restart — clients refresh or re-auth).
-#[derive(Debug, Clone)]
+/// Access token. Public-client tokens are persisted to disk and use a 24-hour
+/// TTL; plugin tokens remain in-memory with a 1-hour TTL.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessToken {
     pub token: String,
     pub client_id: String,
     pub client_name: String,
     pub scopes: Vec<String>,
     pub resource: String,
-    pub expires_at: Instant,
+    pub expires_at: DateTime<Utc>,
     /// Nexus plugin ID (present for plugin tokens, None for external clients).
+    #[serde(default)]
     pub plugin_id: Option<String>,
     /// RFC 9396 authorization details — structured permissions carried on the token.
+    #[serde(default)]
     pub authorization_details: Vec<AuthorizationDetail>,
 }
 

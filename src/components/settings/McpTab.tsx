@@ -5,6 +5,8 @@ import {
   mcpSetEnabled,
   mcpListTools,
   mcpConfigSnippet,
+  apiKeyGetDefault,
+  apiKeyRegenerateDefault,
 } from "../../lib/tauri";
 import type { McpSettings, McpToolStatus } from "../../types/mcp";
 import {
@@ -15,11 +17,32 @@ import {
   CircleDot,
   Wrench,
   Terminal,
+  Key,
+  Copy,
+  Check,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  TriangleAlert,
 } from "lucide-react";
-import { Switch, Chip, Card, CardBody, Tabs, Tab, Tooltip } from "@heroui/react";
+import {
+  Switch,
+  Chip,
+  Card,
+  CardBody,
+  Tabs,
+  Tab,
+  Tooltip,
+  Button,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/react";
 import { CodeBlock } from "@imdanibytes/nexus-ui";
 
-type ConfigTab = "desktop" | "code";
+type ConfigTab = "desktop" | "code" | "cursor" | "cline" | "kiro";
 
 export function McpTab() {
   const { t } = useTranslation("settings");
@@ -28,22 +51,31 @@ export function McpTab() {
   const [configData, setConfigData] = useState<{
     desktop_config: unknown;
     claude_code_command: string;
+    cursor_config: unknown;
+    cline_config: unknown;
+    kiro_config: unknown;
   } | null>(null);
   const [configTab, setConfigTab] = useState<ConfigTab>("desktop");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [userScope, setUserScope] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [keyVisible, setKeyVisible] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenDialogOpen, setRegenDialogOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const [s, t, c] = await Promise.all([
+      const [s, t, c, key] = await Promise.all([
         mcpGetSettings(),
         mcpListTools(),
         mcpConfigSnippet(),
+        apiKeyGetDefault(),
       ]);
       setSettings(s);
       setTools(t);
       setConfigData(c as typeof configData);
+      setApiKey(key);
     } catch {
       // backend may not have MCP commands yet
     } finally {
@@ -118,14 +150,35 @@ export function McpTab() {
 
   const globalEnabled = settings?.enabled ?? false;
 
-  function injectScope(cmd: string): string {
-    if (!userScope) return cmd;
-    return cmd.replace("claude mcp add", "claude mcp add -s user");
+  async function copyApiKey() {
+    if (!apiKey) return;
+    await navigator.clipboard.writeText(apiKey);
+    setKeyCopied(true);
+    setTimeout(() => setKeyCopied(false), 2000);
   }
 
-  const desktopSnippet = configData?.desktop_config
-    ? JSON.stringify(configData.desktop_config, null, 2)
-    : "";
+  async function handleRegenerateConfirmed() {
+    setRegenDialogOpen(false);
+    setRegenerating(true);
+    try {
+      await apiKeyRegenerateDefault();
+      await refresh();
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  function maskedKey(key: string): string {
+    if (key.length <= 12) return key;
+    return key.slice(0, 8) + "•".repeat(key.length - 12) + key.slice(-4);
+  }
+
+  const stringify = (v: unknown) => (v ? JSON.stringify(v, null, 2) : "");
+  const desktopSnippet = stringify(configData?.desktop_config);
+  const codeSnippet = configData?.claude_code_command ?? "";
+  const cursorSnippet = stringify(configData?.cursor_config);
+  const clineSnippet = stringify(configData?.cline_config);
+  const kiroSnippet = stringify(configData?.kiro_config);
 
   return (
     <div className="space-y-6">
@@ -173,35 +226,87 @@ export function McpTab() {
             </h3>
           </div>
 
+          {/* API Key */}
+          {apiKey && (
+            <div className="mb-4 p-3 rounded-lg bg-default-100">
+              <div className="flex items-center gap-2 mb-2">
+                <Key size={13} strokeWidth={1.5} className="text-default-500" />
+                <span className="text-[12px] font-medium">{t("mcp.apiKey.label")}</span>
+              </div>
+              <p className="text-[11px] text-default-400 mb-2">
+                {t("mcp.apiKey.description")}
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-[11px] font-mono bg-default-200 px-2.5 py-1.5 rounded select-all truncate">
+                  {keyVisible ? apiKey : maskedKey(apiKey)}
+                </code>
+                <Tooltip content={keyVisible ? t("common:action.hide") : t("common:action.show")} size="sm">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="flat"
+                    onPress={() => setKeyVisible(!keyVisible)}
+                  >
+                    {keyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </Button>
+                </Tooltip>
+                <Tooltip content={keyCopied ? t("mcp.apiKey.copied") : t("common:action.copy")} size="sm">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="flat"
+                    onPress={copyApiKey}
+                  >
+                    {keyCopied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+                  </Button>
+                </Tooltip>
+                <Tooltip content={t("mcp.apiKey.regenerate")} size="sm">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="flat"
+                    isLoading={regenerating}
+                    onPress={() => setRegenDialogOpen(true)}
+                  >
+                    <RefreshCw size={14} />
+                  </Button>
+                </Tooltip>
+              </div>
+            </div>
+          )}
+
           {/* Client tabs */}
           <Tabs
             selectedKey={configTab}
             onSelectionChange={(key) => setConfigTab(key as ConfigTab)}
             className="mb-3"
+            size="sm"
           >
             <Tab key="desktop" title={t("mcp.claudeDesktop")} />
             <Tab key="code" title={t("mcp.claudeCode")} />
+            <Tab key="cursor" title="Cursor" />
+            <Tab key="cline" title="Cline" />
+            <Tab key="kiro" title="Kiro" />
           </Tabs>
 
-          {configTab === "desktop" ? (
+          {configTab === "code" ? (
             <div className="space-y-3">
               <p className="text-[11px] text-default-400">
-                {t("mcp.desktopHint")}
+                {t("mcp.codeHint")}
               </p>
-              <CodeBlock text={desktopSnippet} />
+              <CodeBlock text={codeSnippet} />
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] text-default-400">
-                  {t("mcp.codeHint")}
-                </p>
-                <label className="flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
-                  <Switch isSelected={userScope} onValueChange={setUserScope} />
-                  <span className="text-[11px] text-default-500">{t("mcp.allProjects")}</span>
-                </label>
-              </div>
-              <CodeBlock text={injectScope(configData.claude_code_command)} />
+              <p className="text-[11px] text-default-400">
+                {t(`mcp.${configTab}Hint`)}
+              </p>
+              <CodeBlock text={
+                configTab === "desktop" ? desktopSnippet :
+                configTab === "cursor" ? cursorSnippet :
+                configTab === "cline" ? clineSnippet :
+                kiroSnippet
+              } />
             </div>
           )}
         </CardBody></Card>
@@ -337,6 +442,36 @@ export function McpTab() {
           </div>
         )}
       </CardBody></Card>
+
+      {/* Regenerate API key confirmation */}
+      <Modal isOpen={regenDialogOpen} onOpenChange={setRegenDialogOpen}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex items-center gap-2 text-base">
+                <TriangleAlert size={18} className="text-warning" />
+                {t("mcp.apiKey.regenerate")}
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-[13px] leading-relaxed text-default-500">
+                  {t("mcp.apiKey.regenerateConfirm")}
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button onPress={onClose}>
+                  {t("common:action.cancel")}
+                </Button>
+                <Button
+                  color="danger"
+                  onPress={handleRegenerateConfirmed}
+                >
+                  {t("mcp.apiKey.regenerate")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

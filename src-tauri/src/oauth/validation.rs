@@ -1,7 +1,11 @@
-//! Unified Bearer token validation for all middleware.
+//! Unified Bearer token validation for all middleware (RFC 6750 §2.1).
 //!
 //! One function, used by both the plugin auth middleware and the MCP gateway
 //! auth middleware, eliminating duplicated header parsing and store lookups.
+//!
+//! The `Authorization: Bearer <token>` scheme is defined in RFC 6750 §2.1.
+//! Per RFC 7235 §2.1, the auth-scheme ("Bearer") comparison MUST be
+//! case-insensitive.
 
 use axum::http::HeaderMap;
 
@@ -24,11 +28,21 @@ pub enum TokenValidation {
 }
 
 /// Extract and validate a Bearer token from HTTP headers.
+///
+/// Per RFC 7235 §2.1, the auth-scheme comparison is case-insensitive:
+/// `Bearer`, `bearer`, `BEARER` are all valid.
 pub fn validate_bearer(headers: &HeaderMap, oauth_store: &OAuthStore) -> TokenValidation {
     let bearer = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "));
+        .and_then(|v| {
+            // RFC 7235 §2.1: auth-scheme comparison MUST be case-insensitive.
+            if v.len() > 7 && v[..7].eq_ignore_ascii_case("bearer ") {
+                Some(&v[7..])
+            } else {
+                None
+            }
+        });
 
     let token_str = match bearer {
         Some(t) => t,
@@ -110,6 +124,33 @@ mod tests {
                 assert_eq!(plugin_id, Some("com.test.plugin".to_string()));
             }
             _ => panic!("expected Valid"),
+        }
+    }
+
+    /// RFC 7235 §2.1: auth-scheme comparison MUST be case-insensitive.
+    #[test]
+    fn bearer_scheme_case_insensitive() {
+        let (store, _dir) = test_store();
+        let access = store.create_access_token(
+            "client-1".into(),
+            "Test Client".into(),
+            vec!["mcp".into()],
+            "http://127.0.0.1:9600/mcp".into(),
+            None,
+            vec![],
+        );
+
+        for scheme in ["bearer", "Bearer", "BEARER", "bEaReR"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "authorization",
+                format!("{} {}", scheme, access.token).parse().unwrap(),
+            );
+            assert!(
+                matches!(validate_bearer(&headers, &store), TokenValidation::Valid { .. }),
+                "scheme '{}' must be accepted per RFC 7235 §2.1",
+                scheme
+            );
         }
     }
 

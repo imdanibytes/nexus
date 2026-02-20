@@ -35,7 +35,9 @@
     "copyToClipboard": "클립보드에 복사",
     "checking": "확인 중...",
     "loading": "로딩 중...",
-    "showMore": "더 보기"
+    "showMore": "더 보기",
+    "show": "표시",
+    "hide": "숨기기"
   },
   "status": {
     "running": "실행 중",

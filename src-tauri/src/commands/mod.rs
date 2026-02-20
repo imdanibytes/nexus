@@ -1,3 +1,4 @@
+pub mod api_keys;
 pub mod app_updater;
 pub mod extensions;
 pub mod marketplace;

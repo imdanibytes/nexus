@@ -67,14 +67,23 @@
     "claudeCode": "Claude Code",
     "desktopHint": "Claude Desktop 설정 파일에 이 내용을 추가하세요.",
     "codeHint": "터미널에서 이 명령어를 실행하여 MCP 서버를 등록하세요.",
-    "allProjects": "모든 프로젝트",
+    "cursorHint": "~/.cursor/mcp.json 또는 프로젝트의 .cursor/mcp.json에 추가하세요.",
+    "clineHint": "Cline MCP 설정(cline_mcp_settings.json)에 추가하세요.",
+    "kiroHint": "~/.kiro/settings/mcp.json 또는 프로젝트의 .kiro/settings/mcp.json에 추가하세요.",
     "toolRegistry": "도구 레지스트리",
     "noTools": "사용 가능한 MCP 도구가 없어요.",
     "toolCount_one": "{{count}}개 도구",
     "toolCount_other": "{{count}}개 도구",
     "allPermissionsGranted": "필요한 모든 권한이 부여되었어요",
     "missingPermissions": "누락된 권한: {{permissions}}",
-    "loadingSettings": "MCP 설정 로딩 중..."
+    "loadingSettings": "MCP 설정 로딩 중...",
+    "apiKey": {
+      "label": "API 키",
+      "description": "브라우저 기반 OAuth 없이 MCP 클라이언트를 인증하려면 이 키를 사용하세요.",
+      "regenerate": "재생성",
+      "copied": "클립보드에 복사됨",
+      "regenerateConfirm": "재생성하면 현재 키가 무효화돼요. 연결된 클라이언트를 업데이트해야 해요."
+    }
   },
   "pluginsTab": {
     "pluginSettings": "플러그인 설정",

@@ -1,7 +1,6 @@
 use super::manifest::PluginManifest;
 use crate::error::NexusResult;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -17,13 +16,6 @@ pub fn extract_url_host(url: &str) -> Option<String> {
     } else {
         Some(host.to_string())
     }
-}
-
-/// SHA-256 hash a raw token and return the hex digest.
-pub fn hash_token(raw_token: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(raw_token.as_bytes());
-    format!("{:x}", hasher.finalize())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -125,27 +117,6 @@ impl PluginStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn hash_token_produces_64_char_hex() {
-        let hash = hash_token("test-token-123");
-        assert_eq!(hash.len(), 64, "SHA-256 hex digest should be 64 chars");
-        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
-    }
-
-    #[test]
-    fn hash_token_is_deterministic() {
-        let a = hash_token("same-token");
-        let b = hash_token("same-token");
-        assert_eq!(a, b);
-    }
-
-    #[test]
-    fn different_tokens_produce_different_hashes() {
-        let a = hash_token("token-a");
-        let b = hash_token("token-b");
-        assert_ne!(a, b);
-    }
 
     #[test]
     fn legacy_auth_token_alias_deserializes() {

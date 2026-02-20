@@ -35,7 +35,9 @@
     "copyToClipboard": "Copy to clipboard",
     "checking": "Checking...",
     "loading": "Loading...",
-    "showMore": "Show more"
+    "showMore": "Show more",
+    "show": "Show",
+    "hide": "Hide"
   },
   "status": {
     "running": "Running",

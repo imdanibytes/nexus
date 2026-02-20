@@ -426,6 +426,42 @@ export async function oauthRevokeClient(clientId: string): Promise<void> {
   return invoke("oauth_revoke_client", { clientId });
 }
 
+// API Keys
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_hash: string;
+  prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export interface GeneratedApiKey {
+  key: ApiKey;
+  raw: string;
+}
+
+export async function apiKeyList(): Promise<ApiKey[]> {
+  return invoke("api_key_list");
+}
+
+export async function apiKeyGenerate(name: string): Promise<GeneratedApiKey> {
+  return invoke("api_key_generate", { name });
+}
+
+export async function apiKeyRevoke(id: string): Promise<void> {
+  return invoke("api_key_revoke", { id });
+}
+
+export async function apiKeyGetDefault(): Promise<string | null> {
+  return invoke("api_key_get_default");
+}
+
+export async function apiKeyRegenerateDefault(): Promise<GeneratedApiKey> {
+  return invoke("api_key_regenerate_default");
+}
+
 // MCP Wrap
 
 export async function mcpDiscoverTools(

@@ -4,11 +4,12 @@ use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{Form, Json};
+use chrono::Utc;
 
 use crate::permissions::rar::AuthorizationDetail;
 
 use super::store::OAuthStore;
-use super::types::{TokenRequest, TokenResponse};
+use super::types::{AccessToken, TokenRequest, TokenResponse};
 
 /// OAuth 2.1 Token Endpoint.
 ///
@@ -62,10 +63,11 @@ fn handle_authorization_code(store: Arc<OAuthStore>, req: TokenRequest) -> Respo
         refresh.is_some(),
     );
 
+    let ttl = expires_in(&access);
     Json(TokenResponse {
         access_token: access.token,
         token_type: "Bearer".into(),
-        expires_in: 3600,
+        expires_in: ttl,
         refresh_token: refresh.map(|r| r.token),
         authorization_details: None,
     })
@@ -99,10 +101,11 @@ fn handle_refresh_token(store: Arc<OAuthStore>, req: TokenRequest) -> Response {
         Some(access.authorization_details.clone())
     };
 
+    let ttl = expires_in(&access);
     Json(TokenResponse {
         access_token: access.token,
         token_type: "Bearer".into(),
-        expires_in: 3600,
+        expires_in: ttl,
         refresh_token: Some(new_refresh.token),
         authorization_details: details,
     })
@@ -146,14 +149,20 @@ fn handle_client_credentials(store: Arc<OAuthStore>, req: TokenRequest) -> Respo
         Some(access.authorization_details.clone())
     };
 
+    let ttl = expires_in(&access);
     Json(TokenResponse {
         access_token: access.token,
         token_type: "Bearer".into(),
-        expires_in: 3600,
+        expires_in: ttl,
         refresh_token: Some(refresh.token),
         authorization_details: details,
     })
     .into_response()
+}
+
+/// Compute the remaining lifetime of an access token in seconds.
+fn expires_in(token: &AccessToken) -> u64 {
+    (token.expires_at - Utc::now()).num_seconds().max(0) as u64
 }
 
 fn oauth_error(status: StatusCode, error: &str, description: &str) -> Response {

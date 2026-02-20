@@ -18,7 +18,7 @@ use crate::update_checker::UpdateCheckState;
 use crate::AppState;
 use manifest::PluginManifest;
 use storage::{
-    hash_token, InstalledPlugin, McpSettings, NexusSettings, PluginSettingsStore, PluginStatus,
+    InstalledPlugin, McpSettings, NexusSettings, PluginSettingsStore, PluginStatus,
     PluginStorage,
 };
 
@@ -80,7 +80,6 @@ pub struct PluginManager {
     pub plugin_settings: PluginSettingsStore,
     pub mcp_settings: McpSettings,
     pub update_state: UpdateCheckState,
-    pub gateway_token_hash: String,
     pub data_dir: PathBuf,
     tool_version: AtomicU64,
     tool_version_tx: tokio::sync::watch::Sender<u64>,
@@ -117,22 +116,6 @@ impl PluginManager {
             });
         }
 
-        // Generate or load the MCP gateway token
-        let token_path = data_dir.join("mcp_gateway_token");
-        let raw_token = if token_path.exists() {
-            std::fs::read_to_string(&token_path).unwrap_or_else(|_| {
-                let t = uuid::Uuid::new_v4().to_string();
-                let _ = std::fs::write(&token_path, &t);
-                t
-            })
-        } else {
-            let t = uuid::Uuid::new_v4().to_string();
-            let _ = std::fs::write(&token_path, &t);
-            log::info!("Generated new MCP gateway token");
-            t
-        };
-        let gateway_token_hash = hash_token(raw_token.trim());
-
         let (tool_version_tx, tool_version_rx) = tokio::sync::watch::channel(0u64);
 
         let extension_loader = ExtensionLoader::new(&data_dir);
@@ -158,7 +141,6 @@ impl PluginManager {
             plugin_settings,
             mcp_settings,
             update_state,
-            gateway_token_hash,
             data_dir,
             tool_version: AtomicU64::new(0),
             tool_version_tx,
@@ -202,11 +184,6 @@ impl PluginManager {
                 .memory_limit_mb
                 .map(|mb| (mb * 1_048_576) as i64),
         }
-    }
-
-    /// Verify a raw gateway token against the stored hash.
-    pub fn verify_gateway_token(&self, raw: &str) -> bool {
-        hash_token(raw) == self.gateway_token_hash
     }
 
     /// Reconcile MCP settings with a plugin's declared tools.

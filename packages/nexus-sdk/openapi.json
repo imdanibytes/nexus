@@ -995,6 +995,153 @@
         ]
       }
     },
+    "/api/v1/meta/credentials": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "List available credential providers.",
+        "description": "Returns all enabled extensions with the `credential_provider` capability\nthat the calling plugin has a `credential:{ext_id}` permission for\n(any state including deferred).",
+        "operationId": "meta_credentials_list",
+        "responses": {
+          "200": {
+            "description": "Available credential providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialProviderList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/meta/credentials/{ext_id}": {
+      "post": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Resolve credentials from a provider.",
+        "description": "Permission model mirrors extension operations:\n1. Check `credential:{ext_id}` permission (Active/Deferred/Revoked)\n2. Check scope approval for the requested scope\n3. Call the extension's `resolve` operation",
+        "operationId": "meta_credentials_resolve",
+        "parameters": [
+          {
+            "name": "ext_id",
+            "in": "path",
+            "description": "Credential provider extension ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — missing permission or scope denied"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/meta/self": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Plugin self-introspection.",
+        "description": "Returns the calling plugin's identity, version, status, and permissions\nwith their current states and approved scopes.",
+        "operationId": "meta_self",
+        "responses": {
+          "200": {
+            "description": "Plugin identity and permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaSelf"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/meta/stats": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Plugin container stats.",
+        "description": "Returns CPU, memory, and network statistics for the calling plugin's container.",
+        "operationId": "meta_stats",
+        "responses": {
+          "200": {
+            "description": "Container resource statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Container not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/v1/network/proxy": {
       "post": {
         "tags": [
@@ -1285,6 +1432,101 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CredentialProvider": {
+        "type": "object",
+        "description": "A credential provider in the list response.",
+        "required": [
+          "id",
+          "name",
+          "scopes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CredentialScope"
+            }
+          }
+        }
+      },
+      "CredentialProviderList": {
+        "type": "object",
+        "description": "Response for GET /v1/meta/credentials",
+        "required": [
+          "providers"
+        ],
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CredentialProvider"
+            }
+          }
+        }
+      },
+      "CredentialRequest": {
+        "type": "object",
+        "description": "Request body for POST /v1/meta/credentials/{ext_id}",
+        "properties": {
+          "scope": {
+            "type": "string"
+          }
+        }
+      },
+      "CredentialResponse": {
+        "type": "object",
+        "description": "Response for POST /v1/meta/credentials/{ext_id}",
+        "required": [
+          "provider",
+          "scope",
+          "data"
+        ],
+        "properties": {
+          "data": {},
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        }
+      },
+      "CredentialScope": {
+        "type": "object",
+        "description": "A credential scope entry.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1623,6 +1865,97 @@
           }
         }
       },
+      "MetaErrorResponse": {
+        "type": "object",
+        "description": "Error response body",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "MetaPermission": {
+        "type": "object",
+        "description": "Permission entry in the self-introspection response.",
+        "required": [
+          "permission",
+          "state"
+        ],
+        "properties": {
+          "permission": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "MetaSelf": {
+        "type": "object",
+        "description": "Response for GET /v1/meta/self",
+        "required": [
+          "plugin_id",
+          "name",
+          "version",
+          "status",
+          "permissions"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetaPermission"
+            }
+          },
+          "plugin_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "MetaStats": {
+        "allOf": [
+          {},
+          {
+            "type": "object",
+            "required": [
+              "container_id"
+            ],
+            "properties": {
+              "container_id": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Response for GET /v1/meta/stats"
+      },
       "NetworkInfo": {
         "type": "object",
         "required": [
@@ -1913,6 +2246,10 @@
     {
       "name": "extensions",
       "description": "Host extension operations"
+    },
+    {
+      "name": "meta",
+      "description": "Plugin self-introspection and credential vending"
     }
   ]
 }

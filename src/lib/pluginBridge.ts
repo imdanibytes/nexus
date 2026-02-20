@@ -1,10 +1,12 @@
 /**
- * Plugin iframe bridge — broadcasts Nexus system events to all plugin iframes
- * via postMessage. Plugin SDK listens for these on the other side.
+ * Plugin iframe bridge — broadcasts Nexus system events to all plugin surfaces.
+ * Plugin SDK listens for these on the other side.
  *
  * Message protocol:
  *   { type: "nexus:system", event: string, data: unknown }
  */
+
+import { broadcastToSurfaces } from "./pluginSurface";
 
 export interface NexusHostEvent {
   type: "nexus:system";
@@ -13,19 +15,9 @@ export interface NexusHostEvent {
 }
 
 /**
- * Post a system event to every mounted plugin iframe.
- * Iframes are identified by the `data-nexus-plugin` attribute.
+ * Post a system event to every active plugin surface.
+ * Delegates to the surface registry — no DOM queries needed.
  */
 export function broadcastToPlugins(event: string, data: unknown): void {
-  const message: NexusHostEvent = { type: "nexus:system", event, data };
-  const iframes = document.querySelectorAll<HTMLIFrameElement>(
-    "iframe[data-nexus-plugin]"
-  );
-  for (const iframe of iframes) {
-    try {
-      iframe.contentWindow?.postMessage(message, "*");
-    } catch {
-      // iframe might be cross-origin or unmounted — ignore
-    }
-  }
+  broadcastToSurfaces(event, data);
 }

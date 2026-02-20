@@ -1,9 +1,10 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
 import { useAppStore } from "../../stores/appStore";
+import { registerSurface, unregisterSurface, sendToSurface, buildPluginUrl } from "../../lib/pluginSurface";
 
 /** Stable selector — returns the same reference if the plugin hasn't meaningfully changed. */
 function usePlugin(pluginId: string): InstalledPlugin | undefined {
@@ -73,16 +74,28 @@ export const PluginViewport = memo(function PluginViewport({ pluginId }: Props) 
   const handleStart = useCallback(() => start(pluginId), [start, pluginId]);
 
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
-    const theme = getColorMode();
-    try {
-      e.currentTarget.contentWindow?.postMessage(
-        { type: "nexus:system", event: "theme_changed", data: { theme } },
-        "*"
-      );
-    } catch {
-      // cross-origin or unmounted
-    }
-  }, []);
+    const iframe = e.currentTarget;
+
+    // Register this iframe as a message surface
+    registerSurface(pluginId, (event, data) => {
+      try {
+        iframe.contentWindow?.postMessage(
+          { type: "nexus:system", event, data },
+          "*",
+        );
+      } catch {
+        // cross-origin or unmounted
+      }
+    });
+
+    // Send initial theme
+    sendToSurface(pluginId, "theme_changed", { theme: getColorMode() });
+  }, [pluginId]);
+
+  // Unregister surface on unmount
+  useEffect(() => {
+    return () => unregisterSurface(pluginId);
+  }, [pluginId]);
 
   if (!plugin) return null;
 
@@ -91,7 +104,7 @@ export const PluginViewport = memo(function PluginViewport({ pluginId }: Props) 
   const hasUi = plugin.manifest.ui !== null;
   const theme = getColorMode();
   const iframeSrc = hasUi
-    ? `http://localhost:${plugin.assigned_port}${plugin.manifest.ui!.path}${plugin.manifest.ui!.path.includes("?") ? "&" : "?"}nexus_theme=${theme}`
+    ? buildPluginUrl(plugin.assigned_port, plugin.manifest.ui!.path, theme)
     : null;
 
   return (

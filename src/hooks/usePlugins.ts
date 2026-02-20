@@ -5,7 +5,7 @@ import type { PluginManifest } from "../types/plugin";
 import * as api from "../lib/tauri";
 import i18n from "../i18n";
 
-const SYNC_INTERVAL_MS = 30_000;
+const SYNC_INTERVAL_MS = 120_000;
 
 /**
  * Stable action callbacks for plugin operations.
@@ -153,7 +153,8 @@ export function usePluginActions() {
 }
 
 /**
- * 30-second fallback poll for plugin status.
+ * 120-second fallback poll for plugin status (crash-recovery only).
+ * Real-time updates come from container event streaming.
  * Call exactly ONCE in the app root — do not use in child components.
  * Does not subscribe to the Zustand store.
  */

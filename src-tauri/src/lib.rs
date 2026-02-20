@@ -205,6 +205,13 @@ pub fn run() {
                 }
             });
 
+            // Spawn container event watcher for real-time plugin state changes
+            plugin_manager::container_events::spawn(
+                app_handle.clone(),
+                state.clone(),
+                runtime.clone(),
+            );
+
             // Build system tray with menu (keeps app running when window is closed)
             let show = MenuItemBuilder::with_id("show", "Show Nexus").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit Nexus").build(app)?;

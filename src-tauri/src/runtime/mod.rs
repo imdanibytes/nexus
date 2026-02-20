@@ -4,9 +4,11 @@ pub mod docker;
 pub mod mock;
 
 use async_trait::async_trait;
+use futures_util::Stream;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
+use std::pin::Pin;
 use std::time::Duration;
 
 // ---------------------------------------------------------------------------
@@ -143,6 +145,29 @@ pub struct EngineInfo {
     pub memory_bytes: Option<i64>,
 }
 
+/// A container lifecycle event from the engine's event stream.
+#[derive(Debug, Clone)]
+pub struct ContainerEvent {
+    pub container_id: String,
+    pub action: ContainerEventAction,
+    /// Container labels (e.g. `nexus.plugin.id` → plugin ID).
+    pub labels: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContainerEventAction {
+    Start,
+    Stop,
+    Die,
+    Kill,
+    Oom,
+    Destroy,
+}
+
+/// Boxed stream of container events (used by `subscribe_events`).
+pub type ContainerEventStream =
+    Pin<Box<dyn Stream<Item = Result<ContainerEvent, RuntimeError>> + Send>>;
+
 // ---------------------------------------------------------------------------
 // Trait
 // ---------------------------------------------------------------------------
@@ -220,4 +245,12 @@ pub trait ContainerRuntime: Send + Sync {
         path: &str,
         timeout: Duration,
     ) -> Result<(), RuntimeError>;
+
+    // Events
+    /// Subscribe to container lifecycle events, filtered to containers with
+    /// the given label key present. Returns `None` if the engine doesn't
+    /// support event streaming.
+    fn subscribe_events(&self, _label_filter: &str) -> Option<ContainerEventStream> {
+        None
+    }
 }

@@ -1,3 +1,4 @@
+pub(crate) mod container_events;
 pub mod dev_watcher;
 pub mod health;
 pub mod manifest;

@@ -15,8 +15,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use super::{
-    ContainerConfig, ContainerFilters, ContainerInfo, ContainerRuntime, ContainerState,
-    ResourceUsage, RuntimeError,
+    ContainerConfig, ContainerEvent, ContainerEventAction, ContainerFilters, ContainerInfo,
+    ContainerRuntime, ContainerState, ResourceUsage, RuntimeError,
 };
 
 // ---------------------------------------------------------------------------
@@ -582,6 +582,47 @@ impl ContainerRuntime for DockerRuntime {
         timeout: std::time::Duration,
     ) -> Result<(), RuntimeError> {
         wait_for_ready(port, path, timeout).await
+    }
+
+    fn subscribe_events(
+        &self,
+        label_filter: &str,
+    ) -> Option<super::ContainerEventStream> {
+        let mut filters = HashMap::new();
+        filters.insert("type".to_string(), vec!["container".to_string()]);
+        filters.insert("label".to_string(), vec![label_filter.to_string()]);
+
+        let options = bollard::query_parameters::EventsOptions {
+            filters: Some(filters),
+            ..Default::default()
+        };
+
+        let stream = self.docker.events(Some(options));
+
+        Some(Box::pin(stream.filter_map(|result| async {
+            match result {
+                Err(e) => Some(Err(RuntimeError::Other(format!("Event stream: {e}")))),
+                Ok(msg) => {
+                    let action = match msg.action.as_deref()? {
+                        "start" => ContainerEventAction::Start,
+                        "stop" => ContainerEventAction::Stop,
+                        "die" => ContainerEventAction::Die,
+                        "kill" => ContainerEventAction::Kill,
+                        "oom" => ContainerEventAction::Oom,
+                        "destroy" => ContainerEventAction::Destroy,
+                        _ => return None,
+                    };
+                    let actor = msg.actor.as_ref()?;
+                    let container_id = actor.id.clone().unwrap_or_default();
+                    let labels = actor.attributes.clone().unwrap_or_default();
+                    Some(Ok(ContainerEvent {
+                        container_id,
+                        action,
+                        labels,
+                    }))
+                }
+            }
+        })))
     }
 }
 

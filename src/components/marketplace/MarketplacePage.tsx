@@ -150,7 +150,7 @@ export function MarketplacePage() {
       {showMcpWizard && (
         <McpWrapWizard
           onClose={() => setShowMcpWizard(false)}
-          onInstalled={() => setView("plugins")}
+          onInstalled={() => useAppStore.getState().setView("plugins")}
         />
       )}
     </div>

@@ -1,10 +1,33 @@
-import { useCallback, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { McpToolDef } from "../../types/mcp";
 import type { PluginAction } from "../../stores/appStore";
 import { useAppStore } from "../../stores/appStore";
-import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
+
+/** Stable selector — returns the same reference if the plugin hasn't meaningfully changed. */
+function usePlugin(pluginId: string): InstalledPlugin | undefined {
+  const ref = useRef<InstalledPlugin | undefined>(undefined);
+  return useAppStore((s) => {
+    const next = s.installedPlugins.find((p) => p.manifest.id === pluginId);
+    if (!next) return undefined;
+    const prev = ref.current;
+    // Fast structural check: status, version, port, and dev_mode cover all render-relevant fields
+    if (
+      prev &&
+      prev.status === next.status &&
+      prev.manifest.version === next.manifest.version &&
+      prev.assigned_port === next.assigned_port &&
+      prev.dev_mode === next.dev_mode &&
+      prev.local_manifest_path === next.local_manifest_path
+    ) {
+      return prev; // same reference → no re-render
+    }
+    ref.current = next;
+    return next;
+  });
+}
+import { usePluginActions } from "../../hooks/usePlugins";
 import { getColorMode } from "../../lib/theme";
 import { Play, StopCircle, Loader2, Trash2, Square, Terminal, Hammer, Expand, Wrench, ScrollText, TriangleAlert, ArrowUp } from "lucide-react";
 import {
@@ -30,25 +53,24 @@ import {
 } from "@heroui/react";
 
 interface Props {
-  plugin: InstalledPlugin;
-  busyAction: PluginAction | null;
-  onStart: () => void;
+  pluginId: string;
 }
 
-export function PluginViewport({
-  plugin,
-  busyAction,
-  onStart,
-}: Props) {
+export const PluginViewport = memo(function PluginViewport({ pluginId }: Props) {
   const { t } = useTranslation("plugins");
-  const isRunning = plugin.status === "running";
-  const isBusy = busyAction !== null;
-  const hasUi = plugin.manifest.ui !== null;
-  const theme = getColorMode();
-  const iframeSrc = hasUi
-    ? `http://localhost:${plugin.assigned_port}${plugin.manifest.ui!.path}${plugin.manifest.ui!.path.includes("?") ? "&" : "?"}nexus_theme=${theme}`
-    : null;
-  const [menuOpen, setMenuOpen] = useState(false);
+  const plugin = usePlugin(pluginId);
+  const busyAction = useAppStore((s) => s.busyPlugins[pluginId] ?? null) as PluginAction | null;
+  const { start } = usePluginActions();
+
+  // Ref-based overlay toggle — prevents re-rendering the entire tree when a dropdown opens
+  const iframeShieldRef = useRef<HTMLDivElement>(null);
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    if (iframeShieldRef.current) {
+      iframeShieldRef.current.style.display = open ? "block" : "none";
+    }
+  }, []);
+
+  const handleStart = useCallback(() => start(pluginId), [start, pluginId]);
 
   const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
     const theme = getColorMode();
@@ -62,12 +84,22 @@ export function PluginViewport({
     }
   }, []);
 
+  if (!plugin) return null;
+
+  const isRunning = plugin.status === "running";
+  const isBusy = busyAction !== null;
+  const hasUi = plugin.manifest.ui !== null;
+  const theme = getColorMode();
+  const iframeSrc = hasUi
+    ? `http://localhost:${plugin.assigned_port}${plugin.manifest.ui!.path}${plugin.manifest.ui!.path.includes("?") ? "&" : "?"}nexus_theme=${theme}`
+    : null;
+
   return (
     <div className="flex flex-col h-full relative">
-      <PluginMenuBar plugin={plugin} disabled={isBusy} onStart={onStart} onOpenChange={setMenuOpen} />
+      <PluginMenuBar pluginId={pluginId} disabled={isBusy} onOpenChange={handleMenuOpenChange} />
 
       <div className="flex-1 relative">
-        {menuOpen && <div className="absolute inset-0 z-10" />}
+        <div ref={iframeShieldRef} className="absolute inset-0 z-10" style={{ display: "none" }} />
         {isRunning && !isBusy && hasUi ? (
           <iframe
             key={`${plugin.manifest.id}-${plugin.manifest.version}`}
@@ -90,7 +122,7 @@ export function PluginViewport({
                 ? t("viewport.pluginError")
                 : t("viewport.pluginStopped")}
             </p>
-            <Button color="primary" onPress={onStart} startContent={<Play size={14} strokeWidth={1.5} />}>
+            <Button color="primary" onPress={handleStart} startContent={<Play size={14} strokeWidth={1.5} />}>
               {t("viewport.startPlugin")}
             </Button>
           </div>
@@ -102,15 +134,18 @@ export function PluginViewport({
       )}
     </div>
   );
-}
+});
 
-function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPlugin; disabled: boolean; onStart: () => void; onOpenChange?: (open: boolean) => void }) {
+const PluginMenuBar = memo(function PluginMenuBar({ pluginId, disabled, onOpenChange }: { pluginId: string; disabled: boolean; onOpenChange?: (open: boolean) => void }) {
   const { t } = useTranslation("plugins");
-  const { setShowLogs } = useAppStore();
+  const plugin = usePlugin(pluginId);
   const { start, stop, restart, remove, rebuild, toggleDevMode } = usePluginActions();
+
+  if (!plugin) return null;
+
   const isRunning = plugin.status === "running";
   const isLocal = !!plugin.local_manifest_path;
-  const id = plugin.manifest.id;
+  const id = pluginId;
   const removeModal = useDisclosure();
   const aboutModal = useDisclosure();
 
@@ -173,7 +208,7 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
             </button>
           </DropdownTrigger>
           <DropdownMenu aria-label="View menu">
-            <DropdownItem key="logs" onPress={() => setShowLogs(id)} startContent={<ScrollText size={14} strokeWidth={1.5} />}>
+            <DropdownItem key="logs" onPress={() => useAppStore.getState().setShowLogs(id)} startContent={<ScrollText size={14} strokeWidth={1.5} />}>
               {t("menu.logs")}
             </DropdownItem>
           </DropdownMenu>
@@ -268,7 +303,7 @@ function PluginMenuBar({ plugin, disabled, onOpenChange }: { plugin: InstalledPl
       </Modal>
     </>
   );
-}
+});
 
 function McpToolCard({ tool, onDetail }: {
   tool: McpToolDef;

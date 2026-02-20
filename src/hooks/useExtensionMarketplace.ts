@@ -4,36 +4,31 @@ import { extensionMarketplaceSearch } from "../lib/tauri";
 import i18n from "../i18n";
 
 export function useExtensionMarketplace() {
-  const {
-    extensionMarketplaceEntries,
-    isLoading,
-    setExtensionMarketplace,
-    setLoading,
-    addNotification,
-  } = useAppStore();
+  const extensionMarketplaceEntries = useAppStore((s) => s.extensionMarketplaceEntries);
+  const isLoading = useAppStore((s) => s.isLoading);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    useAppStore.getState().setLoading(true);
     try {
       const results = await extensionMarketplaceSearch("");
-      setExtensionMarketplace(results);
+      useAppStore.getState().setExtensionMarketplace(results);
     } catch (e) {
-      addNotification(i18n.t("error.loadExtensionMarketplace", { error: e }), "error");
+      useAppStore.getState().addNotification(i18n.t("error.loadExtensionMarketplace", { error: e }), "error");
     } finally {
-      setLoading(false);
+      useAppStore.getState().setLoading(false);
     }
-  }, [setExtensionMarketplace, setLoading, addNotification]);
+  }, []);
 
   const search = useCallback(
     async (query: string) => {
       try {
         const results = await extensionMarketplaceSearch(query);
-        setExtensionMarketplace(results);
+        useAppStore.getState().setExtensionMarketplace(results);
       } catch (e) {
-        addNotification(i18n.t("error.extensionSearchFailed", { error: e }), "error");
+        useAppStore.getState().addNotification(i18n.t("error.extensionSearchFailed", { error: e }), "error");
       }
     },
-    [setExtensionMarketplace, addNotification]
+    []
   );
 
   return {

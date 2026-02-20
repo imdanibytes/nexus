@@ -3,7 +3,7 @@ import { useAppStore } from "../stores/appStore";
 import { Modal, ModalContent, ModalBody } from "@heroui/react";
 
 export function InstallOverlay() {
-  const { installStatus } = useAppStore();
+  const installStatus = useAppStore((s) => s.installStatus);
 
   return (
     <Modal

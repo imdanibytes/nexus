@@ -7,25 +7,28 @@ import type { LifecycleEvent } from "../types/lifecycle";
  * Single lifecycle event listener. Dispatches all backend state-change events
  * to the store. Mount once in App.tsx.
  *
+ * Uses getState() inside the listener so this hook creates ZERO store
+ * subscriptions and never triggers re-renders.
+ *
  * To add a new operation:
  * 1. Add variants to LifecycleEvent (both Rust enum and TS type)
  * 2. Add cases to the switch below
  * 3. Backend emits via lifecycle_events::emit()
  */
 export function useLifecycleEvents() {
-  const {
-    setBusy,
-    setExtensionBusy,
-    updatePlugin,
-    removePlugin,
-    updateExtension,
-    removeExtension,
-    setInstallStatus,
-    addNotification,
-  } = useAppStore();
-
   useEffect(() => {
     const unlisten = listen<LifecycleEvent>("nexus://lifecycle", (event) => {
+      const {
+        setBusy,
+        setExtensionBusy,
+        updatePlugin,
+        removePlugin,
+        updateExtension,
+        removeExtension,
+        setInstallStatus,
+        addNotification,
+      } = useAppStore.getState();
+
       const e = event.payload;
 
       switch (e.kind) {
@@ -137,5 +140,5 @@ export function useLifecycleEvents() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [setBusy, setExtensionBusy, updatePlugin, removePlugin, updateExtension, removeExtension, setInstallStatus, addNotification]);
+  }, []);
 }

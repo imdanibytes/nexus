@@ -1,35 +1,27 @@
 /**
- * Animated metaball-style gradient background.
- * Large colored blobs drift slowly behind frosted-glass panels.
- * Opacity adapts to light/dark mode.
+ * Gradient background — static version.
+ * The animated blur blobs (5x 900px @ blur-160px) were causing 1100ms+ GPU compositor
+ * stalls on every interaction. CSS blur on large animated elements creates massive
+ * GPU textures that must be re-composited on every frame.
+ *
+ * TODO: Bring back animation using a single pre-rendered canvas/SVG with
+ * will-change:transform (no per-frame blur), or a CSS conic-gradient approach.
  */
 export function GradientBackground() {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-background">
-      {/* Blob 1 — teal/cyan — top-left corner */}
+      {/* Single static gradient — no blur, no animation, no GPU stall */}
       <div
-        className="absolute w-[900px] h-[900px] rounded-full blur-[160px] animate-[drift1_25s_ease-in-out_infinite] opacity-20 dark:opacity-60"
-        style={{ background: "radial-gradient(circle, #06b6d4, transparent 70%)", top: "-30%", left: "-25%" }}
-      />
-      {/* Blob 2 — violet/purple — right edge */}
-      <div
-        className="absolute w-[800px] h-[800px] rounded-full blur-[160px] animate-[drift2_30s_ease-in-out_infinite] opacity-15 dark:opacity-50"
-        style={{ background: "radial-gradient(circle, #8b5cf6, transparent 70%)", top: "15%", right: "-30%" }}
-      />
-      {/* Blob 3 — pink/rose — bottom-left */}
-      <div
-        className="absolute w-[850px] h-[850px] rounded-full blur-[160px] animate-[drift3_35s_ease-in-out_infinite] opacity-15 dark:opacity-40"
-        style={{ background: "radial-gradient(circle, #ec4899, transparent 70%)", bottom: "-35%", left: "-15%" }}
-      />
-      {/* Blob 4 — blue — bottom-right corner */}
-      <div
-        className="absolute w-[750px] h-[750px] rounded-full blur-[160px] animate-[drift4_28s_ease-in-out_infinite] opacity-15 dark:opacity-45"
-        style={{ background: "radial-gradient(circle, #3b82f6, transparent 70%)", bottom: "-25%", right: "-20%" }}
-      />
-      {/* Blob 5 — amber — top-right */}
-      <div
-        className="absolute w-[700px] h-[700px] rounded-full blur-[160px] animate-[drift1_32s_ease-in-out_infinite_reverse] opacity-10 dark:opacity-30"
-        style={{ background: "radial-gradient(circle, #f59e0b, transparent 70%)", top: "-25%", right: "-10%" }}
+        className="absolute inset-0"
+        style={{
+          background: `
+            radial-gradient(ellipse 80% 60% at 15% 20%, rgba(6,182,212,0.15) 0%, transparent 70%),
+            radial-gradient(ellipse 70% 55% at 85% 25%, rgba(139,92,246,0.12) 0%, transparent 70%),
+            radial-gradient(ellipse 75% 60% at 20% 85%, rgba(236,72,153,0.10) 0%, transparent 70%),
+            radial-gradient(ellipse 65% 50% at 80% 80%, rgba(59,130,246,0.10) 0%, transparent 70%),
+            radial-gradient(ellipse 60% 45% at 85% 10%, rgba(245,158,11,0.08) 0%, transparent 70%)
+          `,
+        }}
       />
     </div>
   );

@@ -12,7 +12,7 @@ import { Button } from "@heroui/react";
 export function ExtensionMarketplacePage() {
   const { t } = useTranslation("plugins");
   const { extensions, isLoading, refresh, search } = useExtensionMarketplace();
-  const { selectExtensionEntry, setView, addNotification, setInstallStatus } = useAppStore();
+  // All setters — use getState in handlers to avoid store subscription
   const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
@@ -28,16 +28,16 @@ export function ExtensionMarketplacePage() {
     if (!manifestPath) return;
 
     setInstalling(true);
-    setInstallStatus(t("extensions.installingExtension"));
+    useAppStore.getState().setInstallStatus(t("extensions.installingExtension"));
     try {
       await extensionInstallLocal(manifestPath);
-      addNotification(t("common:notification.extensionInstalledLocal"), "success");
-      setView("settings");
+      useAppStore.getState().addNotification(t("common:notification.extensionInstalledLocal"), "success");
+      useAppStore.getState().setView("settings");
     } catch (e) {
-      addNotification(t("common:error.localInstallFailed", { error: e }), "error");
+      useAppStore.getState().addNotification(t("common:error.localInstallFailed", { error: e }), "error");
     } finally {
       setInstalling(false);
-      setInstallStatus(null);
+      useAppStore.getState().setInstallStatus(null);
     }
   }
 
@@ -102,8 +102,8 @@ export function ExtensionMarketplacePage() {
               key={entry.id}
               entry={entry}
               onSelect={() => {
-                selectExtensionEntry(entry);
-                setView("extension-detail");
+                useAppStore.getState().selectExtensionEntry(entry);
+                useAppStore.getState().setView("extension-detail");
               }}
             />
           ))}

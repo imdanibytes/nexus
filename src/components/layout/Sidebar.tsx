@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
 import { useNotificationCount } from "../../stores/appStore";
-import { usePlugins as usePluginActions } from "../../hooks/usePlugins";
+import { usePluginActions } from "../../hooks/usePlugins";
 import type { InstalledPlugin } from "../../types/plugin";
 import type { ExtensionStatus } from "../../types/extension";
 import * as api from "../../lib/tauri";
@@ -41,7 +41,7 @@ import {
 } from "@heroui/react";
 import { cn } from "@imdanibytes/nexus-ui";
 import { NexusLogo } from "../brand/NexusLogo";
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 
 /* ─── Status colors ─── */
 const statusColor: Record<string, string> = {
@@ -111,19 +111,14 @@ function Surface({ children, className }: { children: React.ReactNode; className
 /* ─── Plugin row ─── */
 function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?: boolean }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const {
-    selectedPluginId,
-    selectPlugin,
-    setView,
-    setSettingsTab,
-    availableUpdates,
-    setAvailableUpdates,
-    setShowLogs,
-  } = useAppStore();
   const id = plugin.manifest.id;
-  // Per-plugin selectors — only re-render when THIS plugin's state changes
+
+  // Surgical selectors — only re-render when THIS data changes
+  const selectedPluginId = useAppStore((s) => s.selectedPluginId);
   const isBusy = useAppStore((s) => !!s.busyPlugins[id]);
   const isWarm = useAppStore((s) => !!s.warmViewports[id]);
+  const availableUpdates = useAppStore((s) => s.availableUpdates);
+
   const { start, stop, remove, rebuild, toggleDevMode } = usePluginActions();
   const isSelected = selectedPluginId === id;
   const isRunning = plugin.status === "running";
@@ -145,8 +140,9 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
   async function handleUpdate() {
     if (!update) return;
     if (update.security.includes("key_changed")) {
-      setSettingsTab("updates");
-      setView("settings");
+      const s = useAppStore.getState();
+      s.setSettingsTab("updates");
+      s.setView("settings");
       return;
     }
     try {
@@ -155,7 +151,8 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
         update.new_image_digest,
         update.build_context,
       );
-      setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== id));
+      const { availableUpdates: current, setAvailableUpdates } = useAppStore.getState();
+      setAvailableUpdates(current.filter((u) => u.item_id !== id));
     } catch {
       // Lifecycle events handle busy state and error toasts
     }
@@ -186,8 +183,9 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
       <NavItem
         isActive={isSelected}
         onClick={() => {
-          selectPlugin(id);
-          setView("plugins");
+          const s = useAppStore.getState();
+          s.selectPlugin(id);
+          s.setView("plugins");
         }}
         collapsed
         tooltip={plugin.manifest.name}
@@ -210,8 +208,9 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
       <NavItem
         isActive={isSelected}
         onClick={() => {
-          selectPlugin(id);
-          setView("plugins");
+          const s = useAppStore.getState();
+          s.selectPlugin(id);
+          s.setView("plugins");
         }}
       >
         {statusDot}
@@ -276,7 +275,7 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
               )}
               <DropdownItem
                 key="logs"
-                onPress={() => setShowLogs(id)}
+                onPress={() => useAppStore.getState().setShowLogs(id)}
                 startContent={<ScrollText size={14} />}
               >
                 {t("plugins:menu.logs")}
@@ -361,14 +360,8 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
 /* ─── Extension row ─── */
 function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: boolean }) {
   const { t } = useTranslation(["common", "plugins"]);
-  const {
-    availableUpdates,
-    setAvailableUpdates,
-    setView,
-    setSettingsTab,
-    setFocusExtensionId,
-  } = useAppStore();
   const isBusy = useAppStore((s) => !!s.busyExtensions[ext.id]);
+  const availableUpdates = useAppStore((s) => s.availableUpdates);
   const update = availableUpdates.find((u) => u.item_id === ext.id);
   const hasUpdate = !!update;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -377,13 +370,15 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
   async function handleExtUpdate() {
     if (!update) return;
     if (update.security.includes("key_changed")) {
-      setSettingsTab("updates");
-      setView("settings");
+      const s = useAppStore.getState();
+      s.setSettingsTab("updates");
+      s.setView("settings");
       return;
     }
     try {
       await api.updateExtension(update.manifest_url);
-      setAvailableUpdates(availableUpdates.filter((u) => u.item_id !== ext.id));
+      const { availableUpdates: current, setAvailableUpdates } = useAppStore.getState();
+      setAvailableUpdates(current.filter((u) => u.item_id !== ext.id));
     } catch {
       // Lifecycle events handle errors
     }
@@ -419,9 +414,10 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
         <div className="group/item relative">
           <NavItem
             onClick={() => {
-              setSettingsTab("extensions");
-              setFocusExtensionId(ext.id);
-              setView("settings");
+              const s = useAppStore.getState();
+              s.setSettingsTab("extensions");
+              s.setFocusExtensionId(ext.id);
+              s.setView("settings");
             }}
             collapsed
           >
@@ -444,9 +440,10 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
     <div className="group/item relative">
       <NavItem
         onClick={() => {
-          setSettingsTab("extensions");
-          setFocusExtensionId(ext.id);
-          setView("settings");
+          const s = useAppStore.getState();
+          s.setSettingsTab("extensions");
+          s.setFocusExtensionId(ext.id);
+          s.setView("settings");
         }}
       >
         {statusDot}
@@ -508,8 +505,9 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
               <DropdownItem
                 key="manage"
                 onPress={() => {
-                  setSettingsTab("extensions");
-                  setView("settings");
+                  const s = useAppStore.getState();
+                  s.setSettingsTab("extensions");
+                  s.setView("settings");
                 }}
                 startContent={<Settings size={14} />}
               >
@@ -591,8 +589,9 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
 /* ─── Main sidebar ─── */
 export function AppSidebar() {
   const { t } = useTranslation(["common", "plugins"]);
-  const { currentView, setView, installedPlugins, installedExtensions } =
-    useAppStore();
+  const currentView = useAppStore((s) => s.currentView);
+  const installedPlugins = useAppStore((s) => s.installedPlugins);
+  const installedExtensions = useAppStore((s) => s.installedExtensions);
   const badgeCount = useNotificationCount();
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -609,7 +608,8 @@ export function AppSidebar() {
   const integrations = installedPlugins.filter((p) => p.manifest.ui === null);
 
   return (
-    <motion.aside
+    <LazyMotion features={domAnimation}>
+    <m.aside
       animate={{ width: collapsed ? 68 : 240 }}
       transition={{ type: "spring", bounce: 0, duration: 0.3 }}
       className="flex-shrink-0 flex flex-col h-full backdrop-blur-2xl bg-background/40 p-3 gap-2 overflow-hidden"
@@ -689,7 +689,7 @@ export function AppSidebar() {
         <Surface className="space-y-0.5">
           <NavItem
             isActive={currentView === "marketplace" || currentView === "plugin-detail"}
-            onClick={() => setView("marketplace")}
+            onClick={() => useAppStore.getState().setView("marketplace")}
             collapsed={collapsed}
             tooltip={t("common:nav.addPlugins")}
           >
@@ -699,7 +699,7 @@ export function AppSidebar() {
 
           <NavItem
             isActive={currentView === "extension-marketplace" || currentView === "extension-detail"}
-            onClick={() => setView("extension-marketplace")}
+            onClick={() => useAppStore.getState().setView("extension-marketplace")}
             collapsed={collapsed}
             tooltip={t("common:nav.extensions")}
           >
@@ -709,7 +709,7 @@ export function AppSidebar() {
 
           <NavItem
             isActive={currentView === "settings"}
-            onClick={() => setView("settings")}
+            onClick={() => useAppStore.getState().setView("settings")}
             collapsed={collapsed}
             tooltip={t("common:nav.settings")}
           >
@@ -740,6 +740,7 @@ export function AppSidebar() {
           <PanelLeftClose size={16} />
         )}
       </button>
-    </motion.aside>
+    </m.aside>
+    </LazyMotion>
   );
 }

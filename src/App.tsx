@@ -8,8 +8,8 @@ import { SettingsPage } from "./components/settings/SettingsPage";
 import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarketplacePage";
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
 import { useAppStore } from "./stores/appStore";
-import { usePlugins } from "./hooks/usePlugins";
-import { useExtensions } from "./hooks/useExtensions";
+import { usePluginActions, usePluginSync } from "./hooks/usePlugins";
+import { useExtensionActions, useExtensionSync } from "./hooks/useExtensions";
 import { useLifecycleEvents } from "./hooks/useLifecycleEvents";
 import { checkEngine, marketplaceRefresh, checkUpdates, getUpdateCheckInterval, pluginLogs } from "./lib/tauri";
 import { Package } from "lucide-react";
@@ -25,9 +25,9 @@ const EVICTION_CHECK_MS = 30_000;       // check every 30s
 
 function PluginsView() {
   const { t } = useTranslation("common");
-  const { plugins, selectedPluginId, busyPlugins, start } =
-    usePlugins();
-  const { setView, showLogsPluginId, setShowLogs } = useAppStore();
+  const installedPlugins = useAppStore((s) => s.installedPlugins);
+  const selectedPluginId = useAppStore((s) => s.selectedPluginId);
+  const showLogsPluginId = useAppStore((s) => s.showLogsPluginId);
 
   // Track warm viewports: plugin ID → last-active timestamp
   const [warmEntries, setWarmEntries] = useState<Record<string, number>>({});
@@ -76,17 +76,17 @@ function PluginsView() {
             <Package size={36} strokeWidth={1.5} className="text-default-400" />
           </div>
           <h3 className="text-[16px] font-semibold text-default-500 mb-1">
-            {plugins.length === 0 ? t("empty.noPlugins") : t("empty.selectPlugin")}
+            {installedPlugins.length === 0 ? t("empty.noPlugins") : t("empty.selectPlugin")}
           </h3>
           <p className="text-[13px] text-default-500 max-w-sm mb-4">
-            {plugins.length === 0
+            {installedPlugins.length === 0
               ? t("empty.noPluginsHint")
               : t("empty.selectPluginHint")}
           </p>
-          {plugins.length === 0 && (
+          {installedPlugins.length === 0 && (
             <Button
               color="primary"
-              onPress={() => setView("marketplace")}
+              onPress={() => useAppStore.getState().setView("marketplace")}
             >
               {t("nav.addPlugins")}
             </Button>
@@ -95,7 +95,7 @@ function PluginsView() {
       )}
 
       {/* Warm plugin viewports — stacked, only selected is visible. Evicted after 5 min idle. */}
-      {plugins.filter((p) => warmPluginIds.has(p.manifest.id)).map((plugin) => {
+      {installedPlugins.filter((p) => warmPluginIds.has(p.manifest.id)).map((plugin) => {
         const id = plugin.manifest.id;
         const isActive = id === selectedPluginId;
         return (
@@ -104,11 +104,7 @@ function PluginsView() {
             className={`absolute inset-0 ${isActive ? "" : "invisible pointer-events-none"}`}
           >
             <ErrorBoundary label={plugin.manifest.name}>
-              <PluginViewport
-                plugin={plugin}
-                busyAction={busyPlugins[id] ?? null}
-                onStart={() => start(id)}
-              />
+              <PluginViewport pluginId={id} />
             </ErrorBoundary>
           </div>
         );
@@ -117,32 +113,31 @@ function PluginsView() {
       <PluginLogs
         pluginId={showLogsPluginId}
         getLogs={(id, tail) => pluginLogs(id, tail)}
-        onClose={() => setShowLogs(null)}
+        onClose={() => useAppStore.getState().setShowLogs(null)}
       />
     </div>
   );
 }
 
 function App() {
-  const {
-    currentView,
-    selectedRegistryEntry,
-    selectedExtensionEntry,
-    installedPlugins,
-    setView,
-    selectRegistryEntry,
-    selectExtensionEntry,
-  } = useAppStore();
-  const { refresh } = usePlugins();
-  const { refresh: extensionRefresh } = useExtensions();
+  const currentView = useAppStore((s) => s.currentView);
+  const selectedRegistryEntry = useAppStore((s) => s.selectedRegistryEntry);
+  const selectedExtensionEntry = useAppStore((s) => s.selectedExtensionEntry);
+  const installedPlugins = useAppStore((s) => s.installedPlugins);
+  const updateCheckInterval = useAppStore((s) => s.updateCheckInterval);
+
+  const { refresh } = usePluginActions();
+  const { refresh: extensionRefresh } = useExtensionActions();
   useLifecycleEvents();
-  const { addNotification, setAvailableUpdates, updateCheckInterval, setUpdateCheckInterval, notify, dismissByCategory } = useAppStore();
+  usePluginSync();
+  useExtensionSync();
 
   const checkForPluginUpdates = useCallback(async () => {
     try {
       await marketplaceRefresh();
       const updates = await checkUpdates();
       if (updates.length > 0) {
+        const { setAvailableUpdates, dismissByCategory, notify } = useAppStore.getState();
         setAvailableUpdates(updates);
         dismissByCategory("updates.plugins");
         dismissByCategory("updates.extensions");
@@ -154,7 +149,7 @@ function App() {
     } catch {
       // Silently ignore — offline or registry unreachable
     }
-  }, [setAvailableUpdates, dismissByCategory, notify]);
+  }, []);
 
   // One-time startup: docker check, app update check, initial plugin check, load interval setting
   useEffect(() => {
@@ -163,6 +158,7 @@ function App() {
 
     checkEngine()
       .then((status) => {
+        const { addNotification, notify } = useAppStore.getState();
         if (!status.installed) {
           const msg = i18n.t("common:notification.engineNotFound");
           addNotification(msg, "error");
@@ -179,6 +175,7 @@ function App() {
       .then(({ check }) => check())
       .then((update) => {
         if (update) {
+          const { addNotification, notify } = useAppStore.getState();
           const msg = i18n.t("common:notification.updateAvailable", { version: update.version });
           addNotification(msg, "info");
           notify("updates.app", msg, { data: update });
@@ -188,9 +185,9 @@ function App() {
 
     checkForPluginUpdates();
     getUpdateCheckInterval()
-      .then(setUpdateCheckInterval)
+      .then((interval) => useAppStore.getState().setUpdateCheckInterval(interval))
       .catch(() => {});
-  }, [refresh, extensionRefresh, addNotification, checkForPluginUpdates, setUpdateCheckInterval, notify]);
+  }, [refresh, extensionRefresh, checkForPluginUpdates]);
 
   // Reactive timer — restarts whenever the interval setting changes
   useEffect(() => {
@@ -203,15 +200,22 @@ function App() {
     <NexusProvider>
     <Shell>
       <InstallOverlay />
-      {/* Always-mounted views — stacked absolutely, hidden with opacity to preserve iframe state.
-         Using opacity-0 instead of invisible because CSS visibility:visible on descendants
-         (like HeroUI's Tabs cursor) overrides visibility:hidden on the parent. */}
-      <div className={`absolute inset-0 overflow-y-auto ${currentView === "plugins" ? "" : "opacity-0 pointer-events-none"}`}>
+      {/* Always-mounted views use content-visibility:hidden to skip layout+paint when inactive.
+         This is better than opacity-0 (which still paints) and visibility:hidden (which HeroUI
+         descendants can override with visibility:visible). content-visibility:hidden creates
+         containment that can't be overridden by children, and keeps DOM/iframes alive. */}
+      <div
+        className="absolute inset-0 overflow-y-auto"
+        style={currentView !== "plugins" ? { contentVisibility: "hidden", pointerEvents: "none" } : undefined}
+      >
         <ErrorBoundary label="Plugins">
           <PluginsView />
         </ErrorBoundary>
       </div>
-      <div className={`absolute inset-0 overflow-y-auto ${currentView === "settings" ? "" : "opacity-0 pointer-events-none"}`}>
+      <div
+        className="absolute inset-0 overflow-y-auto"
+        style={currentView !== "settings" ? { contentVisibility: "hidden", pointerEvents: "none" } : undefined}
+      >
         <ErrorBoundary label="Settings">
           <SettingsPage />
         </ErrorBoundary>
@@ -231,8 +235,9 @@ function App() {
               entry={selectedRegistryEntry}
               installedPlugin={installedPlugins.find((p) => p.manifest.id === selectedRegistryEntry.id) ?? null}
               onBack={() => {
-                selectRegistryEntry(null);
-                setView("marketplace");
+                const s = useAppStore.getState();
+                s.selectRegistryEntry(null);
+                s.setView("marketplace");
               }}
             />
           </ErrorBoundary>
@@ -251,8 +256,9 @@ function App() {
             <ExtensionDetail
               entry={selectedExtensionEntry}
               onBack={() => {
-                selectExtensionEntry(null);
-                setView("extension-marketplace");
+                const s = useAppStore.getState();
+                s.selectExtensionEntry(null);
+                s.setView("extension-marketplace");
               }}
             />
           </ErrorBoundary>

@@ -4,40 +4,34 @@ import * as api from "../lib/tauri";
 import i18n from "../i18n";
 
 export function useMarketplace() {
-  const {
-    marketplacePlugins,
-    searchQuery,
-    isLoading,
-    setMarketplace,
-    setSearchQuery,
-    setLoading,
-    addNotification,
-  } = useAppStore();
+  const marketplacePlugins = useAppStore((s) => s.marketplacePlugins);
+  const searchQuery = useAppStore((s) => s.searchQuery);
+  const isLoading = useAppStore((s) => s.isLoading);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    useAppStore.getState().setLoading(true);
     try {
       await api.marketplaceRefresh();
       const results = await api.marketplaceSearch("");
-      setMarketplace(results);
+      useAppStore.getState().setMarketplace(results);
     } catch (e) {
-      addNotification(i18n.t("error.loadMarketplace", { error: e }), "error");
+      useAppStore.getState().addNotification(i18n.t("error.loadMarketplace", { error: e }), "error");
     } finally {
-      setLoading(false);
+      useAppStore.getState().setLoading(false);
     }
-  }, [setMarketplace, setLoading, addNotification]);
+  }, []);
 
   const search = useCallback(
     async (query: string) => {
-      setSearchQuery(query);
+      useAppStore.getState().setSearchQuery(query);
       try {
         const results = await api.marketplaceSearch(query);
-        setMarketplace(results);
+        useAppStore.getState().setMarketplace(results);
       } catch (e) {
-        addNotification(i18n.t("error.searchFailed", { error: e }), "error");
+        useAppStore.getState().addNotification(i18n.t("error.searchFailed", { error: e }), "error");
       }
     },
-    [setMarketplace, setSearchQuery, addNotification]
+    []
   );
 
   return {

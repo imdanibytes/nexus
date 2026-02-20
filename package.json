@@ -12,7 +12,10 @@
     "sdk:generate": "cd packages/nexus-sdk && npx openapi-ts",
     "sdk:build": "cd packages/nexus-sdk && npx tsc",
     "sdk": "npm run sdk:spec && npm run sdk:generate && npm run sdk:build",
-    "tauri:build": "bash -c 'set -a && [ -f .env.local ] && source .env.local; set +a && cargo tauri build'"
+    "tauri:build": "bash -c 'set -a && [ -f .env.local ] && source .env.local; set +a && cargo tauri build'",
+    "doctor": "mv pnpm-workspace.yaml pnpm-workspace.yaml.bak && react-doctor --yes --verbose; mv pnpm-workspace.yaml.bak pnpm-workspace.yaml",
+    "doctor:diff": "mv pnpm-workspace.yaml pnpm-workspace.yaml.bak && react-doctor --diff --yes --verbose; mv pnpm-workspace.yaml.bak pnpm-workspace.yaml",
+    "scan": "echo 'react-scan is active in dev mode — run: pnpm dev'"
   },
   "dependencies": {
     "@heroui/react": "^2.8.9",
@@ -48,8 +51,11 @@
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^10.0.0",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-perf": "^3.3.3",
     "eslint-plugin-react-refresh": "^0.5.0",
     "globals": "^17.3.0",
+    "react-doctor": "^0.0.28",
+    "react-scan": "^0.5.3",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.55.0",
     "vite": "^7.3.1"

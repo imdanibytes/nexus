@@ -135,7 +135,7 @@ function ConnectedClients() {
 
 export function SecurityTab() {
   const { t } = useTranslation("settings");
-  const { installedPlugins } = useAppStore();
+  const installedPlugins = useAppStore((s) => s.installedPlugins);
   const [permSearch, setPermSearch] = useState("");
   const [permExpanded, setPermExpanded] = useState<Set<string>>(new Set());
 

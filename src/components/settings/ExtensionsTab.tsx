@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useExtensions } from "../../hooks/useExtensions";
+import { useExtensionActions } from "../../hooks/useExtensions";
 import { useAppStore } from "../../stores/appStore";
 import {
   Blocks,
@@ -34,9 +34,11 @@ const RISK_COLOR: Record<string, "success" | "warning" | "danger"> = {
 
 export function ExtensionsTab() {
   const { t } = useTranslation("settings");
-  const { extensions, busyExtensions, enable, disable, remove } = useExtensions();
+  const extensions = useAppStore((s) => s.installedExtensions);
+  const busyExtensions = useAppStore((s) => s.busyExtensions);
+  const focusExtensionId = useAppStore((s) => s.focusExtensionId);
+  const { enable, disable, remove } = useExtensionActions();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const { setView, focusExtensionId, setFocusExtensionId } = useAppStore();
   const [prevFocusId, setPrevFocusId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
 
@@ -44,7 +46,7 @@ export function ExtensionsTab() {
   if (focusExtensionId && focusExtensionId !== prevFocusId) {
     setPrevFocusId(focusExtensionId);
     setExpanded((prev) => new Set(prev).add(focusExtensionId));
-    setFocusExtensionId(null);
+    useAppStore.getState().setFocusExtensionId(null);
   }
 
   function toggleExpanded(extId: string) {
@@ -81,7 +83,7 @@ export function ExtensionsTab() {
             </div>
           </div>
           <Button
-            onPress={() => setView("extension-marketplace")}
+            onPress={() => useAppStore.getState().setView("extension-marketplace")}
             className="flex-shrink-0 ml-4"
           >
             <Plus size={12} strokeWidth={1.5} />
@@ -295,8 +297,8 @@ export function ExtensionsTab() {
                         </span>
                       </div>
                       <div className="flex gap-1.5 flex-wrap">
-                        {ext.capabilities.map((cap, i) => (
-                          <Chip key={i} size="sm">
+                        {ext.capabilities.map((cap) => (
+                          <Chip key={cap.type === "custom" ? cap.name : cap.type} size="sm">
                             {cap.type === "custom" ? cap.name : cap.type.replace(/_/g, " ")}
                           </Chip>
                         ))}

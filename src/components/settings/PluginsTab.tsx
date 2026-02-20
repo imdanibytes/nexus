@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePlugins } from "../../hooks/usePlugins";
+import { usePluginActions } from "../../hooks/usePlugins";
+import { useAppStore } from "../../stores/appStore";
 import { pluginGetSettings, pluginSaveSettings, pluginStorageInfo, pluginClearStorage } from "../../lib/tauri";
 import type { InstalledPlugin, SettingDef } from "../../types/plugin";
 import { Puzzle, Save, Check, Square, Trash2, Database, HardDrive, Cloud } from "lucide-react";
@@ -326,7 +327,9 @@ function PluginSettingsCard({
 
 export function PluginsTab() {
   const { t } = useTranslation("settings");
-  const { plugins, busyPlugins, stop, remove } = usePlugins();
+  const plugins = useAppStore((s) => s.installedPlugins);
+  const busyPlugins = useAppStore((s) => s.busyPlugins);
+  const { stop, remove } = usePluginActions();
 
   return (
     <div className="space-y-6">

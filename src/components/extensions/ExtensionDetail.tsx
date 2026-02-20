@@ -66,7 +66,7 @@ interface Props {
 
 export function ExtensionDetail({ entry, onBack }: Props) {
   const { t } = useTranslation("plugins");
-  const { addNotification } = useAppStore();
+  // No store subscription needed — use getState() in handlers
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [manifest, setManifest] = useState<ExtensionManifest | null>(null);
@@ -86,7 +86,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
       const m = await extensionPreview(entry.manifest_url);
       setManifest(m);
     } catch (e) {
-      addNotification(t("common:error.fetchExtensionManifest", { error: e }), "error");
+      useAppStore.getState().addNotification(t("common:error.fetchExtensionManifest", { error: e }), "error");
     } finally {
       setLoading(false);
     }
@@ -98,7 +98,7 @@ export function ExtensionDetail({ entry, onBack }: Props) {
       await extensionInstall(entry.manifest_url);
       onBack();
     } catch (e) {
-      addNotification(t("common:error.installFailed", { error: e }), "error");
+      useAppStore.getState().addNotification(t("common:error.installFailed", { error: e }), "error");
     } finally {
       setInstalling(false);
     }
@@ -259,12 +259,12 @@ export function ExtensionDetail({ entry, onBack }: Props) {
                 {t("extensions.capabilitiesWarning")}
               </p>
               <div className="space-y-1">
-                {manifest.capabilities.map((cap, i) => {
+                {manifest.capabilities.map((cap) => {
                   const Icon = capabilityIcon(cap);
                   const detail = capabilityDetail(cap);
                   return (
                     <div
-                      key={i}
+                      key={cap.type === "custom" ? cap.name : cap.type}
                       className="flex items-center gap-3 px-3 py-2 rounded-[8px] bg-background border border-default-100"
                     >
                       <Icon size={13} strokeWidth={1.5} className="text-default-500 flex-shrink-0" />

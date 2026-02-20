@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { cn } from "@imdanibytes/nexus-ui";
-import { motion, AnimatePresence } from "framer-motion";
+import { LazyMotion, domAnimation, m, AnimatePresence } from "framer-motion";
 
 type SettingsTab =
   | "general"
@@ -79,7 +79,8 @@ const TAB_COMPONENTS: Record<SettingsTab, React.FC> = {
 
 export function SettingsPage() {
   const { t } = useTranslation("settings");
-  const { settingsTab, setSettingsTab } = useAppStore();
+  const settingsTab = useAppStore((s) => s.settingsTab);
+  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
   const resolved = TAB_REDIRECTS[settingsTab] ?? settingsTab;
   const active = (TAB_IDS.has(resolved) ? resolved : "general") as SettingsTab;
   const ActiveComponent = TAB_COMPONENTS[active];
@@ -107,7 +108,7 @@ export function SettingsPage() {
                 )}
               >
                 {isActive && (
-                  <motion.div
+                  <m.div
                     layoutId="settings-nav"
                     className="absolute inset-0 rounded-xl bg-default-100"
                     transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
@@ -126,25 +127,27 @@ export function SettingsPage() {
 
       {/* Content surface — animated transitions */}
       <div className="flex-1 rounded-xl bg-default-50/40 backdrop-blur-xl border border-default-200/50 overflow-y-auto p-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={active}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-          >
-            <ErrorBoundary
-              label={
-                TABS.find((tab) => tab.id === active)?.labelKey
-                  ? t(TABS.find((tab) => tab.id === active)!.labelKey)
-                  : undefined
-              }
+        <LazyMotion features={domAnimation}>
+          <AnimatePresence mode="wait">
+            <m.div
+              key={active}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
             >
-              <ActiveComponent />
-            </ErrorBoundary>
-          </motion.div>
-        </AnimatePresence>
+              <ErrorBoundary
+                label={
+                  TABS.find((tab) => tab.id === active)?.labelKey
+                    ? t(TABS.find((tab) => tab.id === active)!.labelKey)
+                    : undefined
+                }
+              >
+                <ActiveComponent />
+              </ErrorBoundary>
+            </m.div>
+          </AnimatePresence>
+        </LazyMotion>
       </div>
     </div>
   );

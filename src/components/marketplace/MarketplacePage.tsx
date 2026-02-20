@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useMarketplace } from "../../hooks/useMarketplace";
-import { usePlugins } from "../../hooks/usePlugins";
+import { usePluginActions } from "../../hooks/usePlugins";
 import { useAppStore } from "../../stores/appStore";
 import { RegistryPluginCard } from "../plugins/PluginCard";
 import { SearchBar } from "./SearchBar";
@@ -16,8 +16,8 @@ import { Button } from "@heroui/react";
 export function MarketplacePage() {
   const { t } = useTranslation("plugins");
   const { plugins, isLoading, refresh, search } = useMarketplace();
-  const { previewLocal, installLocal } = usePlugins();
-  const { installedPlugins, selectRegistryEntry, setView } = useAppStore();
+  const { previewLocal, installLocal } = usePluginActions();
+  const installedPlugins = useAppStore((s) => s.installedPlugins);
   const [installing, setInstalling] = useState(false);
   const [showMcpWizard, setShowMcpWizard] = useState(false);
 
@@ -55,7 +55,7 @@ export function MarketplacePage() {
     await installLocal(pendingPath, approvedPermissions, deferredPermissions);
     setPendingPath(null);
     setInstalling(false);
-    setView("plugins");
+    useAppStore.getState().setView("plugins");
   }
 
   function handleDeny() {
@@ -131,8 +131,8 @@ export function MarketplacePage() {
               entry={entry}
               isInstalled={installedIds.has(entry.id)}
               onSelect={() => {
-                selectRegistryEntry(entry);
-                setView("plugin-detail");
+                useAppStore.getState().selectRegistryEntry(entry);
+                useAppStore.getState().setView("plugin-detail");
               }}
             />
           ))}

@@ -12,7 +12,7 @@ import {
   setUpdateCheckInterval,
 } from "../../lib/tauri";
 import { useAppStore } from "../../stores/appStore";
-import { usePlugins } from "../../hooks/usePlugins";
+import { usePluginActions } from "../../hooks/usePlugins";
 import type { AvailableUpdate, UpdateSecurity } from "../../types/updates";
 import { KeyChangeWarningDialog } from "./KeyChangeWarningDialog";
 import {
@@ -95,18 +95,18 @@ function RegistryBadge({ source }: { source: string }) {
 export function UpdatesTab() {
   const { t } = useTranslation("settings");
   const CHECK_INTERVALS = useCheckIntervalOptions();
-  const { availableUpdates, setAvailableUpdates, addNotification, notifications, dismiss } =
-    useAppStore();
-  const { refresh: refreshPlugins } = usePlugins();
+  const availableUpdates = useAppStore((s) => s.availableUpdates);
+  const notifications = useAppStore((s) => s.notifications);
+  const { refresh: refreshPlugins } = usePluginActions();
+
+  const updateCheckInterval = useAppStore((s) => s.updateCheckInterval);
 
   function dismissNotificationByItemId(itemId: string) {
     const match = notifications.find(
       (n) => (n.data as { item_id?: string })?.item_id === itemId,
     );
-    if (match) dismiss(match.id);
+    if (match) useAppStore.getState().dismiss(match.id);
   }
-
-  const { updateCheckInterval, setUpdateCheckInterval: setStoreInterval } = useAppStore();
 
   const [checking, setChecking] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -127,7 +127,7 @@ export function UpdatesTab() {
   }, [loadLastChecked]);
 
   async function handleIntervalChange(minutes: number) {
-    setStoreInterval(minutes);
+    useAppStore.getState().setUpdateCheckInterval(minutes);
     try {
       await setUpdateCheckInterval(minutes);
     } catch {
@@ -140,13 +140,13 @@ export function UpdatesTab() {
     try {
       await marketplaceRefresh();
       const updates = await checkUpdates();
-      setAvailableUpdates(updates);
+      useAppStore.getState().setAvailableUpdates(updates);
       await loadLastChecked();
       if (updates.length === 0) {
-        addNotification(i18n.t("common:notification.allUpToDate"), "success");
+        useAppStore.getState().addNotification(i18n.t("common:notification.allUpToDate"), "success");
       }
     } catch (e) {
-      addNotification(i18n.t("common:error.updateCheckFailed", { error: e }), "error");
+      useAppStore.getState().addNotification(i18n.t("common:error.updateCheckFailed", { error: e }), "error");
     } finally {
       setChecking(false);
     }
@@ -155,12 +155,12 @@ export function UpdatesTab() {
   async function handleDismiss(update: AvailableUpdate) {
     try {
       await dismissUpdate(update.item_id, update.available_version);
-      setAvailableUpdates(
+      useAppStore.getState().setAvailableUpdates(
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
       dismissNotificationByItemId(update.item_id);
     } catch (e) {
-      addNotification(i18n.t("common:error.dismissFailed", { error: e }), "error");
+      useAppStore.getState().addNotification(i18n.t("common:error.dismissFailed", { error: e }), "error");
     }
   }
 
@@ -172,17 +172,17 @@ export function UpdatesTab() {
       } else {
         await updateExtension(update.manifest_url);
       }
-      addNotification(
+      useAppStore.getState().addNotification(
         i18n.t("common:notification.updatedTo", { name: update.item_name, version: update.available_version }),
         "success"
       );
       await refreshPlugins();
-      setAvailableUpdates(
+      useAppStore.getState().setAvailableUpdates(
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
       dismissNotificationByItemId(update.item_id);
     } catch (e) {
-      addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
+      useAppStore.getState().addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
     } finally {
       setUpdatingId(null);
     }
@@ -193,17 +193,17 @@ export function UpdatesTab() {
     setUpdatingId(update.item_id);
     try {
       await updateExtensionForceKey(update.manifest_url);
-      addNotification(
+      useAppStore.getState().addNotification(
         i18n.t("common:notification.updatedToKeyChange", { name: update.item_name, version: update.available_version }),
         "success"
       );
       await refreshPlugins();
-      setAvailableUpdates(
+      useAppStore.getState().setAvailableUpdates(
         availableUpdates.filter((u) => u.item_id !== update.item_id)
       );
       dismissNotificationByItemId(update.item_id);
     } catch (e) {
-      addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
+      useAppStore.getState().addNotification(i18n.t("common:error.updateFailed", { error: e }), "error");
     } finally {
       setUpdatingId(null);
     }

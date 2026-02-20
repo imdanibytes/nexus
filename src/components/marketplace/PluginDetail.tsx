@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { RegistryEntry, PluginManifest, InstalledPlugin } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
 import { PermissionDialog } from "../permissions/PermissionDialog";
-import { usePlugins } from "../../hooks/usePlugins";
+import { usePluginActions } from "../../hooks/usePlugins";
 import { checkImageAvailable } from "../../lib/tauri";
 import { ArrowLeft, Download, Loader2, AlertTriangle, ExternalLink, User, Clock, Scale, Hammer, RefreshCw, HardDrive, Cloud } from "lucide-react";
 import { timeAgo } from "../../lib/timeAgo";
@@ -17,7 +17,7 @@ interface Props {
 
 export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
   const { t } = useTranslation("plugins");
-  const { previewRemote, install } = usePlugins();
+  const { previewRemote, install } = usePluginActions();
   const [loading, setLoading] = useState(false);
   const [pendingManifest, setPendingManifest] = useState<PluginManifest | null>(null);
   const [imageAvailable, setImageAvailable] = useState<boolean | null>(null);

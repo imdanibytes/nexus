@@ -152,7 +152,7 @@ pub async fn mcp_list_tools(
     let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
     let nexus_plugin_enabled = nexus_mcp.is_some_and(|s| s.enabled);
     let mcp_global_enabled = mgr.mcp_settings.enabled;
-    for builtin in crate::host_api::nexus_mcp::builtin_tools() {
+    for builtin in crate::host_api::mcp::builtin::builtin_tools() {
         let local_name = builtin.name.strip_prefix("nexus.").unwrap_or(&builtin.name);
         let tool_in_whitelist =
             nexus_mcp.is_some_and(|s| s.enabled_tools.contains(&local_name.to_string()));
@@ -177,7 +177,7 @@ pub async fn mcp_list_tools(
     drop(mgr);
 
     // Append extension MCP tools (operations with mcp_expose: true)
-    for ext_tool in crate::host_api::nexus_mcp::extension_mcp_tools(&state).await {
+    for ext_tool in crate::host_api::mcp::builtin::extension_mcp_tools(&state).await {
         let ext_id = &ext_tool.plugin_id;
         let local_name = ext_tool
             .name

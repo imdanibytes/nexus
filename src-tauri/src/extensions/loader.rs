@@ -608,3 +608,88 @@ impl ExtensionLoader {
         Ok(installed)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Standalone helpers (used by both Tauri commands and MCP handlers)
+// ---------------------------------------------------------------------------
+
+/// Build an extension from source using `cargo build --release`.
+///
+/// Returns the path to the compiled binary on success.
+pub async fn cargo_build_extension(
+    manifest_dir: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    let cargo_toml = manifest_dir.join("Cargo.toml");
+    if !cargo_toml.exists() {
+        return Err(format!(
+            "No Cargo.toml found in {}",
+            manifest_dir.display()
+        ));
+    }
+
+    let crate_name = read_cargo_package_name(&cargo_toml)?;
+
+    log::info!(
+        "Building extension '{}' with cargo build --release",
+        crate_name
+    );
+
+    let output = tokio::process::Command::new("cargo")
+        .args(["build", "--release"])
+        .current_dir(manifest_dir)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run cargo build: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("cargo build failed:\n{}", stderr));
+    }
+
+    let binary_name = if cfg!(target_os = "windows") {
+        format!("{}.exe", crate_name)
+    } else {
+        crate_name.clone()
+    };
+
+    let binary_path = manifest_dir
+        .join("target")
+        .join("release")
+        .join(&binary_name);
+    if !binary_path.exists() {
+        return Err(format!(
+            "Build succeeded but binary not found at {}",
+            binary_path.display()
+        ));
+    }
+
+    log::info!("Built extension binary: {}", binary_path.display());
+    Ok(binary_path)
+}
+
+fn read_cargo_package_name(cargo_toml: &std::path::Path) -> Result<String, String> {
+    let contents = std::fs::read_to_string(cargo_toml)
+        .map_err(|e| format!("Failed to read Cargo.toml: {}", e))?;
+
+    let mut in_package = false;
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_package = trimmed == "[package]";
+            continue;
+        }
+        if in_package {
+            if let Some(rest) = trimmed.strip_prefix("name") {
+                let rest = rest.trim_start();
+                if let Some(rest) = rest.strip_prefix('=') {
+                    let name = rest.trim().trim_matches('"').trim_matches('\'');
+                    if !name.is_empty() {
+                        return Ok(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    Err("Could not find [package] name in Cargo.toml".into())
+}

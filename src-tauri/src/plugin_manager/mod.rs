@@ -9,7 +9,7 @@ use crate::error::{NexusError, NexusResult};
 use crate::extensions::ipc::AppIpcRouter;
 use crate::extensions::loader::ExtensionLoader;
 use crate::extensions::registry::ExtensionRegistry;
-use crate::host_api::mcp_client::McpClientManager;
+use crate::host_api::mcp::McpClientManager;
 use crate::oauth::plugin_auth::PluginAuthService;
 use crate::oauth::store::OAuthStore;
 use crate::permissions::service::PermissionService;

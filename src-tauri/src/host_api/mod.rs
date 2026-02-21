@@ -4,11 +4,8 @@ pub mod events;
 pub mod extensions;
 pub mod filesystem;
 pub mod mcp;
-pub mod mcp_client;
-pub mod mcp_server;
 pub mod meta;
 mod middleware;
-pub mod nexus_mcp;
 pub mod network;
 pub mod process;
 mod rate_limit;
@@ -315,7 +312,7 @@ pub async fn start_server(
     let mcp_approvals_for_factory = approvals.clone();
     let mcp_service = StreamableHttpService::new(
         move || {
-            Ok(mcp_server::NexusMcpServer::new(
+            Ok(mcp::NexusMcpServer::new(
                 mcp_state_for_factory.clone(),
                 mcp_approvals_for_factory.clone(),
             ))

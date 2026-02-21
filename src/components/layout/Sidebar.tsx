@@ -23,6 +23,7 @@ import {
   Blocks,
   PanelLeftClose,
   PanelLeftOpen,
+  Zap,
 } from "lucide-react";
 import {
   Button,
@@ -627,6 +628,10 @@ export function AppSidebar() {
     useAppStore.getState().setView("extension-marketplace");
   }, []);
 
+  const handleNavWorkflows = useCallback(() => {
+    useAppStore.getState().setView("workflows");
+  }, []);
+
   const handleNavSettings = useCallback(() => {
     useAppStore.getState().setView("settings");
   }, []);
@@ -729,6 +734,16 @@ export function AppSidebar() {
           >
             <Blocks size={16} className="shrink-0" />
             <span className={cn("truncate whitespace-nowrap transition-all duration-300", collapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{t("common:nav.extensions")}</span>
+          </NavItem>
+
+          <NavItem
+            isActive={currentView === "workflows"}
+            onClick={handleNavWorkflows}
+            collapsed={collapsed}
+            tooltip={t("common:nav.workflows")}
+          >
+            <Zap size={16} className="shrink-0" />
+            <span className={cn("truncate whitespace-nowrap transition-all duration-300", collapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{t("common:nav.workflows")}</span>
           </NavItem>
 
           <NavItem

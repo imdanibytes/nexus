@@ -7,7 +7,8 @@
     "extensions": "扩展",
     "addPlugins": "添加插件",
     "settings": "设置",
-    "marketplace": "应用市场"
+    "marketplace": "应用市场",
+    "workflows": "工作流"
   },
   "action": {
     "cancel": "取消",

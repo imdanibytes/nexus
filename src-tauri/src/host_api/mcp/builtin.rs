@@ -6,6 +6,7 @@ use serde_json::json;
 
 use crate::host_api::approval::{ApprovalBridge, ApprovalDecision, ApprovalRequest};
 use super::types::{McpCallResponse, McpContent, McpToolEntry};
+use crate::event_bus::SharedEventBus;
 use crate::extensions::RiskLevel;
 use crate::plugin_manager::storage::McpPluginSettings;
 use crate::AppState;
@@ -311,6 +312,133 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
             enabled: true,
             requires_approval: true,
         },
+        // -- Workflow tools --
+        McpToolEntry {
+            name: "nexus.workflow_list".into(),
+            description: "List all event-driven workflows (routing rules). Each workflow routes CloudEvents to plugin tools, extension operations, or frontend channels. Returns id, name, filters, action, enabled state, and creator. Use to see what automations are configured.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.workflow_get".into(),
+            description: "Get a specific workflow (routing rule) by its ID. Returns full details including filters, action configuration, and enabled state.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "rule_id": {
+                        "type": "string",
+                        "description": "The routing rule ID to retrieve."
+                    }
+                },
+                "required": ["rule_id"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.workflow_create".into(),
+            description: "Create a new event-driven workflow. Workflows route CloudEvents matching the given filters to an action (invoke a plugin tool, call an extension operation, or emit a frontend event). Use CloudEvents Subscriptions filter dialects: exact, prefix, suffix. Args templates support {{event.data.field}} template expressions. Requires user approval.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Optional human-readable name for the workflow."
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "CloudEvents Subscriptions filters. Each filter is an object with one key: 'exact', 'prefix', or 'suffix', mapping to an object of attribute-value pairs. All filters must match (AND logic). Example: [{\"prefix\": {\"type\": \"com.github.\"}}]",
+                        "items": { "type": "object" }
+                    },
+                    "action": {
+                        "type": "object",
+                        "description": "The action to execute. Must have an 'action' field: 'invoke_plugin_tool' (requires plugin_id, tool_name, optional args_template), 'call_extension' (requires extension_id, operation, optional args_template), or 'emit_frontend' (requires channel)."
+                    }
+                },
+                "required": ["filters", "action"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: true,
+        },
+        McpToolEntry {
+            name: "nexus.workflow_update".into(),
+            description: "Update an existing workflow. Only the provided fields are changed; omitted fields keep their current values. Use to rename, change filters, modify the action, or toggle enabled/disabled. Requires user approval.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "rule_id": {
+                        "type": "string",
+                        "description": "The routing rule ID to update."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New human-readable name. Pass null to clear.",
+                        "nullable": true
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "New CloudEvents Subscriptions filters (replaces existing).",
+                        "items": { "type": "object" }
+                    },
+                    "action": {
+                        "type": "object",
+                        "description": "New action configuration (replaces existing)."
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Enable or disable the workflow."
+                    }
+                },
+                "required": ["rule_id"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: true,
+        },
+        McpToolEntry {
+            name: "nexus.workflow_delete".into(),
+            description: "Delete a workflow (routing rule) by its ID. This is permanent — the workflow cannot be recovered. Requires user approval.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "rule_id": {
+                        "type": "string",
+                        "description": "The routing rule ID to delete."
+                    }
+                },
+                "required": ["rule_id"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: true,
+        },
         // -- Nexus Code tools --
         McpToolEntry {
             name: "nexus.read_file".into(),
@@ -583,6 +711,7 @@ pub async fn handle_call(
     arguments: &serde_json::Value,
     state: &AppState,
     bridge: &Arc<ApprovalBridge>,
+    event_bus: &SharedEventBus,
 ) -> Result<McpCallResponse, StatusCode> {
     match tool_name {
         "list_plugins" => handle_list_plugins(state).await,
@@ -592,6 +721,8 @@ pub async fn handle_call(
         "get_settings" => handle_get_settings(state).await,
         "get_mcp_settings" => handle_get_mcp_settings(state).await,
         "engine_status" => handle_engine_status(state).await,
+        "workflow_list" => handle_workflow_list(event_bus).await,
+        "workflow_get" => handle_workflow_get(arguments, event_bus).await,
         "read_file" => handle_read_file(arguments, state).await,
         "write_file" => handle_write_file(arguments, state).await,
         "edit_file" => handle_edit_file(arguments, state).await,
@@ -604,6 +735,9 @@ pub async fn handle_call(
         | "plugin_install" | "plugin_install_local" | "extension_enable"
         | "extension_disable" | "extension_install_local" => {
             handle_mutating(tool_name, arguments, state, bridge).await
+        }
+        "workflow_create" | "workflow_update" | "workflow_delete" => {
+            handle_mutating_workflow(tool_name, arguments, state, bridge, event_bus).await
         }
         _ => Err(StatusCode::NOT_FOUND),
     }
@@ -1108,6 +1242,149 @@ async fn exec_execute_command(args: &serde_json::Value, _state: &AppState) -> Re
             ok_json(&json!({ "exit_code": out.status.code(), "stdout": String::from_utf8_lossy(&out.stdout), "stderr": String::from_utf8_lossy(&out.stderr) }))
         }
         Err(e) => ok_error(format!("Failed to spawn: {}", e)),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Workflow handlers (read-only)
+// ---------------------------------------------------------------------------
+
+async fn handle_workflow_list(event_bus: &SharedEventBus) -> Result<McpCallResponse, StatusCode> {
+    let bus = event_bus.read().await;
+    ok_json(&bus.list_routing_rules())
+}
+
+async fn handle_workflow_get(args: &serde_json::Value, event_bus: &SharedEventBus) -> Result<McpCallResponse, StatusCode> {
+    let rule_id = require_str(args, "rule_id")?;
+    let bus = event_bus.read().await;
+    match bus.get_routing_rule(&rule_id) {
+        Some(rule) => ok_json(rule),
+        None => ok_error(format!("Workflow '{}' not found", rule_id)),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Workflow handlers (mutating, with approval)
+// ---------------------------------------------------------------------------
+
+async fn handle_mutating_workflow(
+    tool_name: &str,
+    arguments: &serde_json::Value,
+    state: &AppState,
+    bridge: &Arc<ApprovalBridge>,
+    event_bus: &SharedEventBus,
+) -> Result<McpCallResponse, StatusCode> {
+    let already_approved = {
+        let mgr = state.read().await;
+        mgr.mcp_settings.plugins.get(NEXUS_PLUGIN_ID).is_some_and(|s| s.approved_tools.contains(&tool_name.to_string()))
+    };
+
+    if !already_approved {
+        let mut context = std::collections::HashMap::new();
+        context.insert("tool_name".to_string(), tool_name.to_string());
+        context.insert("plugin_name".to_string(), NEXUS_PLUGIN_NAME.to_string());
+        context.insert("description".to_string(), describe_workflow_tool(tool_name));
+        if let serde_json::Value::Object(map) = arguments {
+            for (k, v) in map {
+                let display = match v { serde_json::Value::String(s) => s.clone(), other => other.to_string() };
+                context.insert(format!("arg.{}", k), display);
+            }
+        }
+        let approval_req = ApprovalRequest {
+            id: uuid::Uuid::new_v4().to_string(),
+            plugin_id: NEXUS_PLUGIN_ID.to_string(),
+            plugin_name: NEXUS_PLUGIN_NAME.to_string(),
+            category: "mcp_tool".to_string(),
+            permission: format!("mcp:nexus:{}", tool_name),
+            context,
+        };
+        match bridge.request_approval(approval_req).await {
+            ApprovalDecision::Approve => {
+                let mut mgr = state.write().await;
+                let plugin_settings = mgr.mcp_settings.plugins.entry(NEXUS_PLUGIN_ID.to_string()).or_insert_with(McpPluginSettings::default);
+                if !plugin_settings.approved_tools.contains(&tool_name.to_string()) {
+                    plugin_settings.approved_tools.push(tool_name.to_string());
+                }
+                let _ = mgr.mcp_settings.save();
+                log::info!("AUDIT Nexus MCP workflow tool permanently approved: tool={}", tool_name);
+            }
+            ApprovalDecision::ApproveOnce => { log::info!("AUDIT Nexus MCP workflow tool approved once: tool={}", tool_name); }
+            ApprovalDecision::Deny => {
+                log::warn!("AUDIT Nexus MCP workflow tool denied: tool={}", tool_name);
+                return ok_error(format!("[Nexus] Tool 'nexus.{}' was denied by the user.", tool_name));
+            }
+        }
+    }
+
+    match tool_name {
+        "workflow_create" => exec_workflow_create(arguments, event_bus).await,
+        "workflow_update" => exec_workflow_update(arguments, event_bus).await,
+        "workflow_delete" => exec_workflow_delete(arguments, event_bus).await,
+        _ => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+fn describe_workflow_tool(tool_name: &str) -> String {
+    match tool_name {
+        "workflow_create" => "Create a new event-driven workflow".into(),
+        "workflow_update" => "Update an existing workflow".into(),
+        "workflow_delete" => "Delete a workflow".into(),
+        _ => tool_name.to_string(),
+    }
+}
+
+async fn exec_workflow_create(args: &serde_json::Value, event_bus: &SharedEventBus) -> Result<McpCallResponse, StatusCode> {
+    let name = args.get("name").and_then(|v| v.as_str()).map(String::from);
+    let filters: Vec<crate::event_bus::routing::Filter> = args.get("filters")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    let action: crate::event_bus::routing::RouteAction = serde_json::from_value(
+        args.get("action").cloned().unwrap_or(serde_json::Value::Null)
+    ).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let mut bus = event_bus.write().await;
+    match bus.create_routing_rule(crate::event_bus::routing::RoutingRule {
+        id: String::new(),
+        name,
+        filters,
+        action,
+        enabled: true,
+        created_by: "mcp".to_string(),
+    }) {
+        Ok(id) => ok_json(&json!({ "status": "created", "rule_id": id })),
+        Err(e) => ok_error(format!("Failed to create workflow: {}", e)),
+    }
+}
+
+async fn exec_workflow_update(args: &serde_json::Value, event_bus: &SharedEventBus) -> Result<McpCallResponse, StatusCode> {
+    let rule_id = require_str(args, "rule_id")?;
+    let name = args.get("name").map(|v| {
+        if v.is_null() { None } else { v.as_str().map(String::from) }
+    });
+    let filters: Option<Vec<crate::event_bus::routing::Filter>> = args.get("filters")
+        .map(|v| serde_json::from_value(v.clone()).unwrap_or_default());
+    let action: Option<crate::event_bus::routing::RouteAction> = args.get("action")
+        .and_then(|v| serde_json::from_value(v.clone()).ok());
+    let enabled = args.get("enabled").and_then(|v| v.as_bool());
+
+    let mut bus = event_bus.write().await;
+    match bus.update_routing_rule(&rule_id, crate::event_bus::routing::RoutingRuleUpdate {
+        name,
+        filters,
+        action,
+        enabled,
+    }) {
+        Ok(()) => ok_json(&json!({ "status": "updated", "rule_id": rule_id })),
+        Err(e) => ok_error(format!("Failed to update workflow: {}", e)),
+    }
+}
+
+async fn exec_workflow_delete(args: &serde_json::Value, event_bus: &SharedEventBus) -> Result<McpCallResponse, StatusCode> {
+    let rule_id = require_str(args, "rule_id")?;
+    let mut bus = event_bus.write().await;
+    match bus.delete_routing_rule(&rule_id) {
+        Ok(()) => ok_json(&json!({ "status": "deleted", "rule_id": rule_id })),
+        Err(e) => ok_error(format!("Failed to delete workflow: {}", e)),
     }
 }
 

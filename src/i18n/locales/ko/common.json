@@ -7,7 +7,8 @@
     "extensions": "확장 기능",
     "addPlugins": "플러그인 추가",
     "settings": "설정",
-    "marketplace": "마켓플레이스"
+    "marketplace": "마켓플레이스",
+    "workflows": "워크플로"
   },
   "action": {
     "cancel": "취소",

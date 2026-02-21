@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::event_bus::cloud_event::CloudEvent;
 use crate::event_bus::log::EventLogQuery;
-use crate::event_bus::routing::{RouteAction, RoutingRule, RoutingRuleUpdate};
+use crate::event_bus::routing::{Filter, RouteAction, RoutingRule, RoutingRuleUpdate};
 use crate::event_bus::SharedEventBus;
 
 // -- Event Log commands --
@@ -95,21 +95,19 @@ pub async fn routing_rule_get(
         .ok_or_else(|| format!("Rule '{}' not found", rule_id))
 }
 
-/// Create a new routing rule.
+/// Create a new routing rule with CE Subscriptions-compatible filters.
 #[tauri::command]
 pub async fn routing_rule_create(
     event_bus: tauri::State<'_, SharedEventBus>,
     name: Option<String>,
-    type_pattern: String,
-    source_pattern: Option<String>,
+    filters: Vec<Filter>,
     action: RouteAction,
 ) -> Result<String, String> {
     let mut bus = event_bus.write().await;
     bus.create_routing_rule(RoutingRule {
         id: String::new(),
         name,
-        type_pattern,
-        source_pattern,
+        filters,
         action,
         enabled: true,
         created_by: "user".to_string(),
@@ -122,8 +120,7 @@ pub async fn routing_rule_update(
     event_bus: tauri::State<'_, SharedEventBus>,
     rule_id: String,
     name: Option<Option<String>>,
-    type_pattern: Option<String>,
-    source_pattern: Option<Option<String>>,
+    filters: Option<Vec<Filter>>,
     action: Option<RouteAction>,
     enabled: Option<bool>,
 ) -> Result<(), String> {
@@ -132,8 +129,7 @@ pub async fn routing_rule_update(
         &rule_id,
         RoutingRuleUpdate {
             name,
-            type_pattern,
-            source_pattern,
+            filters,
             action,
             enabled,
         },

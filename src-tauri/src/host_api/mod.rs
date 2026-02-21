@@ -298,7 +298,7 @@ pub async fn start_server(
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(approvals.clone()))
         .layer(Extension(dispatch.executor))
-        .layer(Extension(dispatch.bus))
+        .layer(Extension(dispatch.bus.clone()))
         .layer(Extension(dispatch.store))
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
@@ -314,6 +314,7 @@ pub async fn start_server(
 
     let mcp_state_for_factory = state.clone();
     let mcp_approvals_for_factory = approvals.clone();
+    let mcp_event_bus = dispatch.bus;
     let audit_for_oauth = audit.clone();
     let audit_for_mcp_auth = audit.clone();
     let mcp_audit_for_factory = audit;
@@ -323,6 +324,7 @@ pub async fn start_server(
                 mcp_state_for_factory.clone(),
                 mcp_approvals_for_factory.clone(),
                 mcp_audit_for_factory.clone(),
+                mcp_event_bus.clone(),
             ))
         },
         Arc::new(rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default()),

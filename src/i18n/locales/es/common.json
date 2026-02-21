@@ -7,7 +7,8 @@
     "extensions": "Extensiones",
     "addPlugins": "Agregar Plugins",
     "settings": "Configuracion",
-    "marketplace": "Marketplace"
+    "marketplace": "Marketplace",
+    "workflows": "Flujos de trabajo"
   },
   "action": {
     "cancel": "Cancelar",

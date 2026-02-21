@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use rmcp::model::*;
 use rmcp::ErrorData as McpError;
 use crate::AppState;
+use crate::event_bus::SharedEventBus;
 use super::builtin;
 use crate::audit::writer::AuditWriter;
 use crate::plugin_manager::storage::{PluginStatus, McpPluginSettings};
@@ -29,11 +30,12 @@ pub struct McpRegistry {
     state: AppState,
     approval_bridge: Arc<ApprovalBridge>,
     audit: AuditWriter,
+    event_bus: SharedEventBus,
 }
 
 impl McpRegistry {
-    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>, audit: AuditWriter) -> Self {
-        Self { state, approval_bridge, audit }
+    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>, audit: AuditWriter, event_bus: SharedEventBus) -> Self {
+        Self { state, approval_bridge, audit, event_bus }
     }
 
     /// Aggregates all available tools from all providers.
@@ -241,7 +243,7 @@ impl McpRegistry {
 
     async fn call_builtin(&self, local_name: &str, arguments: Option<serde_json::Map<String, serde_json::Value>>) -> Result<CallToolResult, McpError> {
         let args_val = serde_json::Value::Object(arguments.unwrap_or_default());
-        match builtin::handle_call(local_name, &args_val, &self.state, &self.approval_bridge).await {
+        match builtin::handle_call(local_name, &args_val, &self.state, &self.approval_bridge, &self.event_bus).await {
             Ok(resp) => {
                 let content = resp.content.into_iter().map(|c| Content::text(c.text)).collect();
                 if resp.is_error { Ok(CallToolResult::error(content)) } else { Ok(CallToolResult::success(content)) }

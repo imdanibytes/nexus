@@ -34,6 +34,20 @@ impl CloudEvent {
         CloudEventBuilder::default()
     }
 
+    /// Look up a CloudEvents context attribute by name.
+    /// Returns `None` for unknown attribute names or unset optional attributes.
+    pub fn get_attr(&self, name: &str) -> Option<&str> {
+        match name {
+            "id" => Some(&self.id),
+            "type" => Some(&self.event_type),
+            "source" => Some(&self.source),
+            "subject" => self.subject.as_deref(),
+            "specversion" => Some(&self.specversion),
+            "datacontenttype" => Some(&self.datacontenttype),
+            _ => self.extensions.get(name).and_then(|v| v.as_str()),
+        }
+    }
+
     /// Validate that all required CloudEvents v1.0 fields are present and valid.
     pub fn validate(&self) -> Result<(), String> {
         if self.specversion != "1.0" {

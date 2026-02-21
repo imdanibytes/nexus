@@ -15,7 +15,7 @@ import type { InstalledPlugin, RegistryEntry } from "../types/plugin";
 import type { ExtensionRegistryEntry, ExtensionStatus } from "../types/extension";
 import type { AvailableUpdate } from "../types/updates";
 
-type View = "plugins" | "marketplace" | "settings" | "plugin-detail" | "extension-marketplace" | "extension-detail";
+type View = "plugins" | "marketplace" | "settings" | "plugin-detail" | "extension-marketplace" | "extension-detail" | "workflows";
 export type PluginAction = "starting" | "stopping" | "removing" | "rebuilding" | "updating";
 export type ExtensionAction = "enabling" | "disabling" | "removing" | "updating";
 

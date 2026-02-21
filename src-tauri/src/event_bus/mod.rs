@@ -160,6 +160,7 @@ pub fn create_event_bus(data_dir: &Path) -> SharedEventBus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use routing::Filter;
     use tempfile::TempDir;
 
     fn make_bus() -> (TempDir, EventBus) {
@@ -238,8 +239,11 @@ mod tests {
 
         bus.create_routing_rule(RoutingRule {
             id: String::new(),
-            type_pattern: "com.github.*".into(),
-            source_pattern: None,
+            name: None,
+            filters: vec![Filter::Prefix(std::collections::HashMap::from([(
+                "type".into(),
+                "com.github.".into(),
+            )]))],
             action: RouteAction::EmitFrontend {
                 channel: "gh-events".into(),
             },

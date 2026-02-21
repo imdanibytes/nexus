@@ -7,6 +7,7 @@ import { PluginDetail } from "./components/marketplace/PluginDetail";
 import { SettingsPage } from "./components/settings/SettingsPage";
 import { ExtensionMarketplacePage } from "./components/extensions/ExtensionMarketplacePage";
 import { ExtensionDetail } from "./components/extensions/ExtensionDetail";
+import { WorkflowsPage } from "./components/workflows/WorkflowsPage";
 import { useAppStore } from "./stores/appStore";
 import { usePluginActions, usePluginSync } from "./hooks/usePlugins";
 import { useExtensionActions, useExtensionSync } from "./hooks/useExtensions";
@@ -245,6 +246,13 @@ function App() {
               installedPlugin={installedPlugin}
               onBack={handlePluginDetailBack}
             />
+          </ErrorBoundary>
+        </div>
+      )}
+      {currentView === "workflows" && (
+        <div className="absolute inset-0 overflow-y-auto">
+          <ErrorBoundary label="Workflows">
+            <WorkflowsPage />
           </ErrorBoundary>
         </div>
       )}

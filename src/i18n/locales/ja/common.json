@@ -7,7 +7,8 @@
     "extensions": "エクステンション",
     "addPlugins": "プラグインを追加",
     "settings": "設定",
-    "marketplace": "マーケットプレイス"
+    "marketplace": "マーケットプレイス",
+    "workflows": "ワークフロー"
   },
   "action": {
     "cancel": "キャンセル",

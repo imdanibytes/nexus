@@ -7,7 +7,8 @@
     "extensions": "Sidebar section header — groups host extensions",
     "addPlugins": "Sidebar button label — navigates to marketplace",
     "settings": "Sidebar button label — navigates to settings",
-    "marketplace": "Generic noun — the marketplace page"
+    "marketplace": "Generic noun — the marketplace page",
+    "workflows": "Nav item — event-driven workflow automations page"
   },
   "action": {
     "cancel": "Button label — dismiss/abort an action",

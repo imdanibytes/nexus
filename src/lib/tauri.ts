@@ -544,6 +544,53 @@ export async function extensionResourceDelete(
   return invoke("extension_resource_delete", { extId, resourceType, resourceId });
 }
 
+// Workflows (Event Bus Routing Rules)
+
+import type { EventLogEntry, Filter, RouteAction, RoutingRule } from "../types/workflows";
+
+export async function workflowList(): Promise<RoutingRule[]> {
+  return invoke("routing_rule_list");
+}
+
+export async function workflowGet(ruleId: string): Promise<RoutingRule> {
+  return invoke("routing_rule_get", { ruleId });
+}
+
+export async function workflowCreate(params: {
+  name?: string;
+  filters: Filter[];
+  action: RouteAction;
+}): Promise<string> {
+  return invoke("routing_rule_create", params);
+}
+
+export async function workflowUpdate(params: {
+  ruleId: string;
+  name?: string | null;
+  filters?: Filter[];
+  action?: RouteAction;
+  enabled?: boolean;
+}): Promise<void> {
+  return invoke("routing_rule_update", params);
+}
+
+export async function workflowDelete(ruleId: string): Promise<void> {
+  return invoke("routing_rule_delete", { ruleId });
+}
+
+export async function eventLogQuery(params?: {
+  eventType?: string;
+  source?: string;
+  since?: string;
+  limit?: number;
+}): Promise<EventLogEntry[]> {
+  return invoke("event_log_query", params ?? {});
+}
+
+export async function eventLogCount(): Promise<number> {
+  return invoke("event_log_count");
+}
+
 // MCP Wrap
 
 export async function mcpDiscoverTools(

@@ -15,6 +15,7 @@ use rmcp::{ErrorData as McpError, RoleServer, ServerHandler};
 
 use crate::AppState;
 use crate::audit::writer::AuditWriter;
+use crate::event_bus::SharedEventBus;
 use super::registry::McpRegistry;
 use crate::host_api::approval::ApprovalBridge;
 
@@ -28,8 +29,8 @@ pub struct NexusMcpServer {
 }
 
 impl NexusMcpServer {
-    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>, audit: AuditWriter) -> Self {
-        let registry = Arc::new(McpRegistry::new(state.clone(), approval_bridge, audit));
+    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>, audit: AuditWriter, event_bus: SharedEventBus) -> Self {
+        let registry = Arc::new(McpRegistry::new(state.clone(), approval_bridge, audit, event_bus));
         Self { state, registry }
     }
 }

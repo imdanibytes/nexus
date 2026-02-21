@@ -99,6 +99,7 @@ pub async fn routing_rule_get(
 #[tauri::command]
 pub async fn routing_rule_create(
     event_bus: tauri::State<'_, SharedEventBus>,
+    name: Option<String>,
     type_pattern: String,
     source_pattern: Option<String>,
     action: RouteAction,
@@ -106,6 +107,7 @@ pub async fn routing_rule_create(
     let mut bus = event_bus.write().await;
     bus.create_routing_rule(RoutingRule {
         id: String::new(),
+        name,
         type_pattern,
         source_pattern,
         action,
@@ -119,6 +121,7 @@ pub async fn routing_rule_create(
 pub async fn routing_rule_update(
     event_bus: tauri::State<'_, SharedEventBus>,
     rule_id: String,
+    name: Option<Option<String>>,
     type_pattern: Option<String>,
     source_pattern: Option<Option<String>>,
     action: Option<RouteAction>,
@@ -128,6 +131,7 @@ pub async fn routing_rule_update(
     bus.update_routing_rule(
         &rule_id,
         RoutingRuleUpdate {
+            name,
             type_pattern,
             source_pattern,
             action,

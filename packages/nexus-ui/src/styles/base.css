@@ -166,3 +166,66 @@
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(25px, -35px, 0); }
 }
+
+/* ============================================
+   Markdown (MarkdownText / Streamdown)
+   ============================================ */
+
+/* Footnote scroll flash */
+@keyframes md-flash {
+  0% { background-color: hsl(var(--heroui-primary) / 0.2); }
+  100% { background-color: transparent; }
+}
+.aui-md-flash {
+  animation: md-flash 1.5s ease-out;
+  border-radius: 4px;
+}
+
+/* Streamdown code blocks — glass treatment */
+.aui-md [data-streamdown="code-block"] {
+  margin-top: 0.625rem;
+  margin-bottom: 0.625rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--heroui-default-200));
+  overflow: hidden;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+:is(.dark) .aui-md [data-streamdown="code-block"] {
+  border-color: hsl(var(--heroui-default-200) / 0.5);
+}
+.aui-md [data-streamdown="code-block-header"] {
+  background: hsl(var(--heroui-default-100));
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--heroui-default-200));
+}
+:is(.dark) .aui-md [data-streamdown="code-block-header"] {
+  background: hsl(var(--heroui-default-100) / 0.4);
+  border-bottom-color: hsl(var(--heroui-default-200) / 0.5);
+}
+.aui-md [data-streamdown="code-block-body"] {
+  background: hsl(var(--heroui-default-100) / 0.6);
+  border-top: none !important;
+  padding: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.625;
+}
+:is(.dark) .aui-md [data-streamdown="code-block-body"] {
+  background: hsl(var(--heroui-default-100) / 0.2);
+}
+/* Shiki dual-theme: force --shiki-dark in dark mode */
+:is(.dark) [data-streamdown="code-block-body"] span[style] {
+  color: var(--shiki-dark, inherit) !important;
+}
+@media (prefers-color-scheme: dark) {
+  [data-streamdown="code-block-body"] span[style] {
+    color: var(--shiki-dark, inherit) !important;
+  }
+}
+.aui-md [data-streamdown="inline-code"] {
+  border: 1px solid hsl(var(--heroui-default-200) / 0.5);
+  background: hsl(var(--heroui-default-100) / 0.4);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.375rem;
+  font-size: 0.85em;
+}

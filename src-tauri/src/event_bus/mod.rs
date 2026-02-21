@@ -1,10 +1,13 @@
 pub mod cloud_event;
+pub mod dispatch;
 pub mod executor;
 pub mod log;
 pub mod retry_worker;
 pub mod routing;
 pub mod store;
 pub mod subscription;
+
+pub use dispatch::Dispatch;
 
 use std::path::Path;
 use std::sync::Arc;

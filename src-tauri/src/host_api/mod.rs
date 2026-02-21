@@ -28,7 +28,7 @@ use utoipa::{Modify, OpenApi};
 
 use crate::api_keys::ApiKeyStore;
 use crate::audit::writer::AuditWriter;
-use crate::event_bus::SharedEventBus;
+use crate::event_bus;
 use crate::oauth;
 use crate::ActiveTheme;
 use crate::AppState;
@@ -152,16 +152,13 @@ impl Modify for SecurityAddon {
 )]
 pub struct ApiDoc;
 
-#[allow(clippy::too_many_arguments)]
 pub async fn start_server(
     state: AppState,
     approvals: Arc<ApprovalBridge>,
     oauth_store: Arc<oauth::OAuthStore>,
     active_theme: ActiveTheme,
     api_key_store: ApiKeyStore,
-    event_bus: SharedEventBus,
-    route_executor: crate::event_bus::executor::RouteActionExecutor,
-    event_store: crate::event_bus::SharedEventStore,
+    dispatch: event_bus::Dispatch,
     audit: AuditWriter,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
@@ -300,9 +297,9 @@ pub async fn start_server(
         ))
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(approvals.clone()))
-        .layer(Extension(route_executor))
-        .layer(Extension(event_bus))
-        .layer(Extension(event_store))
+        .layer(Extension(dispatch.executor))
+        .layer(Extension(dispatch.bus))
+        .layer(Extension(dispatch.store))
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 

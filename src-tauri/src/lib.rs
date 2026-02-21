@@ -16,7 +16,6 @@ mod update_checker;
 pub(crate) mod util;
 mod version;
 
-use event_bus::SharedEventBus;
 use host_api::approval::ApprovalBridge;
 use plugin_manager::dev_watcher::DevWatcher;
 use plugin_manager::PluginManager;
@@ -146,22 +145,12 @@ pub fn run() {
             PluginManager::wire_extension_ipc(&state);
             app.manage(state.clone());
 
-            // CloudEvents event bus — shared with Host API, Tauri commands, and extensions
-            let event_bus: SharedEventBus = event_bus::create_event_bus(&data_dir);
-            app.manage(event_bus.clone());
-
-            // Route action executor — dispatches routing rule actions when events are published
-            let route_executor = event_bus::executor::RouteActionExecutor::new(
-                state.clone(),
-                app_handle.clone(),
-            );
-
-            // Durable event store (SQLite) — persists events and tracks delivery with retry
-            let event_store: event_bus::SharedEventStore = Arc::new(
-                event_bus::store::EventStore::new(&data_dir)
-                    .expect("failed to initialize event store"),
-            );
-            app.manage(event_store.clone());
+            // CloudEvents event bus — single Dispatch facade bundles bus + store + executor
+            let dispatch = event_bus::Dispatch::new(&data_dir, state.clone(), app_handle.clone())
+                .expect("failed to initialize event bus");
+            app.manage(dispatch.bus.clone());
+            app.manage(dispatch.store.clone());
+            app.manage(dispatch.clone());
 
             // Audit subsystem — SQLite-backed structured audit log
             let audit_store = Arc::new(
@@ -174,26 +163,18 @@ pub fn run() {
             app.manage(audit_writer);
             tauri::async_runtime::spawn(audit_future);
 
-            // Wire event bus + route executor + event store into all registered extensions
+            // Wire dispatch into all registered extensions
             {
                 let mgr = state.blocking_read();
                 for ext_info in mgr.extensions.list() {
                     if let Some(ext) = mgr.extensions.get_arc(&ext_info.id) {
-                        ext.set_event_bus(event_bus.clone());
-                        ext.set_route_executor(route_executor.clone());
-                        ext.set_event_store(event_store.clone());
+                        ext.set_dispatch(dispatch.clone());
                     }
                 }
             }
 
             // Spawn background retry worker for durable event delivery
-            {
-                let store = event_store.clone();
-                let executor = route_executor.clone();
-                tauri::async_runtime::spawn(async move {
-                    event_bus::retry_worker::run(store, executor).await;
-                });
-            }
+            dispatch.spawn_retry_worker();
 
             // Active theme — shared between Tauri UI and Axum (OAuth consent page)
             let theme = {
@@ -251,9 +232,7 @@ pub fn run() {
             let oauth_clone = oauth_store.clone();
             let theme_clone = theme.clone();
             let api_keys_clone = api_key_store.clone();
-            let event_bus_clone = event_bus.clone();
-            let route_executor_clone = route_executor.clone();
-            let event_store_clone = event_store.clone();
+            let dispatch_clone = dispatch;
             tauri::async_runtime::spawn(async move {
                 // Ensure nexus-bridge Docker network exists
                 if let Err(e) = runtime_clone.ensure_network("nexus-bridge").await {
@@ -261,7 +240,7 @@ pub fn run() {
                 }
 
                 // Start the Host API server
-                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone, api_keys_clone, event_bus_clone, route_executor_clone, event_store_clone, audit_writer_for_server).await {
+                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone, api_keys_clone, dispatch_clone, audit_writer_for_server).await {
                     log::error!("Host API server failed: {}", e);
                 }
             });

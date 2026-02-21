@@ -140,15 +140,7 @@ pub trait Extension: Send + Sync + 'static {
     /// Default no-op — only ProcessExtension overrides this.
     fn set_ipc_router(&self, _router: Arc<dyn IpcRouter>) {}
 
-    /// Inject the event bus so this extension can publish/subscribe to events.
+    /// Inject the event bus dispatch facade (bus + store + executor).
     /// Default no-op — only ProcessExtension overrides this.
-    fn set_event_bus(&self, _bus: crate::event_bus::SharedEventBus) {}
-
-    /// Inject the route action executor for dispatching routing rule actions.
-    /// Default no-op — only ProcessExtension overrides this.
-    fn set_route_executor(&self, _executor: crate::event_bus::executor::RouteActionExecutor) {}
-
-    /// Inject the durable event store for persisting events and delivery tracking.
-    /// Default no-op — only ProcessExtension overrides this.
-    fn set_event_store(&self, _store: crate::event_bus::SharedEventStore) {}
+    fn set_dispatch(&self, _dispatch: crate::event_bus::Dispatch) {}
 }

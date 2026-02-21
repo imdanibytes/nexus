@@ -7,11 +7,13 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::sync::mpsc;
 
 use super::capability::Capability;
 use super::ipc::IpcRouter;
 use super::manifest::ExtensionManifest;
 use super::{Extension, ExtensionError, OperationDef, OperationResult};
+use crate::event_bus::cloud_event::CloudEvent;
 
 /// JSON-RPC 2.0 request (outgoing to extension).
 #[derive(Serialize)]
@@ -70,6 +72,14 @@ struct JsonRpcErrorOut {
     message: String,
 }
 
+/// JSON-RPC 2.0 notification (no `id` field — fire-and-forget to extension).
+#[derive(Serialize)]
+struct JsonRpcNotification {
+    jsonrpc: &'static str,
+    method: &'static str,
+    params: Value,
+}
+
 /// What we read from the extension's stdout: either a response to our request
 /// or a new request from the extension (IPC).
 enum StdioMessage {
@@ -78,32 +88,31 @@ enum StdioMessage {
 }
 
 /// A host extension backed by a child process, communicating via JSON-RPC over stdio.
+///
+/// Stdin and stdout are split into independent locks so that event delivery tasks
+/// can write notifications to stdin without blocking ongoing RPC operations.
 pub struct ProcessExtension {
     manifest: ExtensionManifest,
     /// Leaked strings so we can return &str from trait methods.
     id_str: String,
     display_name_str: String,
     description_str: String,
-    /// The child process handle + IO, protected by a mutex for thread safety.
-    child: Mutex<Option<ProcessHandle>>,
+    /// Child process handle — only used for lifecycle (try_wait, kill).
+    process: Mutex<Option<Child>>,
+    /// Stdin writer — shared between rpc_call() and notification delivery tasks.
+    stdin: Arc<Mutex<Option<BufWriter<ChildStdin>>>>,
+    /// Stdout reader — exclusively used by rpc_call() (one operation at a time).
+    stdout: Mutex<Option<BufReader<ChildStdout>>>,
     binary_path: PathBuf,
     /// Dedicated storage directory for extension data (passed in initialize).
     data_dir: Option<PathBuf>,
     next_id: AtomicU64,
     /// IPC router for calling other extensions. Set after registration.
     ipc_router: Mutex<Option<Arc<dyn IpcRouter>>>,
-    /// Event bus for event.publish / event.subscribe IPC. Set after creation.
-    event_bus: Mutex<Option<crate::event_bus::SharedEventBus>>,
-    /// Route action executor for dispatching actions from event.publish. Set after creation.
-    route_executor: Mutex<Option<crate::event_bus::executor::RouteActionExecutor>>,
-    /// Durable event store for persisting events and tracking deliveries. Set after creation.
-    event_store: Mutex<Option<crate::event_bus::SharedEventStore>>,
-}
-
-struct ProcessHandle {
-    process: Child,
-    stdin: BufWriter<ChildStdin>,
-    stdout: BufReader<ChildStdout>,
+    /// Event bus dispatch facade. Set after creation via set_dispatch().
+    dispatch: Mutex<Option<crate::event_bus::Dispatch>>,
+    /// Abort handles for active subscription delivery tasks.
+    subscription_tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
 
 impl ProcessExtension {
@@ -115,14 +124,15 @@ impl ProcessExtension {
             display_name_str: manifest.display_name.clone(),
             description_str: manifest.description.clone(),
             manifest,
-            child: Mutex::new(None),
+            process: Mutex::new(None),
+            stdin: Arc::new(Mutex::new(None)),
+            stdout: Mutex::new(None),
             binary_path,
             data_dir: None,
             next_id: AtomicU64::new(0),
             ipc_router: Mutex::new(None),
-            event_bus: Mutex::new(None),
-            route_executor: Mutex::new(None),
-            event_store: Mutex::new(None),
+            dispatch: Mutex::new(None),
+            subscription_tasks: Mutex::new(Vec::new()),
         }
     }
 
@@ -143,17 +153,14 @@ impl ProcessExtension {
                 self.manifest.id, e
             )))?;
 
-        let stdin = child.stdin.take()
+        let raw_stdin = child.stdin.take()
             .ok_or_else(|| ExtensionError::Other("Failed to capture stdin".into()))?;
-        let stdout = child.stdout.take()
+        let raw_stdout = child.stdout.take()
             .ok_or_else(|| ExtensionError::Other("Failed to capture stdout".into()))?;
         let stderr = child.stderr.take();
 
-        let mut handle = ProcessHandle {
-            process: child,
-            stdin: BufWriter::new(stdin),
-            stdout: BufReader::new(stdout),
-        };
+        let mut stdin_writer = BufWriter::new(raw_stdin);
+        let mut stdout_reader = BufReader::new(raw_stdout);
 
         // Send initialize message
         let init_id = self.next_id.fetch_add(1, Ordering::Relaxed);
@@ -173,14 +180,14 @@ impl ProcessExtension {
             id: init_id,
         };
 
-        send_request(&mut handle.stdin, &init_request)?;
+        send_request(&mut stdin_writer, &init_request)?;
         log::debug!("Extension '{}': init message sent, waiting for response", self.manifest.id);
         // During init, extensions don't send IPC requests, so use simple read
-        let response = match read_response(&mut handle.stdout) {
+        let response = match read_response(&mut stdout_reader) {
             Ok(r) => r,
             Err(e) => {
                 // Check if the child process already exited
-                let exit_status = handle.process.try_wait();
+                let exit_status = child.try_wait();
                 log::error!(
                     "Extension '{}' failed init: {} (process status: {:?}, binary: {})",
                     self.manifest.id,
@@ -231,8 +238,10 @@ impl ProcessExtension {
             });
         }
 
-        let mut guard = self.child.lock().expect("process lock poisoned");
-        *guard = Some(handle);
+        // Store handles in their respective fields
+        *self.process.lock().expect("process lock poisoned") = Some(child);
+        *self.stdin.lock().expect("stdin lock poisoned") = Some(stdin_writer);
+        *self.stdout.lock().expect("stdout lock poisoned") = Some(stdout_reader);
 
         log::info!("Started extension process: {}", self.manifest.id);
         Ok(())
@@ -240,8 +249,22 @@ impl ProcessExtension {
 
     /// Send a `shutdown` message and wait for the process to exit.
     pub fn stop(&self) -> Result<(), ExtensionError> {
-        let mut guard = self.child.lock().expect("process lock poisoned");
-        if let Some(mut handle) = guard.take() {
+        // Abort all subscription delivery tasks first
+        {
+            let mut tasks = self.subscription_tasks.lock().expect("sub_tasks lock poisoned");
+            for handle in tasks.drain(..) {
+                handle.abort();
+            }
+        }
+
+        // Take all handles
+        let stdin_opt = self.stdin.lock().expect("stdin lock poisoned").take();
+        let stdout_opt = self.stdout.lock().expect("stdout lock poisoned").take();
+        let process_opt = self.process.lock().expect("process lock poisoned").take();
+
+        if let (Some(mut stdin), Some(mut stdout), Some(mut process)) =
+            (stdin_opt, stdout_opt, process_opt)
+        {
             let shutdown_id = self.next_id.fetch_add(1, Ordering::Relaxed);
             let shutdown_request = JsonRpcRequest {
                 jsonrpc: "2.0",
@@ -251,20 +274,20 @@ impl ProcessExtension {
             };
 
             // Best-effort: send shutdown and wait briefly
-            let _ = send_request(&mut handle.stdin, &shutdown_request);
-            let _ = read_response(&mut handle.stdout);
+            let _ = send_request(&mut stdin, &shutdown_request);
+            let _ = read_response(&mut stdout);
 
             // Give the process 5 seconds to exit, then kill it
-            match handle.process.try_wait() {
+            match process.try_wait() {
                 Ok(Some(_)) => {}
                 _ => {
                     std::thread::sleep(std::time::Duration::from_secs(5));
-                    match handle.process.try_wait() {
+                    match process.try_wait() {
                         Ok(Some(_)) => {}
                         _ => {
                             log::warn!("Extension '{}' did not exit gracefully, killing", self.manifest.id);
-                            let _ = handle.process.kill();
-                            let _ = handle.process.wait();
+                            let _ = process.kill();
+                            let _ = process.wait();
                         }
                     }
                 }
@@ -277,13 +300,15 @@ impl ProcessExtension {
 
     /// Check if the child process is running.
     pub fn is_running(&self) -> bool {
-        let mut guard = self.child.lock().expect("process lock poisoned");
-        if let Some(handle) = guard.as_mut() {
-            match handle.process.try_wait() {
+        let mut guard = self.process.lock().expect("process lock poisoned");
+        if let Some(proc) = guard.as_mut() {
+            match proc.try_wait() {
                 Ok(None) => true,  // Still running
                 _ => {
-                    // Process has exited — clean up the handle
+                    // Process has exited — clean up all handles
                     *guard = None;
+                    self.stdin.lock().expect("stdin lock poisoned").take();
+                    self.stdout.lock().expect("stdout lock poisoned").take();
                     false
                 }
             }
@@ -293,30 +318,42 @@ impl ProcessExtension {
     }
 
     /// Execute a JSON-RPC call to the child process.
-    /// Now handles bidirectional communication: if the extension sends IPC
-    /// requests while processing our execute call, we handle them inline
-    /// before returning the final response.
+    /// Handles bidirectional communication: if the extension sends IPC requests
+    /// while processing our execute call, we handle them inline before returning
+    /// the final response.
+    ///
+    /// Stdin and stdout use separate locks so that event delivery tasks can
+    /// write notifications concurrently without blocking the operation.
     fn rpc_call(&self, operation: &str, input: Value, caller_plugin_id: Option<&str>) -> Result<OperationResult, ExtensionError> {
-        let mut guard = self.child.lock().expect("process lock poisoned");
-        let handle = guard.as_mut().ok_or(ExtensionError::ProcessNotRunning)?;
-
         // Check if process is still alive
-        match handle.process.try_wait() {
-            Ok(Some(status)) => {
-                *guard = None;
-                return Err(ExtensionError::Other(format!(
-                    "Extension process exited unexpectedly with status: {}",
-                    status
-                )));
+        {
+            let mut proc_guard = self.process.lock().expect("process lock poisoned");
+            match proc_guard.as_mut() {
+                None => return Err(ExtensionError::ProcessNotRunning),
+                Some(proc) => {
+                    match proc.try_wait() {
+                        Ok(Some(status)) => {
+                            proc_guard.take();
+                            self.stdin.lock().expect("stdin lock poisoned").take();
+                            self.stdout.lock().expect("stdout lock poisoned").take();
+                            return Err(ExtensionError::Other(format!(
+                                "Extension process exited unexpectedly with status: {}",
+                                status
+                            )));
+                        }
+                        Err(e) => {
+                            proc_guard.take();
+                            self.stdin.lock().expect("stdin lock poisoned").take();
+                            self.stdout.lock().expect("stdout lock poisoned").take();
+                            return Err(ExtensionError::Other(format!(
+                                "Failed to check process status: {}",
+                                e
+                            )));
+                        }
+                        Ok(None) => {} // Still running
+                    }
+                }
             }
-            Err(e) => {
-                *guard = None;
-                return Err(ExtensionError::Other(format!(
-                    "Failed to check process status: {}",
-                    e
-                )));
-            }
-            Ok(None) => {} // Still running
         }
 
         let call_id = self.next_id.fetch_add(1, Ordering::Relaxed);
@@ -343,15 +380,22 @@ impl ProcessExtension {
             id: call_id,
         };
 
-        send_request(&mut handle.stdin, &request)?;
+        // Write request — brief stdin lock
+        {
+            let mut stdin_guard = self.stdin.lock().expect("stdin lock poisoned");
+            let stdin = stdin_guard.as_mut().ok_or(ExtensionError::ProcessNotRunning)?;
+            send_request(stdin, &request)?;
+        }
 
         // Snapshot the IPC router (if set) before entering the read loop.
-        // We clone it once to avoid re-locking the ipc_router mutex on every iteration.
         let router = self.ipc_router.lock().expect("ipc_router lock poisoned").clone();
 
-        // Read loop: handle IPC requests inline until we get the response
+        // Read loop — hold stdout lock for the duration
+        let mut stdout_guard = self.stdout.lock().expect("stdout lock poisoned");
+        let stdout = stdout_guard.as_mut().ok_or(ExtensionError::ProcessNotRunning)?;
+
         loop {
-            let msg = read_message(&mut handle.stdout)?;
+            let msg = read_message(stdout)?;
 
             match msg {
                 StdioMessage::Response(response) => {
@@ -374,7 +418,13 @@ impl ProcessExtension {
                 StdioMessage::Request(ipc_req) => {
                     // Extension is making an IPC call — handle it and write the response
                     let ipc_response = self.handle_ipc_request(&ipc_req, &router);
-                    send_response(&mut handle.stdin, ipc_response)?;
+                    // Brief stdin lock for IPC response
+                    let mut stdin_guard = self.stdin.lock().expect("stdin lock poisoned");
+                    if let Some(stdin) = stdin_guard.as_mut() {
+                        send_response(stdin, ipc_response)?;
+                    } else {
+                        return Err(ExtensionError::ProcessNotRunning);
+                    }
                 }
             }
         }
@@ -474,9 +524,9 @@ impl ProcessExtension {
                 }
             }
             "event.publish" => {
-                let bus = self.event_bus.lock().expect("event_bus lock poisoned").clone();
-                match bus {
-                    Some(bus) => {
+                let dispatch = self.dispatch.lock().expect("dispatch lock poisoned").clone();
+                match dispatch {
+                    Some(dispatch) => {
                         let publish_req: Result<crate::event_bus::cloud_event::PublishRequest, _> =
                             serde_json::from_value(req.params.clone());
                         match publish_req {
@@ -484,24 +534,19 @@ impl ProcessExtension {
                                 let source = format!("nexus://extension/{}", self.id_str);
                                 let event = pr.into_cloud_event(source);
                                 let event_id = event.id.clone();
-                                // Publish synchronously using block_in_place since we hold the process mutex
                                 let event_clone = event.clone();
                                 let actions = tokio::task::block_in_place(|| {
                                     tokio::runtime::Handle::current().block_on(async {
-                                        let mut bus = bus.write().await;
+                                        let mut bus = dispatch.bus.write().await;
                                         bus.publish(event)
                                     })
                                 });
-                                // Dispatch route actions via durable delivery (or fire-and-forget fallback)
                                 if !actions.is_empty() {
-                                    if let Some(executor) = self.route_executor.lock().expect("route_executor lock").as_ref() {
-                                        let store = self.event_store.lock().expect("event_store lock").clone();
-                                        if let Some(ref store) = store {
-                                            executor.execute_durable(store, actions, &event_clone);
-                                        } else {
-                                            executor.execute(actions, event_clone);
-                                        }
-                                    }
+                                    dispatch.executor.execute_durable(
+                                        &dispatch.store,
+                                        actions,
+                                        &event_clone,
+                                    );
                                 }
                                 JsonRpcResponseOut {
                                     jsonrpc: "2.0",
@@ -533,9 +578,9 @@ impl ProcessExtension {
                 }
             }
             "event.subscribe" => {
-                let bus = self.event_bus.lock().expect("event_bus lock poisoned").clone();
-                match bus {
-                    Some(bus) => {
+                let dispatch = self.dispatch.lock().expect("dispatch lock poisoned").clone();
+                match dispatch {
+                    Some(dispatch) => {
                         let type_pattern = req.params.get("type_pattern")
                             .and_then(|v| v.as_str())
                             .unwrap_or("*");
@@ -544,7 +589,7 @@ impl ProcessExtension {
 
                         let result = tokio::task::block_in_place(|| {
                             tokio::runtime::Handle::current().block_on(async {
-                                let mut bus = bus.write().await;
+                                let mut bus = dispatch.bus.write().await;
                                 bus.subscribe(
                                     type_pattern,
                                     source_pattern,
@@ -556,8 +601,18 @@ impl ProcessExtension {
                         });
 
                         match result {
-                            Ok((sub_id, _rx)) => {
-                                // The receiver will be used for event delivery (future: spawn delivery task)
+                            Ok((sub_id, rx)) => {
+                                // Spawn a delivery task that pushes matching events
+                                // to the extension's stdin as JSON-RPC notifications.
+                                let stdin = self.stdin.clone();
+                                let sub_id_clone = sub_id.clone();
+                                let handle = tokio::spawn(async move {
+                                    deliver_events(stdin, sub_id_clone, rx).await;
+                                });
+                                self.subscription_tasks.lock()
+                                    .expect("sub_tasks lock poisoned")
+                                    .push(handle);
+
                                 JsonRpcResponseOut {
                                     jsonrpc: "2.0",
                                     result: Some(serde_json::json!({"subscription_id": sub_id})),
@@ -574,6 +629,54 @@ impl ProcessExtension {
                                 }),
                                 id: req.id.clone(),
                             },
+                        }
+                    }
+                    None => JsonRpcResponseOut {
+                        jsonrpc: "2.0",
+                        result: None,
+                        error: Some(JsonRpcErrorOut {
+                            code: -32603,
+                            message: "Event bus not available".into(),
+                        }),
+                        id: req.id.clone(),
+                    },
+                }
+            }
+            "event.unsubscribe" => {
+                let dispatch = self.dispatch.lock().expect("dispatch lock poisoned").clone();
+                match dispatch {
+                    Some(dispatch) => {
+                        let sub_id = req.params.get("subscription_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+
+                        if sub_id.is_empty() {
+                            return JsonRpcResponseOut {
+                                jsonrpc: "2.0",
+                                result: None,
+                                error: Some(JsonRpcErrorOut {
+                                    code: -32602,
+                                    message: "event.unsubscribe requires 'subscription_id' param".into(),
+                                }),
+                                id: req.id.clone(),
+                            };
+                        }
+
+                        // Remove the subscription from the bus. The sender is dropped,
+                        // which causes the delivery task's rx.recv() to return None,
+                        // gracefully exiting the task.
+                        tokio::task::block_in_place(|| {
+                            tokio::runtime::Handle::current().block_on(async {
+                                let mut bus = dispatch.bus.write().await;
+                                bus.unsubscribe(sub_id);
+                            })
+                        });
+
+                        JsonRpcResponseOut {
+                            jsonrpc: "2.0",
+                            result: Some(serde_json::json!({"ok": true})),
+                            error: None,
+                            id: req.id.clone(),
                         }
                     }
                     None => JsonRpcResponseOut {
@@ -625,7 +728,7 @@ impl Extension for ProcessExtension {
     }
 
     async fn execute(&self, operation: &str, input: Value) -> Result<OperationResult, ExtensionError> {
-        // The mutex inside rpc_call handles thread safety.
+        // The mutexes inside rpc_call handle thread safety.
         self.rpc_call(operation, input, None)
     }
 
@@ -634,19 +737,9 @@ impl Extension for ProcessExtension {
         *guard = Some(router);
     }
 
-    fn set_event_bus(&self, bus: crate::event_bus::SharedEventBus) {
-        let mut guard = self.event_bus.lock().expect("event_bus lock poisoned");
-        *guard = Some(bus);
-    }
-
-    fn set_route_executor(&self, executor: crate::event_bus::executor::RouteActionExecutor) {
-        let mut guard = self.route_executor.lock().expect("route_executor lock poisoned");
-        *guard = Some(executor);
-    }
-
-    fn set_event_store(&self, store: crate::event_bus::SharedEventStore) {
-        let mut guard = self.event_store.lock().expect("event_store lock poisoned");
-        *guard = Some(store);
+    fn set_dispatch(&self, dispatch: crate::event_bus::Dispatch) {
+        let mut guard = self.dispatch.lock().expect("dispatch lock poisoned");
+        *guard = Some(dispatch);
     }
 }
 
@@ -654,6 +747,36 @@ impl Drop for ProcessExtension {
     fn drop(&mut self) {
         let _ = self.stop();
     }
+}
+
+/// Background task that receives events from the bus and pushes them
+/// to the extension's stdin as JSON-RPC notifications.
+async fn deliver_events(
+    stdin: Arc<Mutex<Option<BufWriter<ChildStdin>>>>,
+    sub_id: String,
+    mut rx: mpsc::UnboundedReceiver<CloudEvent>,
+) {
+    while let Some(event) = rx.recv().await {
+        let notification = JsonRpcNotification {
+            jsonrpc: "2.0",
+            method: "event.received",
+            params: serde_json::json!({
+                "subscription_id": sub_id,
+                "event": event,
+            }),
+        };
+        let mut guard = stdin.lock().expect("stdin lock");
+        if let Some(writer) = guard.as_mut() {
+            if send_notification(writer, &notification).is_err() {
+                log::warn!("Event delivery failed for sub {}, stopping", sub_id);
+                break;
+            }
+        } else {
+            // stdin gone — extension stopped
+            break;
+        }
+    }
+    log::debug!("Event delivery task for sub {} exiting", sub_id);
 }
 
 /// Write a JSON-RPC request as a single line to the writer.
@@ -676,6 +799,22 @@ fn send_request(writer: &mut BufWriter<ChildStdin>, request: &JsonRpcRequest) ->
 fn send_response(writer: &mut BufWriter<ChildStdin>, response: JsonRpcResponseOut) -> Result<(), ExtensionError> {
     let json = serde_json::to_string(&response)
         .map_err(|e| ExtensionError::Protocol(format!("Failed to serialize IPC response: {}", e)))?;
+
+    writer
+        .write_all(json.as_bytes())
+        .map_err(ExtensionError::Io)?;
+    writer
+        .write_all(b"\n")
+        .map_err(ExtensionError::Io)?;
+    writer.flush().map_err(ExtensionError::Io)?;
+
+    Ok(())
+}
+
+/// Write a JSON-RPC notification to the extension's stdin (no response expected).
+fn send_notification(writer: &mut BufWriter<ChildStdin>, notification: &JsonRpcNotification) -> Result<(), ExtensionError> {
+    let json = serde_json::to_string(notification)
+        .map_err(|e| ExtensionError::Protocol(format!("Failed to serialize notification: {}", e)))?;
 
     writer
         .write_all(json.as_bytes())

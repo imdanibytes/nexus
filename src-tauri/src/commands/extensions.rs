@@ -313,16 +313,10 @@ pub async fn extension_enable(
     let mut mgr = state.write().await;
     match mgr.enable_extension(&ext_id) {
         Ok(()) => {
-            // Wire event bus + route executor + event store into the newly enabled extension
+            // Wire event bus dispatch into the newly enabled extension
             if let Some(ext) = mgr.extensions.get_arc(&ext_id) {
-                let bus: crate::event_bus::SharedEventBus = app.state::<crate::event_bus::SharedEventBus>().inner().clone();
-                ext.set_event_bus(bus);
-                ext.set_route_executor(crate::event_bus::executor::RouteActionExecutor::new(
-                    state.inner().clone(),
-                    app.clone(),
-                ));
-                let store: crate::event_bus::SharedEventStore = app.state::<crate::event_bus::SharedEventStore>().inner().clone();
-                ext.set_event_store(store);
+                let dispatch: crate::event_bus::Dispatch = app.state::<crate::event_bus::Dispatch>().inner().clone();
+                ext.set_dispatch(dispatch);
             }
             // Auto-create MCP settings for extensions with mcp_expose operations
             if let Some(ext) = mgr.extensions.get(&ext_id) {
@@ -548,18 +542,10 @@ pub async fn extension_install_local(
         binary_override.as_deref(),
     ) {
         Ok(installed) => {
-            // Wire event bus + route executor + event store into the newly installed extension
+            // Wire event bus dispatch into the newly installed extension
             if let Some(ext) = mgr.extensions.get_arc(&ext_id) {
-                if let Some(bus) = app.try_state::<crate::event_bus::SharedEventBus>() {
-                    ext.set_event_bus(bus.inner().clone());
-                }
-                let route_state: AppState = state.inner().clone();
-                ext.set_route_executor(crate::event_bus::executor::RouteActionExecutor::new(
-                    route_state,
-                    app.clone(),
-                ));
-                if let Some(store) = app.try_state::<crate::event_bus::SharedEventStore>() {
-                    ext.set_event_store(store.inner().clone());
+                if let Some(dispatch) = app.try_state::<crate::event_bus::Dispatch>() {
+                    ext.set_dispatch(dispatch.inner().clone());
                 }
             }
             if let Some(status) = build_extension_status(&mgr, &ext_id) {

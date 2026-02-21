@@ -76,10 +76,15 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
     steps.push({ id: "mcp_tools", label: t("dialog.mcpTools"), count: mcpTools.length });
   }
 
+  const handleModalOpenChange = useCallback((open: boolean) => { if (!open) onDeny(); }, [onDeny]);
+  const handleBackToInfo = useCallback(() => setStep("info"), []);
+  const handleBackFromMcp = useCallback(() => setStep(hasPermissions ? "permissions" : "info"), [hasPermissions]);
+  const handleMcpApprove = useCallback(() => onApprove(approvedPerms, deferredPerms), [onApprove, approvedPerms, deferredPerms]);
+
   return (
     <Modal
       isOpen
-      onOpenChange={(open) => { if (!open) onDeny(); }}
+      onOpenChange={handleModalOpenChange}
       hideCloseButton
     >
       <ModalContent>
@@ -116,15 +121,15 @@ export function PermissionDialog({ manifest, onApprove, onDeny }: Props) {
               onNext={handlePermissionsNext}
               onApprove={onApprove}
               onDeny={onDeny}
-              onBack={() => setStep("info")}
+              onBack={handleBackToInfo}
             />
           )}
           {step === "mcp_tools" && (
             <McpToolsStep
               manifest={manifest}
-              onApprove={() => onApprove(approvedPerms, deferredPerms)}
+              onApprove={handleMcpApprove}
               onDeny={onDeny}
-              onBack={() => setStep(hasPermissions ? "permissions" : "info")}
+              onBack={handleBackFromMcp}
             />
           )}
         </div>
@@ -303,6 +308,18 @@ function PermissionsStep({
     return [approved, deferred];
   }
 
+  const handleNextPress = useCallback(() => {
+    const [approved, deferred] = computeApprovedDeferred();
+    onNext(approved, deferred);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toggles, permissions, onNext]);
+
+  const handleApprovePress = useCallback(() => {
+    const [approved, deferred] = computeApprovedDeferred();
+    onApprove(approved, deferred);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toggles, permissions, onApprove]);
+
   const deferredCount = permissions.filter((p) => !toggles[p]).length;
 
   return (
@@ -331,6 +348,7 @@ function PermissionsStep({
             key={perm}
             perm={perm}
             enabled={toggles[perm]}
+            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onToggle={() => togglePerm(perm)}
           />
         ))}
@@ -365,6 +383,7 @@ function PermissionsStep({
                     key={perm}
                     perm={perm}
                     enabled={toggles[perm]}
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onToggle={() => togglePerm(perm)}
                     scopes={scopes}
                   />
@@ -388,6 +407,7 @@ function PermissionsStep({
                 key={perm}
                 perm={perm}
                 enabled={toggles[perm]}
+                // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                 onToggle={() => togglePerm(perm)}
               />
             ))}
@@ -424,10 +444,7 @@ function PermissionsStep({
             <Button
               color="primary"
               isDisabled={!hasSeenAll}
-              onPress={() => {
-                const [approved, deferred] = computeApprovedDeferred();
-                onNext(approved, deferred);
-              }}
+              onPress={handleNextPress}
             >
               {t("dialog.reviewMcpTools")}
               <ArrowRight size={14} strokeWidth={1.5} />
@@ -436,10 +453,7 @@ function PermissionsStep({
             <Button
               color="primary"
               isDisabled={!hasSeenAll}
-              onPress={() => {
-                const [approved, deferred] = computeApprovedDeferred();
-                onApprove(approved, deferred);
-              }}
+              onPress={handleApprovePress}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               {t("dialog.approveAndInstall")}
@@ -498,7 +512,7 @@ function PermissionToggleRow({
       </div>
       <Switch
         isSelected={enabled}
-        onValueChange={() => onToggle()}
+        onValueChange={onToggle}
         className="ml-3"
         aria-label={enabled ? t("dialog.approvedClickToDefer") : t("dialog.deferredClickToApprove")}
       />

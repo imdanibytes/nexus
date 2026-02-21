@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { appVersion, type AppVersionInfo } from "../../lib/tauri";
 import { RegistrySettings } from "./RegistrySettings";
@@ -39,6 +39,18 @@ export function GeneralTab() {
     applyColorMode(mode);
   }
 
+  const handleColorModeSelectionChange = useCallback(
+    (key: React.Key) => handleColorMode(key as ColorMode),
+    [],
+  );
+
+  const handleLanguageSelectionChange = useCallback(
+    (key: React.Key | null) => {
+      if (key) i18n.changeLanguage(String(key));
+    },
+    [i18n],
+  );
+
   return (
     <div className="space-y-6">
       {/* Appearance */}
@@ -50,7 +62,7 @@ export function GeneralTab() {
           </div>
           <Tabs
             selectedKey={colorMode}
-            onSelectionChange={(key) => handleColorMode(key as ColorMode)}
+            onSelectionChange={handleColorModeSelectionChange}
           >
             {COLOR_MODES.map((mode) => {
               const Icon = mode.icon;
@@ -152,9 +164,7 @@ export function GeneralTab() {
             <p className="text-sm">{t("general.languageHint")}</p>
             <Autocomplete
               defaultSelectedKey={i18n.language}
-              onSelectionChange={(key) => {
-                if (key) i18n.changeLanguage(String(key));
-              }}
+              onSelectionChange={handleLanguageSelectionChange}
               placeholder={t("general.searchLanguage")}
               className="w-[200px]"
             >

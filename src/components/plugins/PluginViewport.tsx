@@ -57,6 +57,8 @@ interface Props {
   pluginId: string;
 }
 
+const iframeShieldStyle = { display: "none" } as const;
+
 export const PluginViewport = memo(function PluginViewport({ pluginId }: Props) {
   const { t } = useTranslation("plugins");
   const plugin = usePlugin(pluginId);
@@ -116,7 +118,7 @@ export const PluginViewport = memo(function PluginViewport({ pluginId }: Props) 
       <PluginMenuBar pluginId={pluginId} disabled={isBusy} onOpenChange={handleMenuOpenChange} />
 
       <div className="flex-1 relative">
-        <div ref={iframeShieldRef} className="absolute inset-0 z-10" style={{ display: "none" }} />
+        <div ref={iframeShieldRef} className="absolute inset-0 z-10" style={iframeShieldStyle} />
         {isRunning && !isBusy && hasUi ? (
           <iframe
             key={`${plugin.manifest.id}-${plugin.manifest.version}`}
@@ -162,18 +164,23 @@ const PluginMenuBar = memo(function PluginMenuBar({ pluginId, disabled, onOpenCh
   const removeModal = useDisclosure();
   const aboutModal = useDisclosure();
 
+  const id = pluginId;
+
+  const handleStart = useCallback(() => start(id), [start, id]);
+  const handleStop = useCallback(() => stop(id), [stop, id]);
+  const handleRestart = useCallback(() => restart(id), [restart, id]);
+  const handleRebuild = useCallback(() => rebuild(id), [rebuild, id]);
+  const handleToggleDevMode = useCallback(() => toggleDevMode(id, !plugin?.dev_mode), [toggleDevMode, id, plugin?.dev_mode]);
+  const handleRemove = useCallback(() => { removeModal.onClose(); remove(id); }, [removeModal, remove, id]);
+  const handleAppMenuOpenChange = useCallback((open: boolean) => onOpenChange?.(open), [onOpenChange]);
+  const handleViewMenuOpenChange = useCallback((open: boolean) => onOpenChange?.(open), [onOpenChange]);
+  const handleDevMenuOpenChange = useCallback((open: boolean) => onOpenChange?.(open), [onOpenChange]);
+  const handleShowLogs = useCallback(() => useAppStore.getState().setShowLogs(id), [id]);
+
   if (!plugin) return null;
 
   const isRunning = plugin.status === "running";
   const isLocal = !!plugin.local_manifest_path;
-  const id = pluginId;
-
-  const handleStart = () => start(id);
-  const handleStop = () => stop(id);
-  const handleRestart = () => restart(id);
-  const handleRebuild = () => rebuild(id);
-  const handleToggleDevMode = () => toggleDevMode(id, !plugin.dev_mode);
-  const handleRemove = () => { removeModal.onClose(); remove(id); };
 
   const m = plugin.manifest;
 
@@ -183,7 +190,7 @@ const PluginMenuBar = memo(function PluginMenuBar({ pluginId, disabled, onOpenCh
         className="flex items-center gap-0 mx-2 mt-2 px-1 h-8 nx-glass"
       >
         {/* App menu */}
-        <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
+        <Dropdown onOpenChange={handleAppMenuOpenChange}>
           <DropdownTrigger>
             <button className="px-2 py-1 text-[13px] font-semibold rounded hover:bg-default-200/40 transition-colors">
               {m.name}
@@ -220,14 +227,14 @@ const PluginMenuBar = memo(function PluginMenuBar({ pluginId, disabled, onOpenCh
         </Dropdown>
 
         {/* View menu */}
-        <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
+        <Dropdown onOpenChange={handleViewMenuOpenChange}>
           <DropdownTrigger>
             <button className="px-2 py-1 text-[13px] text-default-500 rounded hover:bg-default-200/40 transition-colors">
               {t("menu.view")}
             </button>
           </DropdownTrigger>
           <DropdownMenu aria-label="View menu">
-            <DropdownItem key="logs" onPress={() => useAppStore.getState().setShowLogs(id)} startContent={<ScrollText size={14} strokeWidth={1.5} />}>
+            <DropdownItem key="logs" onPress={handleShowLogs} startContent={<ScrollText size={14} strokeWidth={1.5} />}>
               {t("menu.logs")}
             </DropdownItem>
           </DropdownMenu>
@@ -235,7 +242,7 @@ const PluginMenuBar = memo(function PluginMenuBar({ pluginId, disabled, onOpenCh
 
         {/* Dev menu */}
         {isLocal && (
-          <Dropdown onOpenChange={(open) => onOpenChange?.(open)}>
+          <Dropdown onOpenChange={handleDevMenuOpenChange}>
             <DropdownTrigger>
               <button className="px-2 py-1 text-[13px] text-default-500 rounded hover:bg-default-200/40 transition-colors">
                 {t("menu.dev")}
@@ -335,6 +342,7 @@ function McpToolCard({ tool, onDetail }: {
     <Card
       as="button"
       isPressable
+      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
       onPress={() => onDetail(tool)}
     >
       <CardBody className="gap-2">
@@ -395,8 +403,10 @@ function McpToolDetailDrawer({
   const required = (shown?.input_schema?.required ?? []) as string[];
   const params = Object.entries(properties);
 
+  const handleClose = useCallback(() => setDisplayTool(null), []);
+
   return (
-    <Drawer isOpen={open} onOpenChange={onOpenChange} onClose={() => setDisplayTool(null)} placement="right">
+    <Drawer isOpen={open} onOpenChange={onOpenChange} onClose={handleClose} placement="right">
       <DrawerContent>
         <DrawerHeader className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -510,6 +520,7 @@ function HeadlessPluginStatus({ plugin }: { plugin: InstalledPlugin }) {
       <McpToolDetailDrawer
         tool={detailTool}
         open={detailTool !== null}
+        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onOpenChange={(open) => { if (!open) setDetailTool(null); }}
       />
     </div>

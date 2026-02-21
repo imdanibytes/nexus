@@ -41,6 +41,7 @@ import {
   Mail,
   Search,
 } from "lucide-react";
+import { useCallback } from "react";
 
 function Section({
   title,
@@ -60,6 +61,11 @@ function Section({
 }
 
 export function ComponentsSection() {
+  const handleToastSuccess = useCallback(() => toast.success("Operation completed"), []);
+  const handleToastError = useCallback(() => toast.error("Something went wrong"), []);
+  const handleToastWarning = useCallback(() => toast.warning("Proceed with caution"), []);
+  const handleToastInfo = useCallback(() => toast.info("Here's some info"), []);
+
   return (
     <div className="space-y-6">
       {/* ── Buttons ───────────────────────────────────────── */}
@@ -197,16 +203,16 @@ export function ComponentsSection() {
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" onClick={() => toast.success("Operation completed")}>
+            <Button variant="outline" onClick={handleToastSuccess}>
               Toast: Success
             </Button>
-            <Button variant="outline" onClick={() => toast.error("Something went wrong")}>
+            <Button variant="outline" onClick={handleToastError}>
               Toast: Error
             </Button>
-            <Button variant="outline" onClick={() => toast.warning("Proceed with caution")}>
+            <Button variant="outline" onClick={handleToastWarning}>
               Toast: Warning
             </Button>
-            <Button variant="outline" onClick={() => toast.info("Here's some info")}>
+            <Button variant="outline" onClick={handleToastInfo}>
               Toast: Info
             </Button>
           </div>

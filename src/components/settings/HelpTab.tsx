@@ -1,19 +1,28 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { HelpCircle, Monitor, Blocks } from "lucide-react";
 import { Card, CardBody } from "@heroui/react";
 
 function StatusDot({ color, animation }: { color: string; animation?: string }) {
+  const outerStyle = useMemo(
+    () => (animation ? { animation } : undefined),
+    [animation],
+  );
+  const innerStyle = useMemo(
+    () => (animation ? { animation } : undefined),
+    [animation],
+  );
   return (
     <span className="relative shrink-0 w-2.5 h-2.5 flex items-center justify-center">
       {animation && (
         <span
           className={`absolute inset-0 rounded-full ${color} opacity-30`}
-          style={{ animation }}
+          style={outerStyle}
         />
       )}
       <span
         className={`w-2 h-2 rounded-full ${color}`}
-        style={animation ? { animation } : undefined}
+        style={innerStyle}
       />
     </span>
   );

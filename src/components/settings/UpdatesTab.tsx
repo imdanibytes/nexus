@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
 import {
@@ -210,6 +210,21 @@ export function UpdatesTab() {
     ? new Date(lastChecked).toLocaleString()
     : t("updates.never");
 
+  const selectedIntervalKeys = useMemo(
+    () => [String(updateCheckInterval)],
+    [updateCheckInterval],
+  );
+
+  const handleSelectionChange = useCallback(
+    (keys: Iterable<React.Key>) => {
+      const selected = Array.from(keys)[0];
+      if (selected) handleIntervalChange(Number(selected));
+    },
+    [],
+  );
+
+  const handleCancelKeyChange = useCallback(() => setKeyChangeUpdate(null), []);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -265,11 +280,8 @@ export function UpdatesTab() {
             </div>
           </div>
           <Select
-            selectedKeys={[String(updateCheckInterval)]}
-            onSelectionChange={(keys) => {
-              const selected = Array.from(keys)[0];
-              if (selected) handleIntervalChange(Number(selected));
-            }}
+            selectedKeys={selectedIntervalKeys}
+            onSelectionChange={handleSelectionChange}
             variant="bordered"
             className="w-[180px]"
           >
@@ -327,6 +339,7 @@ export function UpdatesTab() {
 
               <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                 <Button
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onPress={() => handleDismiss(update)}
                   isDisabled={isBusy}
                 >
@@ -335,6 +348,7 @@ export function UpdatesTab() {
                 </Button>
                 {hasKeyChange ? (
                   <Button
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onPress={() => setKeyChangeUpdate(update)}
                     isDisabled={isBusy}
                     color="danger"
@@ -344,6 +358,7 @@ export function UpdatesTab() {
                   </Button>
                 ) : (
                   <Button
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onPress={() => handleUpdate(update)}
                     isDisabled={isBusy}
                   >
@@ -370,7 +385,7 @@ export function UpdatesTab() {
       {keyChangeUpdate && (
         <KeyChangeWarningDialog
           update={keyChangeUpdate}
-          onCancel={() => setKeyChangeUpdate(null)}
+          onCancel={handleCancelKeyChange}
           onForceUpdate={handleForceKeyUpdate}
         />
       )}

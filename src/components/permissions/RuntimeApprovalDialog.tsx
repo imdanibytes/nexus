@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -206,17 +206,23 @@ export function RuntimeApprovalDialog() {
     setQueue((prev) => prev.slice(1));
   }
 
+  const handleOpenChange = useCallback(
+    (open: boolean) => { if (!open) respond("deny"); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [current]
+  );
+
+  const modalClassNames = useMemo(
+    () => ({ backdrop: "z-[60]", wrapper: "z-[60]" }),
+    []
+  );
+
   return (
     <Modal
       isOpen={current !== null}
-      onOpenChange={(open) => {
-        if (!open) respond("deny");
-      }}
+      onOpenChange={handleOpenChange}
       hideCloseButton
-      classNames={{
-        backdrop: "z-[60]",
-        wrapper: "z-[60]",
-      }}
+      classNames={modalClassNames}
     >
       <ModalContent>
         {current && (
@@ -253,6 +259,10 @@ function RuntimeApprovalContent({
     current.category.startsWith("extension:") ||
     current.category.startsWith("extension_scope:");
   const approveDisabled = cooldown > 0;
+
+  const handleDeny = useCallback(() => respond("deny"), [respond]);
+  const handleApproveOnce = useCallback(() => respond("approve_once"), [respond]);
+  const handleApprove = useCallback(() => respond("approve"), [respond]);
 
   return (
     <>
@@ -308,7 +318,7 @@ function RuntimeApprovalContent({
 
       {/* Actions */}
       <div className="flex gap-3 justify-end px-6 pb-6">
-        <Button onPress={() => respond("deny")}>
+        <Button onPress={handleDeny}>
           <ShieldX size={14} strokeWidth={1.5} />
           {t("common:action.deny")}
         </Button>
@@ -316,7 +326,7 @@ function RuntimeApprovalContent({
           <Button
             color="primary"
             isDisabled={approveDisabled}
-            onPress={() => respond("approve_once")}
+            onPress={handleApproveOnce}
           >
             <ShieldCheck size={14} strokeWidth={1.5} />
             {approveDisabled ? t("runtime.allowOnceCountdown", { seconds: cooldown }) : t("runtime.allowOnce")}
@@ -325,7 +335,7 @@ function RuntimeApprovalContent({
           <>
             <Button
               isDisabled={approveDisabled}
-              onPress={() => respond("approve_once")}
+              onPress={handleApproveOnce}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               {approveDisabled ? t("runtime.allowOnceCountdown", { seconds: cooldown }) : t("runtime.allowOnce")}
@@ -333,7 +343,7 @@ function RuntimeApprovalContent({
             <Button
               color="primary"
               isDisabled={approveDisabled}
-              onPress={() => respond("approve")}
+              onPress={handleApprove}
             >
               <ShieldCheck size={14} strokeWidth={1.5} />
               {approveDisabled ? t("runtime.allowCountdown", { seconds: cooldown }) : t("runtime.allow")}
@@ -512,6 +522,8 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
     .filter(([k]) => k.startsWith("arg."))
     .map(([k, v]) => [k.replace("arg.", ""), v] as const);
 
+  const handleShowFullDesc = useCallback(() => setShowFullDesc(true), []);
+
   return (
     <div className="space-y-2 max-h-[40vh] overflow-y-auto">
       {/* Tool name + plugin */}
@@ -557,7 +569,7 @@ function McpToolDetail({ context }: { context: Record<string, string> }) {
           </p>
           {!showFullDesc && description.length > 150 && (
             <Button
-              onPress={() => setShowFullDesc(true)}
+              onPress={handleShowFullDesc}
               className="mt-1"
             >
               {t("common:action.showMore")}

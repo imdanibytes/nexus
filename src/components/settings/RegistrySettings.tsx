@@ -63,6 +63,10 @@ export function RegistrySettings() {
     }
   }
 
+  const handleToggleShowAdd = useCallback(() => setShowAdd((v) => !v), []);
+  const handleSetKindLocal = useCallback(() => setNewKind("local"), []);
+  const handleSetKindRemote = useCallback(() => setNewKind("remote"), []);
+
   return (
     <Card><CardBody className="p-5">
       <div className="flex items-center justify-between mb-4">
@@ -76,7 +80,7 @@ export function RegistrySettings() {
           </div>
         </div>
         <Button
-          onPress={() => setShowAdd(!showAdd)}
+          onPress={handleToggleShowAdd}
         >
           <Plus size={12} strokeWidth={1.5} />
           {showAdd ? t("common:action.cancel") : t("registries.addRegistry")}
@@ -103,13 +107,13 @@ export function RegistrySettings() {
             </label>
             <div className="flex gap-2">
               <Button
-                onPress={() => setNewKind("local")}
+                onPress={handleSetKindLocal}
               >
                 <FolderOpen size={12} strokeWidth={1.5} />
                 {t("registries.localPath")}
               </Button>
               <Button
-                onPress={() => setNewKind("remote")}
+                onPress={handleSetKindRemote}
               >
                 <Globe size={12} strokeWidth={1.5} />
                 {t("registries.remoteUrl")}
@@ -156,7 +160,11 @@ export function RegistrySettings() {
               className="flex items-center justify-between p-3 rounded-[8px] bg-background border border-default-100 hover:border-divider transition-colors duration-150"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <Switch isSelected={reg.enabled} onValueChange={(checked) => handleToggle(reg.id, checked)} />
+                <Switch
+                  isSelected={reg.enabled}
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onValueChange={(checked) => handleToggle(reg.id, checked)}
+                />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-medium truncate">
@@ -177,6 +185,7 @@ export function RegistrySettings() {
               {!PROTECTED_REGISTRIES.has(reg.id) && (
                 <Button
                   isIconOnly
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onPress={() => handleRemove(reg.id)}
                   color="danger"
                   className="flex-shrink-0 ml-2"

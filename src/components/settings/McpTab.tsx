@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { type Key as ReactKey, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   mcpGetSettings,
@@ -138,6 +138,26 @@ export function McpTab() {
     })
   );
 
+  const stringify = (v: unknown) => (v ? JSON.stringify(v, null, 2) : "");
+  const desktopSnippet = stringify(configData?.desktop_config);
+  const codeSnippet = configData?.claude_code_command ?? "";
+  const cursorSnippet = stringify(configData?.cursor_config);
+  const clineSnippet = stringify(configData?.cline_config);
+  const kiroSnippet = stringify(configData?.kiro_config);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleGlobalToggle = useCallback((checked: boolean) => toggleGlobal(checked), []);
+  const handleToggleKeyVisible = useCallback(() => setKeyVisible((v) => !v), []);
+  const handleOpenRegenDialog = useCallback(() => setRegenDialogOpen(true), []);
+  const handleConfigTabChange = useCallback((key: ReactKey) => setConfigTab(key as ConfigTab), []);
+
+  const configSnippet = useMemo(() => (
+    configTab === "desktop" ? desktopSnippet :
+    configTab === "cursor" ? cursorSnippet :
+    configTab === "cline" ? clineSnippet :
+    kiroSnippet
+  ), [configTab, desktopSnippet, cursorSnippet, clineSnippet, kiroSnippet]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -173,13 +193,6 @@ export function McpTab() {
     return key.slice(0, 8) + "•".repeat(key.length - 12) + key.slice(-4);
   }
 
-  const stringify = (v: unknown) => (v ? JSON.stringify(v, null, 2) : "");
-  const desktopSnippet = stringify(configData?.desktop_config);
-  const codeSnippet = configData?.claude_code_command ?? "";
-  const cursorSnippet = stringify(configData?.cursor_config);
-  const clineSnippet = stringify(configData?.cline_config);
-  const kiroSnippet = stringify(configData?.kiro_config);
-
   return (
     <div className="space-y-6">
       {/* Section 1: MCP Gateway */}
@@ -193,7 +206,7 @@ export function McpTab() {
           </div>
 
           {/* Global toggle */}
-          <Switch isSelected={globalEnabled} onValueChange={(checked) => toggleGlobal(checked)} />
+          <Switch isSelected={globalEnabled} onValueChange={handleGlobalToggle} />
         </div>
 
         <div className="flex items-center gap-2 mb-2">
@@ -245,7 +258,7 @@ export function McpTab() {
                     isIconOnly
                     size="sm"
                     variant="flat"
-                    onPress={() => setKeyVisible(!keyVisible)}
+                    onPress={handleToggleKeyVisible}
                   >
                     {keyVisible ? <EyeOff size={14} /> : <Eye size={14} />}
                   </Button>
@@ -266,7 +279,7 @@ export function McpTab() {
                     size="sm"
                     variant="flat"
                     isLoading={regenerating}
-                    onPress={() => setRegenDialogOpen(true)}
+                    onPress={handleOpenRegenDialog}
                   >
                     <RefreshCw size={14} />
                   </Button>
@@ -278,7 +291,7 @@ export function McpTab() {
           {/* Client tabs */}
           <Tabs
             selectedKey={configTab}
-            onSelectionChange={(key) => setConfigTab(key as ConfigTab)}
+            onSelectionChange={handleConfigTabChange}
             className="mb-3"
             size="sm"
           >
@@ -301,12 +314,7 @@ export function McpTab() {
               <p className="text-[11px] text-default-400">
                 {t(`mcp.${configTab}Hint`)}
               </p>
-              <CodeBlock text={
-                configTab === "desktop" ? desktopSnippet :
-                configTab === "cursor" ? cursorSnippet :
-                configTab === "cline" ? clineSnippet :
-                kiroSnippet
-              } />
+              <CodeBlock text={configSnippet} />
             </div>
           )}
         </CardBody></Card>
@@ -339,6 +347,7 @@ export function McpTab() {
                   {/* Plugin header */}
                   <div className="flex items-center justify-between p-3">
                     <button
+                      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                       onClick={() => toggleExpanded(group.pluginId)}
                       className="flex items-center gap-3 min-w-0 flex-1 hover:opacity-80 transition-opacity"
                     >
@@ -370,6 +379,7 @@ export function McpTab() {
                     </button>
 
                     {/* Plugin-level toggle */}
+                    {/* eslint-disable-next-line react-perf/jsx-no-new-function-as-prop */}
                     <Switch className="flex-shrink-0 ml-3" isSelected={pluginEnabled} onValueChange={(checked) => togglePlugin(group.pluginId, checked)} />
                   </div>
 
@@ -431,6 +441,7 @@ export function McpTab() {
                           </div>
 
                           {/* Tool-level toggle */}
+                          {/* eslint-disable-next-line react-perf/jsx-no-new-function-as-prop */}
                           <Switch isSelected={tool.tool_enabled} onValueChange={(checked) => toggleTool(tool.name, checked)} />
                         </div>
                       ))}

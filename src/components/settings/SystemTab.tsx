@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   checkEngine,
@@ -111,6 +111,41 @@ export function SystemTab() {
     setDirty(true);
   }
 
+  const handleCpuChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      updateCpu(e.target.value === "0" ? "" : e.target.value),
+    []
+  );
+
+  const handleMemoryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => updateMemory(e.target.value),
+    []
+  );
+
+  const engineStatusStyle = useMemo(
+    () =>
+      status?.running
+        ? { animation: "pulse-status 2s ease-in-out infinite" }
+        : undefined,
+    [status?.running]
+  );
+
+  const cpuBarStyle = useMemo(
+    () => ({ width: `${Math.min(usage?.cpu_percent ?? 0, 100)}%` }),
+    [usage?.cpu_percent]
+  );
+
+  const memBarStyle = useMemo(
+    () => ({
+      width: `${
+        quotas.memory_mb
+          ? Math.min(((usage?.memory_mb ?? 0) / quotas.memory_mb) * 100, 100)
+          : Math.min((usage?.memory_mb ?? 0) / 1024, 100)
+      }%`,
+    }),
+    [quotas.memory_mb, usage?.memory_mb]
+  );
+
   return (
     <div className="space-y-6">
       {/* Container engine */}
@@ -127,6 +162,7 @@ export function SystemTab() {
             {ENGINES.map((e) => (
               <Button
                 key={e.id}
+                // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                 onPress={() => e.available && setEngine(e.id)}
                 isDisabled={!e.available}
               >
@@ -176,11 +212,7 @@ export function SystemTab() {
                               ? "bg-warning"
                               : "bg-danger"
                         }`}
-                        style={
-                          status.running
-                            ? { animation: "pulse-status 2s ease-in-out infinite" }
-                            : undefined
-                        }
+                        style={engineStatusStyle}
                       />
                       <span className="text-[13px] text-default-500">
                         {t("system.engine")}
@@ -255,7 +287,7 @@ export function SystemTab() {
                 <div className="h-2 bg-default-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full transition-[width] duration-500 ease-out"
-                    style={{ width: `${Math.min(usage.cpu_percent, 100)}%` }}
+                    style={cpuBarStyle}
                   />
                 </div>
               </div>
@@ -270,13 +302,7 @@ export function SystemTab() {
                 <div className="h-2 bg-default-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-secondary rounded-full transition-[width] duration-500 ease-out"
-                    style={{
-                      width: `${
-                        quotas.memory_mb
-                          ? Math.min((usage.memory_mb / quotas.memory_mb) * 100, 100)
-                          : Math.min(usage.memory_mb / 1024, 100)
-                      }%`,
-                    }}
+                    style={memBarStyle}
                   />
                 </div>
               </div>
@@ -318,7 +344,7 @@ export function SystemTab() {
                   max={100}
                   step={5}
                   value={quotas.cpu_percent ?? 0}
-                  onChange={(e) => updateCpu(e.target.value === "0" ? "" : e.target.value)}
+                  onChange={handleCpuChange}
                   className="flex-1 accent-primary h-1.5"
                 />
                 <span className="text-[13px] font-mono w-14 text-right">
@@ -339,7 +365,7 @@ export function SystemTab() {
                 min={0}
                 step={64}
                 value={String(quotas.memory_mb ?? "")}
-                onChange={(e) => updateMemory(e.target.value)}
+                onChange={handleMemoryChange}
                 placeholder={t("system.noLimit")}
                 variant="bordered"
               />

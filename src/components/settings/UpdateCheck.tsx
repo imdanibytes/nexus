@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { RefreshCw, Download, RotateCcw, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -23,12 +23,15 @@ type UpdateState =
   | { phase: "ready"; notes?: string }
   | { phase: "error"; message: string };
 
+const RADIO_GROUP_CLASSNAMES = { label: "text-xs text-default-500" };
+
 function ReleaseNotes({ markdown }: { markdown: string }) {
   const html = useMemo(() => marked.parse(markdown, { async: false }) as string, [markdown]);
+  const dangerousHtml = useMemo(() => ({ __html: html }), [html]);
   return (
     <div
       className="release-notes"
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={dangerousHtml}
     />
   );
 }
@@ -127,6 +130,14 @@ export function UpdateCheck() {
         ? state.notes || null
         : null;
 
+  const handleToggleNotes = useCallback(() => setNotesOpen((v) => !v), []);
+
+  const progressStyle = useMemo(
+    () => state.phase === "downloading" ? { width: `${state.progress}%` } : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.phase === "downloading" ? (state as { progress: number }).progress : null],
+  );
+
   return (
     <div className="space-y-3">
       {/* Channel selector */}
@@ -135,7 +146,7 @@ export function UpdateCheck() {
         orientation="horizontal"
         value={channel}
         onValueChange={handleChannelChange}
-        classNames={{ label: "text-xs text-default-500" }}
+        classNames={RADIO_GROUP_CLASSNAMES}
       >
         <Radio value="stable" size="sm">
           {t("updateCheck.channelStable")}
@@ -203,7 +214,7 @@ export function UpdateCheck() {
       {releaseNotes && (
         <Card className="overflow-hidden">
           <button
-            onClick={() => setNotesOpen(!notesOpen)}
+            onClick={handleToggleNotes}
             className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-default-100 transition-colors"
           >
             <span className="text-[11px] font-semibold uppercase tracking-wider text-default-500">
@@ -234,7 +245,7 @@ export function UpdateCheck() {
           <div className="h-1.5 bg-default-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-[width] duration-300 ease-out"
-              style={{ width: `${state.progress}%` }}
+              style={progressStyle}
             />
           </div>
           <p className="text-[10px] text-default-500">

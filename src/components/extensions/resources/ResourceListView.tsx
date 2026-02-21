@@ -105,6 +105,7 @@ export function ResourceListView({
                 <tr
                   key={idx}
                   className="border-b border-default-100 last:border-0 hover:bg-default-100/40 cursor-pointer transition-colors"
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onClick={() => onRowClick(item)}
                 >
                   {columns.map((col) => (
@@ -113,12 +114,14 @@ export function ResourceListView({
                     </td>
                   ))}
                   {canDelete && (
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                       <Button
                         size="sm"
                         isIconOnly
                         variant="light"
                         color="danger"
+                        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                         onPress={() => onDeleteClick(item)}
                         className="min-w-0 h-6 w-6"
                       >

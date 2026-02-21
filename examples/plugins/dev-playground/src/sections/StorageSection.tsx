@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Button,
   Card,
@@ -15,6 +15,38 @@ export function StorageSection() {
   const [value, setValue] = useState("");
   const [response, setResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleKeyChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setKey(e.target.value), []);
+  const handleValueChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value), []);
+
+  const handleSet = useCallback(() =>
+    run(() => {
+      let parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch {
+        parsed = value;
+      }
+      return api(`/api/v1/storage/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        body: JSON.stringify({ value: parsed }),
+      });
+    }),
+  [key, value]);
+
+  const handleGet = useCallback(() =>
+    run(() => api(`/api/v1/storage/${encodeURIComponent(key)}`)),
+  [key]);
+
+  const handleDelete = useCallback(() =>
+    run(() =>
+      api(`/api/v1/storage/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+      })
+    ),
+  [key]);
+
+  const handleListAll = useCallback(() => run(() => api("/api/v1/storage")), []);
 
   async function run(fn: () => Promise<unknown>) {
     setLoading(true);
@@ -44,7 +76,7 @@ export function StorageSection() {
             <Input
               placeholder="my_key"
               value={key}
-              onChange={(e) => setKey(e.target.value)}
+              onChange={handleKeyChange}
             />
           </div>
           <div className="space-y-1.5">
@@ -53,7 +85,7 @@ export function StorageSection() {
               className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring disabled:opacity-50 font-mono"
               placeholder='{"example": true}'
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={handleValueChange}
             />
           </div>
         </div>
@@ -62,20 +94,7 @@ export function StorageSection() {
           <Button
             size="sm"
             disabled={!key || !value || loading}
-            onClick={() =>
-              run(() => {
-                let parsed;
-                try {
-                  parsed = JSON.parse(value);
-                } catch {
-                  parsed = value;
-                }
-                return api(`/api/v1/storage/${encodeURIComponent(key)}`, {
-                  method: "PUT",
-                  body: JSON.stringify({ value: parsed }),
-                });
-              })
-            }
+            onClick={handleSet}
           >
             Set
           </Button>
@@ -83,9 +102,7 @@ export function StorageSection() {
             size="sm"
             variant="outline"
             disabled={!key || loading}
-            onClick={() =>
-              run(() => api(`/api/v1/storage/${encodeURIComponent(key)}`))
-            }
+            onClick={handleGet}
           >
             Get
           </Button>
@@ -93,13 +110,7 @@ export function StorageSection() {
             size="sm"
             variant="destructive"
             disabled={!key || loading}
-            onClick={() =>
-              run(() =>
-                api(`/api/v1/storage/${encodeURIComponent(key)}`, {
-                  method: "DELETE",
-                })
-              )
-            }
+            onClick={handleDelete}
           >
             Delete
           </Button>
@@ -107,7 +118,7 @@ export function StorageSection() {
             size="sm"
             variant="secondary"
             disabled={loading}
-            onClick={() => run(() => api("/api/v1/storage"))}
+            onClick={handleListAll}
           >
             List All Keys
           </Button>

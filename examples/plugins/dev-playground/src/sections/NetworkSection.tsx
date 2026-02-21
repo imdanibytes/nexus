@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Button,
   Card,
@@ -29,6 +29,10 @@ export function NetworkSection() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value), []);
+  const handleHeadersChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => setHeaders(e.target.value), []);
+  const handleBodyChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => setBody(e.target.value), []);
 
   async function sendRequest() {
     setLoading(true);
@@ -92,7 +96,7 @@ export function NetworkSection() {
             className="flex-1"
             placeholder="https://httpbin.org/get"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={handleUrlChange}
           />
           <Button onClick={sendRequest} disabled={!url || loading}>
             <Send className="size-4" /> Send
@@ -108,7 +112,7 @@ export function NetworkSection() {
               className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring font-mono"
               placeholder='{"Accept": "application/json"}'
               value={headers}
-              onChange={(e) => setHeaders(e.target.value)}
+              onChange={handleHeadersChange}
             />
           </div>
           {method !== "GET" && (
@@ -120,7 +124,7 @@ export function NetworkSection() {
                 className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring font-mono"
                 placeholder='{"key": "value"}'
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={handleBodyChange}
               />
             </div>
           )}

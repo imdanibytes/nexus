@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { useTranslation, Trans } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import type { AvailableUpdate } from "../../types/updates";
@@ -16,6 +17,9 @@ interface KeyChangeWarningDialogProps {
   onForceUpdate: (update: AvailableUpdate) => void;
 }
 
+// Stable components object for Trans — avoids inline object allocation
+const TRANS_COMPONENTS = { strong: <strong /> };
+
 export function KeyChangeWarningDialog({
   update,
   onCancel,
@@ -23,10 +27,25 @@ export function KeyChangeWarningDialog({
 }: KeyChangeWarningDialogProps) {
   const { t } = useTranslation("settings");
 
+  const handleOpenChange = useCallback(
+    (open: boolean) => { if (!open) onCancel(); },
+    [onCancel],
+  );
+
+  const transValues = useMemo(
+    () => ({ name: update.item_name }),
+    [update.item_name],
+  );
+
+  const handleForceUpdate = useCallback(
+    () => onForceUpdate(update),
+    [onForceUpdate, update],
+  );
+
   return (
     <Modal
       isOpen
-      onOpenChange={(open) => { if (!open) onCancel(); }}
+      onOpenChange={handleOpenChange}
     >
       <ModalContent>
         {(onClose) => (
@@ -40,8 +59,8 @@ export function KeyChangeWarningDialog({
                 <Trans
                   i18nKey="keyChange.keyChangedDesc"
                   ns="settings"
-                  values={{ name: update.item_name }}
-                  components={{ strong: <strong /> }}
+                  values={transValues}
+                  components={TRANS_COMPONENTS}
                 />
               </p>
 
@@ -66,7 +85,7 @@ export function KeyChangeWarningDialog({
                 {t("common:action.cancel")}
               </Button>
               <Button
-                onPress={() => onForceUpdate(update)}
+                onPress={handleForceUpdate}
                 color="danger"
               >
                 {t("keyChange.understandUpdate")}

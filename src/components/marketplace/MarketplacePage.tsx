@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useMarketplace } from "../../hooks/useMarketplace";
@@ -63,6 +63,12 @@ export function MarketplacePage() {
     setPendingPath(null);
   }
 
+  const localManifestHintHtml = useMemo(() => ({ __html: t("marketplace.localManifestHint") }), [t]);
+
+  const handleShowMcpWizard = useCallback(() => setShowMcpWizard(true), []);
+  const handleCloseMcpWizard = useCallback(() => setShowMcpWizard(false), []);
+  const handleMcpInstalled = useCallback(() => useAppStore.getState().setView("plugins"), []);
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -74,7 +80,7 @@ export function MarketplacePage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            onPress={() => setShowMcpWizard(true)}
+            onPress={handleShowMcpWizard}
           >
             <Wand2 size={12} strokeWidth={1.5} />
             {t("marketplace.wrapMcp")}
@@ -112,7 +118,7 @@ export function MarketplacePage() {
           </p>
           <p
             className="text-default-500 text-[11px] mb-4"
-            dangerouslySetInnerHTML={{ __html: t("marketplace.localManifestHint") }}
+            dangerouslySetInnerHTML={localManifestHintHtml}
           />
           <Button
             onPress={handleLocalInstall}
@@ -130,6 +136,7 @@ export function MarketplacePage() {
               key={entry.id}
               entry={entry}
               isInstalled={installedIds.has(entry.id)}
+              // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
               onSelect={() => {
                 useAppStore.getState().selectRegistryEntry(entry);
                 useAppStore.getState().setView("plugin-detail");
@@ -149,8 +156,8 @@ export function MarketplacePage() {
 
       {showMcpWizard && (
         <McpWrapWizard
-          onClose={() => setShowMcpWizard(false)}
-          onInstalled={() => useAppStore.getState().setView("plugins")}
+          onClose={handleCloseMcpWizard}
+          onInstalled={handleMcpInstalled}
         />
       )}
     </div>

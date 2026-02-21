@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
 import { useNotificationCount } from "../../stores/appStore";
@@ -119,14 +119,33 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
   const [menuOpen, setMenuOpen] = useState(false);
   const removeModal = useDisclosure();
 
-  const handleStart = () => start(id);
-  const handleStop = () => stop(id);
-  const handleRebuild = () => rebuild(id);
-  const handleToggleDevMode = () => toggleDevMode(id, !plugin.dev_mode);
-  const handleRemove = () => {
+  const handleStart = useCallback(() => start(id), [start, id]);
+  const handleStop = useCallback(() => stop(id), [stop, id]);
+  const handleRebuild = useCallback(() => rebuild(id), [rebuild, id]);
+  const handleToggleDevMode = useCallback(() => toggleDevMode(id, !plugin.dev_mode), [toggleDevMode, id, plugin.dev_mode]);
+  const handleRemove = useCallback(() => {
     removeModal.onClose();
     remove(id);
-  };
+  }, [removeModal, remove, id]);
+
+  const handleSelectPlugin = useCallback(() => {
+    const s = useAppStore.getState();
+    s.selectPlugin(id);
+    s.setView("plugins");
+  }, [id]);
+
+  const handleContextMenuOpen = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(true);
+  }, []);
+
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    if (!open) setMenuOpen(false);
+  }, []);
+
+  const handleShowLogs = useCallback(() => {
+    useAppStore.getState().setShowLogs(id);
+  }, [id]);
 
   async function handleUpdate() {
     if (!update) return;
@@ -160,11 +179,7 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
     return (
       <NavItem
         isActive={isSelected}
-        onClick={() => {
-          const s = useAppStore.getState();
-          s.selectPlugin(id);
-          s.setView("plugins");
-        }}
+        onClick={handleSelectPlugin}
         collapsed
         tooltip={plugin.manifest.name}
       >
@@ -185,11 +200,7 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
     <div className="group/item relative">
       <NavItem
         isActive={isSelected}
-        onClick={() => {
-          const s = useAppStore.getState();
-          s.selectPlugin(id);
-          s.setView("plugins");
-        }}
+        onClick={handleSelectPlugin}
       >
         {statusDot}
         <span className="truncate whitespace-nowrap">{plugin.manifest.name}</span>
@@ -205,12 +216,12 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
       {/* Context menu — lazy: Dropdown only mounts when opened */}
       <button
         className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all"
-        onClick={(e) => { e.stopPropagation(); setMenuOpen(true); }}
+        onClick={handleContextMenuOpen}
       >
         <MoreHorizontal size={14} />
       </button>
       {menuOpen && (
-        <Dropdown isOpen onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
+        <Dropdown isOpen onOpenChange={handleMenuOpenChange}>
           <DropdownTrigger>
             <span className="sr-only">menu</span>
           </DropdownTrigger>
@@ -253,7 +264,7 @@ function PluginItem({ plugin, collapsed }: { plugin: InstalledPlugin; collapsed?
               )}
               <DropdownItem
                 key="logs"
-                onPress={() => useAppStore.getState().setShowLogs(id)}
+                onPress={handleShowLogs}
                 startContent={<ScrollText size={14} />}
               >
                 {t("plugins:menu.logs")}
@@ -345,6 +356,28 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
   const [menuOpen, setMenuOpen] = useState(false);
   const removeModal = useDisclosure();
 
+  const handleNavigateToExtension = useCallback(() => {
+    const s = useAppStore.getState();
+    s.setSettingsTab("extensions");
+    s.setFocusExtensionId(ext.id);
+    s.setView("settings");
+  }, [ext.id]);
+
+  const handleContextMenuOpen = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(true);
+  }, []);
+
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    if (!open) setMenuOpen(false);
+  }, []);
+
+  const handleManageExtensions = useCallback(() => {
+    const s = useAppStore.getState();
+    s.setSettingsTab("extensions");
+    s.setView("settings");
+  }, []);
+
   async function handleExtUpdate() {
     if (!update) return;
     if (update.security.includes("key_changed")) {
@@ -391,12 +424,7 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
       <Tooltip content={ext.display_name} placement="right" delay={300} closeDelay={0}>
         <div className="group/item relative">
           <NavItem
-            onClick={() => {
-              const s = useAppStore.getState();
-              s.setSettingsTab("extensions");
-              s.setFocusExtensionId(ext.id);
-              s.setView("settings");
-            }}
+            onClick={handleNavigateToExtension}
             collapsed
           >
             <span className="relative flex items-center justify-center h-7 w-7 rounded-lg bg-default-100 text-xs font-semibold text-default-500 shrink-0">
@@ -417,12 +445,7 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
   return (
     <div className="group/item relative">
       <NavItem
-        onClick={() => {
-          const s = useAppStore.getState();
-          s.setSettingsTab("extensions");
-          s.setFocusExtensionId(ext.id);
-          s.setView("settings");
-        }}
+        onClick={handleNavigateToExtension}
       >
         {statusDot}
         <span className="truncate whitespace-nowrap">{ext.display_name}</span>
@@ -438,12 +461,12 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
       {/* Context menu — lazy */}
       <button
         className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 focus:opacity-100 p-1 rounded-lg text-default-400 hover:text-foreground transition-all"
-        onClick={(e) => { e.stopPropagation(); setMenuOpen(true); }}
+        onClick={handleContextMenuOpen}
       >
         <MoreHorizontal size={14} />
       </button>
       {menuOpen && (
-        <Dropdown isOpen onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
+        <Dropdown isOpen onOpenChange={handleMenuOpenChange}>
           <DropdownTrigger>
             <span className="sr-only">menu</span>
           </DropdownTrigger>
@@ -482,11 +505,7 @@ function ExtensionItem({ ext, collapsed }: { ext: ExtensionStatus; collapsed?: b
               </DropdownItem>
               <DropdownItem
                 key="manage"
-                onPress={() => {
-                  const s = useAppStore.getState();
-                  s.setSettingsTab("extensions");
-                  s.setView("settings");
-                }}
+                onPress={handleManageExtensions}
                 startContent={<Settings size={14} />}
               >
                 {t("plugins:menu.manageExtensions")}
@@ -576,20 +595,47 @@ export function AppSidebar() {
     return localStorage.getItem("nexus-sidebar-collapsed") === "true";
   });
 
-  const toggleCollapsed = () => {
+  const toggleCollapsed = useCallback(() => {
     const next = !collapsed;
     setCollapsed(next);
     localStorage.setItem("nexus-sidebar-collapsed", String(next));
-  };
+  }, [collapsed]);
 
-  const plugins = installedPlugins.filter((p) => p.manifest.ui !== null);
-  const integrations = installedPlugins.filter((p) => p.manifest.ui === null);
+  const plugins = useMemo(
+    () => installedPlugins.filter((p) => p.manifest.ui !== null),
+    [installedPlugins],
+  );
+  const integrations = useMemo(
+    () => installedPlugins.filter((p) => p.manifest.ui === null),
+    [installedPlugins],
+  );
+
+  const sidebarAnimate = useMemo(
+    () => ({ width: collapsed ? 68 : 240 }),
+    [collapsed],
+  );
+  const sidebarTransition = useMemo(
+    () => ({ type: "spring", bounce: 0, duration: 0.3 }),
+    [],
+  );
+
+  const handleNavMarketplace = useCallback(() => {
+    useAppStore.getState().setView("marketplace");
+  }, []);
+
+  const handleNavExtensionMarketplace = useCallback(() => {
+    useAppStore.getState().setView("extension-marketplace");
+  }, []);
+
+  const handleNavSettings = useCallback(() => {
+    useAppStore.getState().setView("settings");
+  }, []);
 
   return (
     <LazyMotion features={domAnimation}>
     <m.aside
-      animate={{ width: collapsed ? 68 : 240 }}
-      transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+      animate={sidebarAnimate}
+      transition={sidebarTransition}
       className="flex-shrink-0 flex flex-col h-full nx-glass-strong p-3 gap-2 overflow-hidden"
     >
       <div className="flex flex-col flex-1 gap-2 overflow-hidden">
@@ -667,7 +713,7 @@ export function AppSidebar() {
         <Surface className="space-y-0.5 p-2">
           <NavItem
             isActive={currentView === "marketplace" || currentView === "plugin-detail"}
-            onClick={() => useAppStore.getState().setView("marketplace")}
+            onClick={handleNavMarketplace}
             collapsed={collapsed}
             tooltip={t("common:nav.addPlugins")}
           >
@@ -677,7 +723,7 @@ export function AppSidebar() {
 
           <NavItem
             isActive={currentView === "extension-marketplace" || currentView === "extension-detail"}
-            onClick={() => useAppStore.getState().setView("extension-marketplace")}
+            onClick={handleNavExtensionMarketplace}
             collapsed={collapsed}
             tooltip={t("common:nav.extensions")}
           >
@@ -687,7 +733,7 @@ export function AppSidebar() {
 
           <NavItem
             isActive={currentView === "settings"}
-            onClick={() => useAppStore.getState().setView("settings")}
+            onClick={handleNavSettings}
             collapsed={collapsed}
             tooltip={t("common:nav.settings")}
           >

@@ -44,6 +44,15 @@ function ConnectedClients() {
     }
   }
 
+  const handleCloseRevokeModal = useCallback((open: boolean) => {
+    if (!open) setRevokeTarget(null);
+  }, []);
+
+  const handleConfirmRevoke = useCallback(() => {
+    if (revokeTarget) handleRevoke(revokeTarget.client_id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revokeTarget]);
+
   return (
     <Card>
       <CardBody className="p-5">
@@ -86,6 +95,7 @@ function ConnectedClients() {
               </div>
               <Button
                 color="danger"
+                // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                 onPress={() => setRevokeTarget(client)}
                 startContent={<Trash2 size={10} strokeWidth={2} />}
               >
@@ -100,7 +110,7 @@ function ConnectedClients() {
       {/* Revoke confirmation dialog */}
       <Modal
         isOpen={revokeTarget !== null}
-        onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}
+        onOpenChange={handleCloseRevokeModal}
       >
         <ModalContent>
           {(onClose) => (
@@ -119,7 +129,7 @@ function ConnectedClients() {
                 <Button onPress={onClose}>{t("common:action.cancel")}</Button>
                 <Button
                   color="danger"
-                  onPress={() => revokeTarget && handleRevoke(revokeTarget.client_id)}
+                  onPress={handleConfirmRevoke}
                 >
                   {t("securityTab.revoke")}
                 </Button>
@@ -207,6 +217,7 @@ export function SecurityTab() {
                     <Card key={id}>
                       <CardBody
                         as="button"
+                        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                         onClick={() => togglePerm(id)}
                         className="p-3 flex-row items-center justify-between cursor-pointer"
                       >

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Copy, Check, Loader2, X } from "lucide-react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerBody } from "@heroui/react";
@@ -46,6 +46,8 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  const handleOpenChange = useCallback((open: boolean) => { if (!open) onClose(); }, [onClose]);
+
   function handleCopy() {
     navigator.clipboard.writeText(logs.join("\n")).then(() => {
       setCopied(true);
@@ -56,7 +58,7 @@ export function PluginLogs({ pluginId, getLogs, onClose }: Props) {
   return (
     <Drawer
       isOpen={isOpen}
-      onOpenChange={(open) => { if (!open) onClose(); }}
+      onOpenChange={handleOpenChange}
       placement="bottom"
       hideCloseButton
     >

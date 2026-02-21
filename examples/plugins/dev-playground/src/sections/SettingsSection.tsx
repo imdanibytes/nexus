@@ -154,6 +154,7 @@ export function SettingsSection() {
                   {def.type === "select" && (
                     <Select
                       value={String(settings[def.key] ?? def.default)}
+                      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                       onValueChange={(v) => updateSetting(def.key, v)}
                     >
                       <SelectTrigger className="w-28">
@@ -174,6 +175,7 @@ export function SettingsSection() {
                       checked={
                         (settings[def.key] as boolean) ?? def.default
                       }
+                      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                       onCheckedChange={(v) => updateSetting(def.key, v)}
                     />
                   )}

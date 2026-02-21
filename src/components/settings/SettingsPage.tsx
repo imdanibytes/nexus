@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../stores/appStore";
 import { useNotificationCount } from "../../stores/appStore";
@@ -91,17 +92,32 @@ export function SettingsPage() {
   const ActiveComponent = TAB_COMPONENTS[active];
 
   // Translate tab labels for SettingsShell
-  const tabs: SettingsTabDef[] = TAB_DEFS.map((tab) => ({
-    id: tab.id,
-    label: t(tab.labelKey),
-    icon: tab.icon,
-  }));
+  const tabs: SettingsTabDef[] = useMemo(
+    () => TAB_DEFS.map((tab) => ({
+      id: tab.id,
+      label: t(tab.labelKey),
+      icon: tab.icon,
+    })),
+    [t],
+  );
+
+  const handleTabChange = useCallback((id: string) => setSettingsTab(id), [setSettingsTab]);
+
+  const renderTabBadge = useCallback(
+    (tabId: string) => <TabDot tabId={tabId as SettingsTab} />,
+    [],
+  );
+
+  const errorBoundaryLabel = useMemo(() => {
+    const found = TAB_DEFS.find((tab) => tab.id === active);
+    return found ? t(found.labelKey) : undefined;
+  }, [active, t]);
 
   return (
     <SettingsShell
       tabs={tabs}
       activeTab={active}
-      onTabChange={(id) => setSettingsTab(id)}
+      onTabChange={handleTabChange}
       variant="panel"
       navHeader={
         <div className="px-3 mb-4">
@@ -109,15 +125,9 @@ export function SettingsPage() {
           <p className="text-xs text-default-400">{t("subtitle")}</p>
         </div>
       }
-      tabBadge={(tabId) => <TabDot tabId={tabId as SettingsTab} />}
+      tabBadge={renderTabBadge}
     >
-      <ErrorBoundary
-        label={
-          TAB_DEFS.find((tab) => tab.id === active)?.labelKey
-            ? t(TAB_DEFS.find((tab) => tab.id === active)!.labelKey)
-            : undefined
-        }
-      >
+      <ErrorBoundary label={errorBoundaryLabel}>
         <ActiveComponent />
       </ErrorBoundary>
     </SettingsShell>

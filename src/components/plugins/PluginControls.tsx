@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { PluginStatus } from "../../types/plugin";
 import { Play, Square, Trash2, ScrollText, Hammer, Wrench, TriangleAlert } from "lucide-react";
@@ -41,6 +41,9 @@ export function PluginControls({
   const { t } = useTranslation("plugins");
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const handleToggleDevMode = useCallback(() => onToggleDevMode?.(!devMode), [onToggleDevMode, devMode]);
+  const handleOpenDialog = useCallback(() => setDialogOpen(true), []);
+
   return (
     <div className={`flex items-center gap-2 ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
       <Button
@@ -66,7 +69,7 @@ export function PluginControls({
 
       {isLocal && onToggleDevMode && (
         <Button
-          onPress={() => onToggleDevMode(!devMode)}
+          onPress={handleToggleDevMode}
           isDisabled={disabled}
           title={devMode ? t("controls.disableDevModeTooltip") : t("controls.enableDevModeTooltip")}
           startContent={<Wrench size={12} strokeWidth={1.5} />}
@@ -97,7 +100,7 @@ export function PluginControls({
 
       <Button
         color="danger"
-        onPress={() => setDialogOpen(true)}
+        onPress={handleOpenDialog}
         isDisabled={disabled}
         startContent={<Trash2 size={12} strokeWidth={1.5} />}
       >
@@ -125,6 +128,7 @@ export function PluginControls({
                 </Button>
                 <Button
                   color="danger"
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onPress={() => {
                     onRemove();
                     onClose();

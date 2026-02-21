@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { RegistryEntry, PluginManifest, InstalledPlugin } from "../../types/plugin";
 import type { Permission } from "../../types/permissions";
@@ -52,6 +52,8 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
     await install(entry.manifest_url, approvedPermissions, deferredPermissions, entry.build_context);
     onBack();
   }
+
+  const handleDeny = useCallback(() => setPendingManifest(null), []);
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -215,7 +217,7 @@ export function PluginDetail({ entry, installedPlugin, onBack }: Props) {
         <PermissionDialog
           manifest={pendingManifest}
           onApprove={handleApprove}
-          onDeny={() => setPendingManifest(null)}
+          onDeny={handleDeny}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "./components/layout/Shell";
 import { PluginViewport } from "./components/plugins/PluginViewport";
 import { PluginLogs } from "./components/plugins/PluginLogs";
@@ -68,6 +68,16 @@ function PluginsView() {
     useAppStore.getState().setWarmViewports(Object.keys(warmEntries));
   }, [warmEntries]);
 
+  const handleMarketplacePress = useCallback(() => {
+    useAppStore.getState().setView("marketplace");
+  }, []);
+
+  const handleLogsClose = useCallback(() => {
+    useAppStore.getState().setShowLogs(null);
+  }, []);
+
+  const getLogsForPlugin = useCallback((id: string, tail: number) => pluginLogs(id, tail), []);
+
   return (
     <div className="relative h-full">
       {/* Empty / select prompt — shown when no plugin is selected */}
@@ -87,7 +97,7 @@ function PluginsView() {
           {installedPlugins.length === 0 && (
             <Button
               color="primary"
-              onPress={() => useAppStore.getState().setView("marketplace")}
+              onPress={handleMarketplacePress}
             >
               {t("nav.addPlugins")}
             </Button>
@@ -113,8 +123,8 @@ function PluginsView() {
 
       <PluginLogs
         pluginId={showLogsPluginId}
-        getLogs={(id, tail) => pluginLogs(id, tail)}
-        onClose={() => useAppStore.getState().setShowLogs(null)}
+        getLogs={getLogsForPlugin}
+        onClose={handleLogsClose}
       />
     </div>
   );
@@ -166,6 +176,35 @@ function App() {
       .catch(() => {});
   }, [refresh, extensionRefresh]);
 
+  const pluginsStyle = useMemo(
+    () => currentView !== "plugins" ? { contentVisibility: "hidden" as const, pointerEvents: "none" as const } : undefined,
+    [currentView],
+  );
+
+  const settingsStyle = useMemo(
+    () => currentView !== "settings" ? { contentVisibility: "hidden" as const, pointerEvents: "none" as const } : undefined,
+    [currentView],
+  );
+
+  const installedPlugin = useMemo(
+    () => selectedRegistryEntry
+      ? (installedPlugins.find((p) => p.manifest.id === selectedRegistryEntry.id) ?? null)
+      : null,
+    [installedPlugins, selectedRegistryEntry],
+  );
+
+  const handlePluginDetailBack = useCallback(() => {
+    const s = useAppStore.getState();
+    s.selectRegistryEntry(null);
+    s.setView("marketplace");
+  }, []);
+
+  const handleExtensionDetailBack = useCallback(() => {
+    const s = useAppStore.getState();
+    s.selectExtensionEntry(null);
+    s.setView("extension-marketplace");
+  }, []);
+
   return (
     <NexusProvider>
     <Shell>
@@ -176,7 +215,7 @@ function App() {
          containment that can't be overridden by children, and keeps DOM/iframes alive. */}
       <div
         className="absolute inset-0 overflow-y-auto"
-        style={currentView !== "plugins" ? { contentVisibility: "hidden", pointerEvents: "none" } : undefined}
+        style={pluginsStyle}
       >
         <ErrorBoundary label="Plugins">
           <PluginsView />
@@ -184,7 +223,7 @@ function App() {
       </div>
       <div
         className="absolute inset-0 overflow-y-auto"
-        style={currentView !== "settings" ? { contentVisibility: "hidden", pointerEvents: "none" } : undefined}
+        style={settingsStyle}
       >
         <ErrorBoundary label="Settings">
           <SettingsPage />
@@ -203,12 +242,8 @@ function App() {
           <ErrorBoundary label="Plugin Detail">
             <PluginDetail
               entry={selectedRegistryEntry}
-              installedPlugin={installedPlugins.find((p) => p.manifest.id === selectedRegistryEntry.id) ?? null}
-              onBack={() => {
-                const s = useAppStore.getState();
-                s.selectRegistryEntry(null);
-                s.setView("marketplace");
-              }}
+              installedPlugin={installedPlugin}
+              onBack={handlePluginDetailBack}
             />
           </ErrorBoundary>
         </div>
@@ -225,11 +260,7 @@ function App() {
           <ErrorBoundary label="Extension Detail">
             <ExtensionDetail
               entry={selectedExtensionEntry}
-              onBack={() => {
-                const s = useAppStore.getState();
-                s.selectExtensionEntry(null);
-                s.setView("extension-marketplace");
-              }}
+              onBack={handleExtensionDetailBack}
             />
           </ErrorBoundary>
         </div>

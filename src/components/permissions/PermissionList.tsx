@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePermissions } from "../../hooks/usePermissions";
 import { getPermissionInfo } from "../../types/permissions";
@@ -28,6 +28,12 @@ export function PermissionList({ pluginId }: Props) {
       return next;
     });
   }
+
+  const handleModalOpenChange = useCallback((open: boolean) => { if (!open) setConfirmRestore(null); }, []);
+  const handleRestoreConfirm = useCallback(() => {
+    unrevoke(pluginId, [confirmRestore as Permission]);
+    setConfirmRestore(null);
+  }, [unrevoke, pluginId, confirmRestore]);
 
   if (grants.length === 0) {
     return (
@@ -98,6 +104,7 @@ export function PermissionList({ pluginId }: Props) {
                   <div className="flex gap-1.5 flex-shrink-0 ml-2">
                     <Button
                       color="primary"
+                      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                       onPress={() => unrevoke(pluginId, [grant.permission as Permission])}
                       title={t("list.activateTooltip")}
                     >
@@ -106,6 +113,7 @@ export function PermissionList({ pluginId }: Props) {
                     </Button>
                     <Button
                       color="danger"
+                      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                       onPress={() => revoke(pluginId, [grant.permission as Permission])}
                     >
                       {t("list.revoke")}
@@ -161,6 +169,7 @@ export function PermissionList({ pluginId }: Props) {
                   </div>
                   <Button
                     color="primary"
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onPress={() => setConfirmRestore(grant.permission)}
                     className="flex-shrink-0 ml-2"
                   >
@@ -177,7 +186,7 @@ export function PermissionList({ pluginId }: Props) {
       {/* Confirm restore modal */}
       <Modal
         isOpen={confirmRestore !== null}
-        onOpenChange={(open) => { if (!open) setConfirmRestore(null); }}
+        onOpenChange={handleModalOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -199,10 +208,7 @@ export function PermissionList({ pluginId }: Props) {
                 </Button>
                 <Button
                   color="primary"
-                  onPress={() => {
-                    unrevoke(pluginId, [confirmRestore as Permission]);
-                    setConfirmRestore(null);
-                  }}
+                  onPress={handleRestoreConfirm}
                 >
                   {t("list.restore")}
                 </Button>
@@ -243,11 +249,16 @@ function ActivePermissionRow({
   const paths = grant.approved_scopes ?? [];
   const isExpanded = expandedPerms.has(grant.permission);
 
+  const handleToggle = useCallback(() => onToggle(grant.permission), [onToggle, grant.permission]);
+  const handleRevoke = useCallback(() => {
+    onRevoke(pluginId, [grant.permission as Permission]);
+  }, [onRevoke, pluginId, grant.permission]);
+
   return (
     <div className="rounded-[8px] border border-default-100 bg-background overflow-hidden">
       {/* Permission row */}
       <div
-        onClick={hasPaths ? () => onToggle(grant.permission) : undefined}
+        onClick={hasPaths ? handleToggle : undefined}
         className={`flex items-center justify-between p-2.5 ${hasPaths ? "cursor-pointer hover:bg-default-200/30 transition-colors duration-150" : ""}`}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -285,9 +296,7 @@ function ActivePermissionRow({
         </div>
         <Button
           color="danger"
-          onPress={() => {
-            onRevoke(pluginId, [grant.permission as Permission]);
-          }}
+          onPress={handleRevoke}
           className="flex-shrink-0 ml-2"
         >
           {t("list.revoke")}
@@ -320,6 +329,7 @@ function ActivePermissionRow({
                   </div>
                   <Button
                     isIconOnly
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onPress={() =>
                       onRemovePath(
                         pluginId,

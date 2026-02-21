@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { usePluginActions } from "../../hooks/usePlugins";
 import { useAppStore } from "../../stores/appStore";
@@ -17,13 +17,38 @@ function SettingField({
   value: unknown;
   onChange: (key: string, value: unknown) => void;
 }) {
+  const handleBooleanChange = useCallback(
+    (checked: boolean) => onChange(def.key, checked),
+    [onChange, def.key]
+  );
+  const handleNumberChange = useCallback(
+    (v: string) => onChange(def.key, v === "" ? null : Number(v)),
+    [onChange, def.key]
+  );
+  const handleSelectChange = useCallback(
+    (keys: Iterable<unknown>) => {
+      const selected = Array.from(keys)[0];
+      if (selected) onChange(def.key, String(selected));
+    },
+    [onChange, def.key]
+  );
+  const selectedKeys = useMemo(
+    () => (value ? [String(value)] : []),
+    [value]
+  );
+  const emptyArray = useMemo(() => [], []);
+  const handleStringChange = useCallback(
+    (v: string) => onChange(def.key, v),
+    [onChange, def.key]
+  );
+
   switch (def.type) {
     case "boolean":
       return (
         <label className="flex items-center gap-3 cursor-pointer">
           <Switch
             isSelected={!!value}
-            onValueChange={(checked) => onChange(def.key, checked)}
+            onValueChange={handleBooleanChange}
           />
           <span className="text-[13px]">{def.label}</span>
         </label>
@@ -38,12 +63,7 @@ function SettingField({
           <Input
             type="number"
             value={String(value ?? "")}
-            onValueChange={(v) =>
-              onChange(
-                def.key,
-                v === "" ? null : Number(v)
-              )
-            }
+            onValueChange={handleNumberChange}
             variant="bordered"
           />
         </div>
@@ -56,14 +76,11 @@ function SettingField({
             {def.label}
           </label>
           <Select
-            selectedKeys={value ? [String(value)] : []}
-            onSelectionChange={(keys) => {
-              const selected = Array.from(keys)[0];
-              if (selected) onChange(def.key, String(selected));
-            }}
+            selectedKeys={selectedKeys}
+            onSelectionChange={handleSelectChange}
             variant="bordered"
           >
-            {(def.options ?? []).map((opt) => (
+            {(def.options ?? emptyArray).map((opt) => (
               <SelectItem key={opt}>{opt}</SelectItem>
             ))}
           </Select>
@@ -80,7 +97,7 @@ function SettingField({
           <Input
             type="text"
             value={String(value ?? "")}
-            onValueChange={(v) => onChange(def.key, v)}
+            onValueChange={handleStringChange}
             variant="bordered"
           />
         </div>
@@ -108,6 +125,15 @@ function StorageInfo({ pluginId }: { pluginId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const handleClearStorage = useCallback(async () => {
+    setClearing(true);
+    try {
+      await pluginClearStorage(pluginId);
+      setBytes(0);
+    } catch { /* ignore */ }
+    finally { setClearing(false); }
+  }, [pluginId]);
+
   if (bytes === null) return null;
 
   return (
@@ -123,14 +149,7 @@ function StorageInfo({ pluginId }: { pluginId: string }) {
         {bytes > 0 && (
           <Button
             color="danger"
-            onPress={async () => {
-              setClearing(true);
-              try {
-                await pluginClearStorage(pluginId);
-                setBytes(0);
-              } catch { /* ignore */ }
-              finally { setClearing(false); }
-            }}
+            onPress={handleClearStorage}
             isDisabled={clearing}
           >
             {clearing ? t("pluginsTab.clearing") : t("pluginsTab.clearData")}
@@ -186,6 +205,14 @@ function PluginSettingsCard({
     }
   }
 
+  const handleConfirmRemove = useCallback(() => {
+    onRemove();
+    setShowConfirm(false);
+  }, [onRemove]);
+
+  const handleCancelConfirm = useCallback(() => setShowConfirm(false), []);
+  const handleShowConfirm = useCallback(() => setShowConfirm(true), []);
+
   const actionButtons = (
     <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
       {plugin.status === "running" && (
@@ -202,16 +229,13 @@ function PluginSettingsCard({
         <div className="flex items-center gap-1">
           <Button
             color="danger"
-            onPress={() => {
-              onRemove();
-              setShowConfirm(false);
-            }}
+            onPress={handleConfirmRemove}
             isDisabled={busy !== null}
           >
             {busy === "removing" ? t("pluginsTab.removing") : t("common:action.confirm")}
           </Button>
           <Button
-            onPress={() => setShowConfirm(false)}
+            onPress={handleCancelConfirm}
             isDisabled={busy !== null}
           >
             {t("common:action.cancel")}
@@ -220,7 +244,7 @@ function PluginSettingsCard({
       ) : (
         <Button
           color="danger"
-          onPress={() => setShowConfirm(true)}
+          onPress={handleShowConfirm}
           isDisabled={busy !== null}
           startContent={<Trash2 size={10} strokeWidth={2} />}
         >
@@ -354,7 +378,9 @@ export function PluginsTab() {
                   <PluginSettingsCard
                     plugin={plugin}
                     busy={busyPlugins[plugin.manifest.id] ?? null}
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onStop={() => stop(plugin.manifest.id)}
+                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onRemove={() => remove(plugin.manifest.id)}
                   />
                 </ErrorBoundary>

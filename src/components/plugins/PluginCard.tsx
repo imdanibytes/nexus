@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { InstalledPlugin, RegistryEntry } from "../../types/plugin";
 import type { PluginStatus } from "../../types/plugin";
@@ -70,6 +71,7 @@ export function RegistryPluginCard({
   isInstalled,
 }: RegistryPluginCardProps) {
   const { t } = useTranslation("plugins");
+  const handleAuthorLinkClick = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
 
   return (
     <Card
@@ -101,7 +103,7 @@ export function RegistryPluginCard({
                   href={entry.author_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={handleAuthorLinkClick}
                   className="font-sans ml-1.5 text-primary hover:underline"
                 >
                   {entry.author}

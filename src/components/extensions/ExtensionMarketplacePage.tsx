@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useExtensionMarketplace } from "../../hooks/useExtensionMarketplace";
@@ -14,6 +14,8 @@ export function ExtensionMarketplacePage() {
   const { extensions, isLoading, refresh, search } = useExtensionMarketplace();
   // All setters — use getState in handlers to avoid store subscription
   const [installing, setInstalling] = useState(false);
+
+  const localManifestHintHtml = useMemo(() => ({ __html: t("extensions.localManifestHint") }), [t]);
 
   useEffect(() => {
     refresh();
@@ -84,7 +86,7 @@ export function ExtensionMarketplacePage() {
           </p>
           <p
             className="text-default-500 text-[11px] mb-4"
-            dangerouslySetInnerHTML={{ __html: t("extensions.localManifestHint") }}
+            dangerouslySetInnerHTML={localManifestHintHtml}
           />
           <Button
             onPress={handleLocalInstall}
@@ -101,6 +103,7 @@ export function ExtensionMarketplacePage() {
             <ExtensionRegistryCard
               key={entry.id}
               entry={entry}
+              // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
               onSelect={() => {
                 useAppStore.getState().selectExtensionEntry(entry);
                 useAppStore.getState().setView("extension-detail");

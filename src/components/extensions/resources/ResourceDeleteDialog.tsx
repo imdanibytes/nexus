@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -18,9 +19,10 @@ interface ResourceDeleteDialogProps {
 
 export function ResourceDeleteDialog({ isOpen, label, onClose, onConfirm }: ResourceDeleteDialogProps) {
   const { t } = useTranslation("settings");
+  const handleOpenChange = useCallback((open: boolean) => { if (!open) onClose(); }, [onClose]);
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Modal isOpen={isOpen} onOpenChange={handleOpenChange}>
       <ModalContent>
         {(onModalClose) => (
           <>
@@ -34,11 +36,13 @@ export function ResourceDeleteDialog({ isOpen, label, onClose, onConfirm }: Reso
               </p>
             </ModalBody>
             <ModalFooter>
+              {/* eslint-disable-next-line react-perf/jsx-no-new-function-as-prop */}
               <Button variant="flat" onPress={() => { onModalClose(); onClose(); }}>
                 {t("extensionsTab.resourceCancel")}
               </Button>
               <Button
                 color="danger"
+                // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                 onPress={() => {
                   onConfirm();
                   onModalClose();

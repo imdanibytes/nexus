@@ -22,6 +22,8 @@ export class ErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
+  handleRetry = () => this.setState({ error: null });
+
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary]", this.props.label ?? "", error, info);
   }
@@ -59,7 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
         </p>
         <Button
           variant="flat"
-          onPress={() => this.setState({ error: null })}
+          onPress={this.handleRetry}
           className="mt-3"
         >
           {t("common:action.retry")}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, Tab } from "@heroui/react";
 import { Database } from "lucide-react";
@@ -51,6 +51,9 @@ function ResourceTypeTab({ extId, resourceType, typeDef }: ResourceTypeTabProps)
     }
   }
 
+  const handleFormClose = useCallback(() => setFormOpen(false), []);
+  const handleDeleteDialogClose = useCallback(() => setDeleteTarget(null), []);
+
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     const id = String(deleteTarget.id ?? deleteTarget._id ?? "");
@@ -73,13 +76,13 @@ function ResourceTypeTab({ extId, resourceType, typeDef }: ResourceTypeTabProps)
         mode={formMode}
         typeDef={typeDef}
         initialValues={editingItem}
-        onClose={() => setFormOpen(false)}
+        onClose={handleFormClose}
         onSubmit={handleFormSubmit}
       />
       <ResourceDeleteDialog
         isOpen={!!deleteTarget}
         label={typeDef.label}
-        onClose={() => setDeleteTarget(null)}
+        onClose={handleDeleteDialogClose}
         onConfirm={handleDeleteConfirm}
       />
     </div>
@@ -93,6 +96,7 @@ interface ResourcePanelProps {
 export function ResourcePanel({ extension }: ResourcePanelProps) {
   const { t } = useTranslation("settings");
   const resourceTypes = Object.entries(extension.resources ?? {});
+  const tabsClassNames = useMemo(() => ({ tab: "text-[11px]", tabContent: "text-[11px]" }), []);
 
   if (resourceTypes.length === 0) return null;
 
@@ -111,7 +115,7 @@ export function ResourcePanel({ extension }: ResourcePanelProps) {
           typeDef={resourceTypes[0][1]}
         />
       ) : (
-        <Tabs size="sm" variant="underlined" classNames={{ tab: "text-[11px]", tabContent: "text-[11px]" }}>
+        <Tabs size="sm" variant="underlined" classNames={tabsClassNames}>
           {resourceTypes.map(([key, typeDef]) => (
             <Tab key={key} title={typeDef.label}>
               <ResourceTypeTab

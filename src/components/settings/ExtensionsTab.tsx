@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useExtensionActions } from "../../hooks/useExtensions";
 import { useAppStore } from "../../stores/appStore";
@@ -62,6 +62,14 @@ export function ExtensionsTab() {
     });
   }
 
+  const handleAddExtension = useCallback(() => {
+    useAppStore.getState().setView("extension-marketplace");
+  }, []);
+
+  const handleCloseRemoveModal = useCallback((open: boolean) => {
+    if (!open) setRemoveTarget(null);
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -84,7 +92,7 @@ export function ExtensionsTab() {
             </div>
           </div>
           <Button
-            onPress={() => useAppStore.getState().setView("extension-marketplace")}
+            onPress={handleAddExtension}
             className="flex-shrink-0 ml-4"
           >
             <Plus size={12} strokeWidth={1.5} />
@@ -108,6 +116,7 @@ export function ExtensionsTab() {
             <Card key={ext.id} className="overflow-hidden">
               {/* Extension header */}
               <button
+                // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                 onClick={() => toggleExpanded(ext.id)}
                 className="w-full flex items-center justify-between p-5 hover:bg-default-200/20 transition-colors"
               >
@@ -159,6 +168,7 @@ export function ExtensionsTab() {
                   {ext.installed && (
                     <div className="px-4 pt-4 flex items-center gap-2">
                       <Button
+                        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                         onPress={() => {
                           if (ext.enabled) disable(ext.id);
                           else enable(ext.id);
@@ -175,6 +185,7 @@ export function ExtensionsTab() {
                       <Button
                         isDisabled={isBusy}
                         color="danger"
+                        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                         onPress={() => setRemoveTarget(ext.id)}
                       >
                         <Trash2 size={12} strokeWidth={1.5} />
@@ -182,7 +193,7 @@ export function ExtensionsTab() {
                       </Button>
                       <Modal
                         isOpen={removeTarget === ext.id}
-                        onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}
+                        onOpenChange={handleCloseRemoveModal}
                       >
                         <ModalContent>
                           {(onClose) => (
@@ -225,11 +236,12 @@ export function ExtensionsTab() {
                                 </Button>
                                 <Button
                                   color="danger"
+                                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                                   onPress={() => {
                                     remove(ext.id);
                                     onClose();
                                   }}
-                                                                  >
+                                >
                                   {t("common:confirm.removeExtensionAction")}
                                 </Button>
                               </ModalFooter>

@@ -162,6 +162,22 @@ export function AuditTab() {
   const setSeverityFilter = useCallback((v: SeverityFilter) => { _setSeverityFilter(v); setPage(1); }, []);
   const setSubjectFilter = useCallback((v: string) => { _setSubjectFilter(v); setPage(1); }, []);
 
+  const selectedCategoryKeys = useMemo(() => [category], [category]);
+  const selectedPageSizeKeys = useMemo(() => [String(pageSize)], [pageSize]);
+
+  const handleCategorySelectionChange = useCallback((keys: Iterable<unknown>) => {
+    const val = Array.from(keys)[0] as ActionCategory;
+    if (val) setCategory(val);
+  }, [setCategory]);
+
+  const handlePageSizeSelectionChange = useCallback((keys: Iterable<unknown>) => {
+    const val = Number(Array.from(keys)[0]);
+    if (val) {
+      setPageSize(val);
+      setPage(1);
+    }
+  }, []);
+
   useEffect(() => {
     load();
     const id = setInterval(load, 5000);
@@ -222,11 +238,8 @@ export function AuditTab() {
             <Select
               size="sm"
               label={t("auditTab.category")}
-              selectedKeys={[category]}
-              onSelectionChange={(keys) => {
-                const val = Array.from(keys)[0] as ActionCategory;
-                if (val) setCategory(val);
-              }}
+              selectedKeys={selectedCategoryKeys}
+              onSelectionChange={handleCategorySelectionChange}
               className="w-40"
             >
               {ACTION_CATEGORIES.map((c) => (
@@ -241,6 +254,7 @@ export function AuditTab() {
                   variant={resultFilter === r ? "solid" : "flat"}
                   color={r === "success" ? "success" : r === "failure" ? "danger" : "default"}
                   className="cursor-pointer"
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onClick={() => setResultFilter(r)}
                 >
                   {t(`auditTab.result_${r}`)}
@@ -255,6 +269,7 @@ export function AuditTab() {
                   variant={severityFilter === s.key ? "solid" : "flat"}
                   color={s.key === "critical" ? "danger" : s.key === "warn" ? "warning" : "default"}
                   className="cursor-pointer"
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onClick={() => setSeverityFilter(s.key)}
                 >
                   {t(`auditTab.severity_${s.key}`)}
@@ -285,6 +300,7 @@ export function AuditTab() {
                   <Card key={row.id} shadow="none" className="border border-default-200">
                     <CardBody
                       as="button"
+                      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                       onClick={() => toggleExpand(row.id)}
                       className="p-3 flex-row items-center gap-3 cursor-pointer"
                     >
@@ -339,14 +355,8 @@ export function AuditTab() {
                 </span>
                 <Select
                   size="sm"
-                  selectedKeys={[String(pageSize)]}
-                  onSelectionChange={(keys) => {
-                    const val = Number(Array.from(keys)[0]);
-                    if (val) {
-                      setPageSize(val);
-                      setPage(1);
-                    }
-                  }}
+                  selectedKeys={selectedPageSizeKeys}
+                  onSelectionChange={handlePageSizeSelectionChange}
                   className="w-20"
                 >
                   {PAGE_SIZES.map((s) => (

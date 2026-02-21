@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { ClassifiedTool, PluginMetadata } from "../../types/mcp_wrap";
 import type { Permission } from "../../types/permissions";
@@ -157,12 +157,33 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
     { id: "build", label: t("mcpWrap.stepBuild") },
   ];
 
+  const handleModalOpenChange = useCallback(
+    (open: boolean) => { if (!open) onClose(); },
+    [onClose],
+  );
+
+  const handleToolsBack = useCallback(() => setStep("command"), []);
+  const handleToolsNext = useCallback(() => setStep("details"), []);
+  const handleDetailsBack = useCallback(() => setStep("tools"), []);
+  const handleDetailsNext = useCallback(() => setStep("permissions"), []);
+  const handlePermissionsBack = useCallback(() => setStep("details"), []);
+  const handlePermissionsNext = useCallback(() => {
+    setStep("build");
+    handleBuild();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleBuildDone = useCallback(() => {
+    onInstalled();
+    onClose();
+  }, [onInstalled, onClose]);
+
   // -- Render --
 
   return (
     <Modal
       isOpen
-      onOpenChange={(open) => { if (!open) onClose(); }}
+      onOpenChange={handleModalOpenChange}
       hideCloseButton
     >
       <ModalContent>
@@ -214,27 +235,24 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
                   tools={tools}
                   includedTools={includedTools}
                   setIncludedTools={setIncludedTools}
-                  onBack={() => setStep("command")}
-                  onNext={() => setStep("details")}
+                  onBack={handleToolsBack}
+                  onNext={handleToolsNext}
                 />
               )}
               {step === "details" && (
                 <DetailsStep
                   metadata={metadata}
                   setMetadata={setMetadata}
-                  onBack={() => setStep("tools")}
-                  onNext={() => setStep("permissions")}
+                  onBack={handleDetailsBack}
+                  onNext={handleDetailsNext}
                 />
               )}
               {step === "permissions" && (
                 <PermissionsStep
                   permToggles={permToggles}
                   setPermToggles={setPermToggles}
-                  onBack={() => setStep("details")}
-                  onNext={() => {
-                    setStep("build");
-                    handleBuild();
-                  }}
+                  onBack={handlePermissionsBack}
+                  onNext={handlePermissionsNext}
                 />
               )}
               {step === "build" && (
@@ -244,10 +262,7 @@ export function McpWrapWizard({ onClose, onInstalled }: Props) {
                   error={buildError}
                   success={buildSuccess}
                   onRetry={handleBuild}
-                  onDone={() => {
-                    onInstalled();
-                    onClose();
-                  }}
+                  onDone={handleBuildDone}
                 />
               )}
             </ModalBody>
@@ -277,6 +292,13 @@ function CommandStep({
 }) {
   const { t } = useTranslation("plugins");
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && command.trim()) onDiscover();
+    },
+    [command, onDiscover],
+  );
+
   return (
     <>
       <p className="text-[13px] text-default-500 mb-4">
@@ -290,9 +312,7 @@ function CommandStep({
         <Input
           value={command}
           onValueChange={setCommand}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && command.trim()) onDiscover();
-          }}
+          onKeyDown={handleKeyDown}
           placeholder={t("mcpWrap.commandPlaceholder")}
           startContent={
             <Terminal
@@ -382,6 +402,7 @@ function ToolsStep({
                   ? "bg-background border-default-100"
                   : "bg-background/40 border-default-100/40 opacity-50"
               }`}
+              // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
               onClick={() => toggleTool(tool.name)}
             >
               <div className="flex items-center justify-between mb-1">
@@ -403,6 +424,7 @@ function ToolsStep({
                   )}
                 </div>
                 <button
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleTool(tool.name);
@@ -467,6 +489,23 @@ function DetailsStep({
   const { t } = useTranslation("plugins");
   const idValid = /^[a-z0-9][a-z0-9.-]*$/.test(metadata.id);
 
+  const handleIdChange = useCallback(
+    (v: string) => setMetadata({ ...metadata, id: v }),
+    [metadata, setMetadata],
+  );
+  const handleNameChange = useCallback(
+    (v: string) => setMetadata({ ...metadata, name: v }),
+    [metadata, setMetadata],
+  );
+  const handleDescriptionChange = useCallback(
+    (v: string) => setMetadata({ ...metadata, description: v }),
+    [metadata, setMetadata],
+  );
+  const handleAuthorChange = useCallback(
+    (v: string) => setMetadata({ ...metadata, author: v }),
+    [metadata, setMetadata],
+  );
+
   return (
     <>
       <p className="text-[13px] text-default-500 mb-4">
@@ -477,7 +516,7 @@ function DetailsStep({
         <FieldInput
           label={t("mcpWrap.pluginId")}
           value={metadata.id}
-          onChange={(v) => setMetadata({ ...metadata, id: v })}
+          onChange={handleIdChange}
           mono
           placeholder={t("mcpWrap.pluginIdPlaceholder")}
           error={metadata.id && !idValid ? t("mcpWrap.idValidation") : undefined}
@@ -485,19 +524,19 @@ function DetailsStep({
         <FieldInput
           label={t("mcpWrap.displayName")}
           value={metadata.name}
-          onChange={(v) => setMetadata({ ...metadata, name: v })}
+          onChange={handleNameChange}
           placeholder={t("mcpWrap.displayNamePlaceholder")}
         />
         <FieldInput
           label={t("mcpWrap.description")}
           value={metadata.description}
-          onChange={(v) => setMetadata({ ...metadata, description: v })}
+          onChange={handleDescriptionChange}
           placeholder={t("mcpWrap.descriptionPlaceholder")}
         />
         <FieldInput
           label={t("mcpWrap.author")}
           value={metadata.author}
-          onChange={(v) => setMetadata({ ...metadata, author: v })}
+          onChange={handleAuthorChange}
           placeholder={t("mcpWrap.authorPlaceholder")}
         />
       </div>
@@ -583,6 +622,7 @@ function PermissionsStep({
                 </div>
                 <Switch
                   isSelected={enabled}
+                  // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onValueChange={() => toggle(perm)}
                   className="ml-3"
                 />
@@ -694,6 +734,8 @@ function FieldInput({
   error?: string;
   mono?: boolean;
 }) {
+  const monoClassNames = useMemo(() => ({ input: "font-mono" }), []);
+
   return (
     <div>
       <label className="block text-[11px] font-medium text-default-500 mb-1 uppercase tracking-wider">
@@ -705,7 +747,7 @@ function FieldInput({
         placeholder={placeholder}
         color={error ? "danger" : undefined}
         variant="bordered"
-        classNames={mono ? { input: "font-mono" } : undefined}
+        classNames={mono ? monoClassNames : undefined}
       />
       {error && (
         <p className="text-[10px] text-danger mt-0.5">{error}</p>

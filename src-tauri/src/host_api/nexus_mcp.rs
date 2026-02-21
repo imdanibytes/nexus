@@ -14,6 +14,7 @@ use serde_json::json;
 
 use super::approval::{ApprovalBridge, ApprovalDecision, ApprovalRequest};
 use super::mcp::{McpCallResponse, McpContent, McpToolEntry};
+use crate::extensions::RiskLevel;
 use crate::plugin_manager::storage::McpPluginSettings;
 use crate::AppState;
 
@@ -441,6 +442,69 @@ pub fn builtin_tools() -> Vec<McpToolEntry> {
             requires_approval: false,
         },
         McpToolEntry {
+            name: "nexus.fetch_url".into(),
+            description: "Fetch content from a URL via HTTP. Returns the response status, headers, and body. Use for retrieving web pages, calling REST APIs, or checking endpoint availability. Supports GET, POST, PUT, PATCH, DELETE, and HEAD methods. Response bodies larger than 512 KB are truncated. Timeout is 30 seconds (max 60). Only http:// and https:// URLs are supported.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to fetch (must be http:// or https://)."
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+                        "description": "HTTP method (default: GET)."
+                    },
+                    "headers": {
+                        "type": "object",
+                        "description": "Request headers as key-value pairs."
+                    },
+                    "body": {
+                        "type": "string",
+                        "description": "Request body (for POST/PUT/PATCH)."
+                    },
+                    "timeout_secs": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default: 30, max: 60)."
+                    }
+                },
+                "required": ["url"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
+            name: "nexus.directory_tree".into(),
+            description: "Show a directory tree structure. Recursively lists directory contents as a visual tree up to a configurable depth. Use to quickly understand project layout without calling list_directory repeatedly. Skips hidden directories, node_modules, target, __pycache__, and dist by default. Max depth is 6. The Nexus data directory is blocked for security.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the root directory."
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Maximum recursion depth (default: 3, max: 6)."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            plugin_id: NEXUS_PLUGIN_ID.into(),
+            plugin_name: NEXUS_PLUGIN_NAME.into(),
+            required_permissions: vec![],
+            permissions_granted: true,
+            enabled: true,
+            requires_approval: false,
+        },
+        McpToolEntry {
             name: "nexus.execute_command".into(),
             description: "Execute a command on the host system. Returns stdout, stderr, and exit code. Every invocation requires explicit user approval. Use for build commands (cargo, pnpm, make), git operations, package management, or any CLI tool. Pass the command name and args as separate parameters — do NOT combine into a single shell string. Set working_dir for project-scoped commands. Do NOT use for file reads/writes/searches when dedicated nexus.read_file, nexus.write_file, nexus.search_files, or nexus.search_content tools exist. Timeout default is 30s (max 600s) — increase for long builds.".into(),
             input_schema: json!({
@@ -506,6 +570,8 @@ pub async fn handle_call(
         "list_directory" => handle_list_directory(arguments, state).await,
         "search_files" => handle_search_files(arguments, state).await,
         "search_content" => handle_search_content(arguments, state).await,
+        "fetch_url" => handle_fetch_url(arguments).await,
+        "directory_tree" => handle_directory_tree(arguments, state).await,
         // Mutating (require approval)
         "execute_command" | "plugin_start" | "plugin_stop" | "plugin_remove"
         | "plugin_install" | "extension_enable" | "extension_disable" => {
@@ -889,7 +955,32 @@ async fn exec_extension_enable(
     let ext_id = require_str(args, "ext_id")?;
     let mut mgr = state.write().await;
     match mgr.enable_extension(&ext_id) {
-        Ok(()) => ok_json(&json!({ "status": "enabled", "ext_id": ext_id })),
+        Ok(()) => {
+            // Auto-create MCP settings for operations with mcp_expose
+            if let Some(ext) = mgr.extensions.get(&ext_id) {
+                let mcp_ops: Vec<String> = ext
+                    .operations()
+                    .iter()
+                    .filter(|op| op.mcp_expose)
+                    .map(|op| op.name.clone())
+                    .collect();
+                if !mcp_ops.is_empty() {
+                    let settings = mgr
+                        .mcp_settings
+                        .plugins
+                        .entry(ext_id.clone())
+                        .or_insert_with(McpPluginSettings::default);
+                    for op in mcp_ops {
+                        if !settings.enabled_tools.contains(&op) {
+                            settings.enabled_tools.push(op);
+                        }
+                    }
+                    let _ = mgr.mcp_settings.save();
+                }
+            }
+            mgr.notify_tools_changed();
+            ok_json(&json!({ "status": "enabled", "ext_id": ext_id }))
+        }
         Err(e) => ok_error(format!("Failed to enable '{}': {}", ext_id, e)),
     }
 }
@@ -901,7 +992,10 @@ async fn exec_extension_disable(
     let ext_id = require_str(args, "ext_id")?;
     let mut mgr = state.write().await;
     match mgr.disable_extension(&ext_id) {
-        Ok(()) => ok_json(&json!({ "status": "disabled", "ext_id": ext_id })),
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            ok_json(&json!({ "status": "disabled", "ext_id": ext_id }))
+        }
         Err(e) => ok_error(format!("Failed to disable '{}': {}", ext_id, e)),
     }
 }
@@ -1236,6 +1330,237 @@ async fn handle_search_content(
     }))
 }
 
+// ---------------------------------------------------------------------------
+// Fetch & Tree handlers
+// ---------------------------------------------------------------------------
+
+async fn handle_fetch_url(
+    args: &serde_json::Value,
+) -> Result<McpCallResponse, StatusCode> {
+    let url_str = require_str(args, "url")?;
+    let method = args
+        .get("method")
+        .and_then(|v| v.as_str())
+        .unwrap_or("GET")
+        .to_uppercase();
+    let timeout_secs = args
+        .get("timeout_secs")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(30)
+        .min(60);
+    let body = args.get("body").and_then(|v| v.as_str()).map(String::from);
+    let headers: Vec<(String, String)> = args
+        .get("headers")
+        .and_then(|v| v.as_object())
+        .map(|obj| {
+            obj.iter()
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Validate URL
+    let url = match reqwest::Url::parse(&url_str) {
+        Ok(u) => u,
+        Err(e) => return ok_error(format!("Invalid URL: {}", e)),
+    };
+
+    let scheme = url.scheme();
+    if scheme != "http" && scheme != "https" {
+        return ok_error(format!(
+            "Only http:// and https:// URLs are supported, got {}://",
+            scheme
+        ));
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut request = match method.as_str() {
+        "GET" => client.get(url),
+        "POST" => client.post(url),
+        "PUT" => client.put(url),
+        "PATCH" => client.patch(url),
+        "DELETE" => client.delete(url),
+        "HEAD" => client.head(url),
+        _ => return ok_error(format!("Unsupported HTTP method: {}", method)),
+    };
+
+    for (key, value) in &headers {
+        request = request.header(key.as_str(), value.as_str());
+    }
+
+    if matches!(method.as_str(), "POST" | "PUT" | "PATCH") {
+        if let Some(ref b) = body {
+            request = request.body(b.clone());
+        }
+    }
+
+    let response = match request.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            if e.is_timeout() {
+                return ok_error(format!("Request timed out after {}s", timeout_secs));
+            }
+            return ok_error(format!("Fetch failed: {}", e));
+        }
+    };
+
+    let status = response.status();
+    let status_line = format!("{} {}", status.as_u16(), status.canonical_reason().unwrap_or(""));
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+
+    if method == "HEAD" {
+        let header_lines: Vec<String> = response
+            .headers()
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k, v.to_str().unwrap_or("<binary>")))
+            .collect();
+        return ok_json(&json!({
+            "status": status.as_u16(),
+            "status_text": status_line,
+            "headers": header_lines.join("\n"),
+        }));
+    }
+
+    const MAX_BYTES: usize = 512 * 1024;
+    let bytes = match response.bytes().await {
+        Ok(b) => b,
+        Err(e) => return ok_error(format!("Failed to read response body: {}", e)),
+    };
+
+    let truncated = bytes.len() > MAX_BYTES;
+    let raw = String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_BYTES)]).to_string();
+
+    // Convert HTML to Markdown so the model gets semantic content with links, not raw markup
+    let is_html = content_type.contains("text/html")
+        || content_type.contains("application/xhtml");
+    let body_text = if is_html {
+        htmd::convert(&raw).unwrap_or(raw)
+    } else {
+        raw
+    };
+
+    ok_json(&json!({
+        "status": status.as_u16(),
+        "status_text": status_line,
+        "content_type": content_type,
+        "body": body_text,
+        "truncated": truncated,
+        "body_bytes": bytes.len(),
+    }))
+}
+
+async fn handle_directory_tree(
+    args: &serde_json::Value,
+    state: &AppState,
+) -> Result<McpCallResponse, StatusCode> {
+    let path = require_str(args, "path")?;
+    let depth = args
+        .get("depth")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(3)
+        .min(6) as usize;
+
+    let canonical = std::path::PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let mgr = state.read().await;
+    if canonical.starts_with(&mgr.data_dir) {
+        return ok_error("Access to Nexus data directory is blocked".into());
+    }
+    drop(mgr);
+
+    if !canonical.is_dir() {
+        return ok_error(format!("'{}' is not a directory", path));
+    }
+
+    let mut lines = vec![canonical.to_string_lossy().to_string()];
+    build_tree(&canonical, "", depth, &mut lines);
+
+    ok_json(&json!({
+        "tree": lines.join("\n"),
+    }))
+}
+
+/// Directories to skip when building the tree.
+const SKIP_DIRS: &[&str] = &[
+    "node_modules",
+    "target",
+    "__pycache__",
+    "dist",
+    ".git",
+    ".next",
+    ".cache",
+];
+
+fn build_tree(
+    dir: &std::path::Path,
+    prefix: &str,
+    remaining_depth: usize,
+    lines: &mut Vec<String>,
+) {
+    let mut entries: Vec<std::fs::DirEntry> = match std::fs::read_dir(dir) {
+        Ok(rd) => rd.flatten().collect(),
+        Err(_) => return,
+    };
+
+    // Sort: directories first, then alphabetical
+    entries.sort_by(|a, b| {
+        let a_dir = a.metadata().map(|m| m.is_dir()).unwrap_or(false);
+        let b_dir = b.metadata().map(|m| m.is_dir()).unwrap_or(false);
+        match (a_dir, b_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.file_name().cmp(&b.file_name()),
+        }
+    });
+
+    // Filter hidden entries
+    entries.retain(|e| {
+        let name = e.file_name();
+        let name_str = name.to_string_lossy();
+        !name_str.starts_with('.')
+    });
+
+    let total = entries.len();
+    for (i, entry) in entries.iter().enumerate() {
+        let is_last = i == total - 1;
+        let connector = if is_last { "└── " } else { "├── " };
+        let child_prefix = if is_last { "    " } else { "│   " };
+
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        let is_dir = entry.metadata().map(|m| m.is_dir()).unwrap_or(false);
+
+        let display = if is_dir {
+            format!("{}/", name_str)
+        } else {
+            name_str.to_string()
+        };
+
+        lines.push(format!("{}{}{}", prefix, connector, display));
+
+        if is_dir && remaining_depth > 1 && !SKIP_DIRS.contains(&name_str.as_ref()) {
+            build_tree(
+                &entry.path(),
+                &format!("{}{}", prefix, child_prefix),
+                remaining_depth - 1,
+                lines,
+            );
+        }
+    }
+}
+
 async fn exec_execute_command(
     args: &serde_json::Value,
     state: &AppState,
@@ -1303,6 +1628,170 @@ async fn exec_execute_command(
             "stderr": format!("Command timed out after {} seconds", timeout_secs),
             "timed_out": true,
         })),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Extension MCP tools
+// ---------------------------------------------------------------------------
+
+/// Returns MCP tool entries for extension operations marked with `mcp_expose: true`.
+///
+/// Each exposed operation becomes a tool named `{ext_id}.{operation_name}`.
+/// Only operations from extensions that are both installed+enabled AND registered
+/// in the extension registry (i.e. actually running) are included.
+pub async fn extension_mcp_tools(state: &AppState) -> Vec<McpToolEntry> {
+    let mgr = state.read().await;
+    let mut tools = Vec::new();
+
+    for ext_info in mgr.extensions.list() {
+        // Only include extensions that are installed and enabled
+        let is_enabled = mgr
+            .extension_loader
+            .storage
+            .get(&ext_info.id)
+            .is_some_and(|e| e.enabled);
+        if !is_enabled {
+            continue;
+        }
+
+        for op in &ext_info.operations {
+            if !op.mcp_expose {
+                continue;
+            }
+
+            let description = op
+                .mcp_description
+                .as_deref()
+                .unwrap_or(&op.description)
+                .to_string();
+
+            tools.push(McpToolEntry {
+                name: format!("{}.{}", ext_info.id, op.name),
+                description,
+                input_schema: op.input_schema.clone(),
+                plugin_id: ext_info.id.clone(),
+                plugin_name: ext_info.display_name.clone(),
+                required_permissions: vec![],
+                permissions_granted: true,
+                enabled: true,
+                requires_approval: matches!(op.risk_level, RiskLevel::Medium | RiskLevel::High),
+            });
+        }
+    }
+
+    tools
+}
+
+/// Handle a call to an extension MCP tool (`{ext_id}.{operation}`).
+///
+/// Medium/high risk operations go through the ApprovalBridge. Low risk executes directly.
+pub async fn handle_extension_call(
+    ext_id: &str,
+    operation: &str,
+    arguments: &serde_json::Value,
+    state: &AppState,
+    bridge: &Arc<ApprovalBridge>,
+) -> Result<McpCallResponse, StatusCode> {
+    // Look up the extension and validate the operation has mcp_expose
+    let (ext_arc, op_def) = {
+        let mgr = state.read().await;
+        let ext = mgr.extensions.get_arc(ext_id).ok_or(StatusCode::NOT_FOUND)?;
+        let op = ext
+            .operations()
+            .into_iter()
+            .find(|o| o.name == operation && o.mcp_expose)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        (ext, op)
+    };
+
+    let tool_name = format!("{}.{}", ext_id, operation);
+    let risk = op_def.risk_level;
+
+    // Low risk: execute directly. Medium/High: approval bridge.
+    if matches!(risk, RiskLevel::Medium | RiskLevel::High) {
+        // Check if already permanently approved
+        let already_approved = {
+            let mgr = state.read().await;
+            mgr.mcp_settings
+                .plugins
+                .get(ext_id)
+                .is_some_and(|s| s.approved_tools.contains(&operation.to_string()))
+        };
+
+        if !already_approved {
+            let mut context = std::collections::HashMap::new();
+            context.insert("tool_name".to_string(), tool_name.clone());
+            context.insert("plugin_name".to_string(), ext_id.to_string());
+            context.insert("description".to_string(), op_def.description.clone());
+
+            if let serde_json::Value::Object(map) = arguments {
+                for (k, v) in map {
+                    let display = match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    context.insert(format!("arg.{}", k), display);
+                }
+            }
+
+            let approval_req = ApprovalRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                plugin_id: ext_id.to_string(),
+                plugin_name: ext_id.to_string(),
+                category: "mcp_tool".to_string(),
+                permission: format!("mcp:{}:{}", ext_id, operation),
+                context,
+            };
+
+            match bridge.request_approval(approval_req).await {
+                ApprovalDecision::Approve => {
+                    let mut mgr = state.write().await;
+                    let settings = mgr
+                        .mcp_settings
+                        .plugins
+                        .entry(ext_id.to_string())
+                        .or_insert_with(McpPluginSettings::default);
+                    if !settings.approved_tools.contains(&operation.to_string()) {
+                        settings.approved_tools.push(operation.to_string());
+                    }
+                    let _ = mgr.mcp_settings.save();
+                    drop(mgr);
+                    log::info!(
+                        "AUDIT Extension MCP tool permanently approved: tool={}",
+                        tool_name
+                    );
+                }
+                ApprovalDecision::ApproveOnce => {
+                    log::info!(
+                        "AUDIT Extension MCP tool approved once: tool={}",
+                        tool_name
+                    );
+                }
+                ApprovalDecision::Deny => {
+                    log::warn!("AUDIT Extension MCP tool denied: tool={}", tool_name);
+                    return ok_error(format!(
+                        "[Nexus] Tool '{}' was denied by the user.",
+                        tool_name
+                    ));
+                }
+            }
+        }
+    }
+
+    // Execute the operation
+    match ext_arc.execute(operation, arguments.clone()).await {
+        Ok(result) => {
+            if result.success {
+                ok_json(&result.data)
+            } else {
+                let msg = result
+                    .message
+                    .unwrap_or_else(|| "Operation failed".to_string());
+                ok_error(msg)
+            }
+        }
+        Err(e) => ok_error(format!("Extension operation failed: {}", e)),
     }
 }
 

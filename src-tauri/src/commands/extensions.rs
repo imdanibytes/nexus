@@ -244,6 +244,28 @@ pub async fn extension_install(
     let mut mgr = state.write().await;
     match mgr.extension_loader.install(manifest, Some(&manifest_url)).await {
         Ok(installed) => {
+            // Auto-create MCP settings for operations with mcp_expose
+            let mcp_ops: Vec<String> = installed
+                .manifest
+                .operations
+                .iter()
+                .filter(|op| op.mcp_expose)
+                .map(|op| op.name.clone())
+                .collect();
+            if !mcp_ops.is_empty() {
+                let settings = mgr
+                    .mcp_settings
+                    .plugins
+                    .entry(ext_id.clone())
+                    .or_insert_with(crate::plugin_manager::storage::McpPluginSettings::default);
+                for op in mcp_ops {
+                    if !settings.enabled_tools.contains(&op) {
+                        settings.enabled_tools.push(op);
+                    }
+                }
+                let _ = mgr.mcp_settings.save();
+                mgr.notify_tools_changed();
+            }
             if let Some(status) = build_extension_status(&mgr, &ext_id) {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
                     extension: status,
@@ -276,6 +298,29 @@ pub async fn extension_enable(
     let mut mgr = state.write().await;
     match mgr.enable_extension(&ext_id) {
         Ok(()) => {
+            // Auto-create MCP settings for extensions with mcp_expose operations
+            if let Some(ext) = mgr.extensions.get(&ext_id) {
+                let mcp_ops: Vec<String> = ext
+                    .operations()
+                    .iter()
+                    .filter(|op| op.mcp_expose)
+                    .map(|op| op.name.clone())
+                    .collect();
+                if !mcp_ops.is_empty() {
+                    let settings = mgr
+                        .mcp_settings
+                        .plugins
+                        .entry(ext_id.clone())
+                        .or_insert_with(crate::plugin_manager::storage::McpPluginSettings::default);
+                    for op in mcp_ops {
+                        if !settings.enabled_tools.contains(&op) {
+                            settings.enabled_tools.push(op);
+                        }
+                    }
+                    let _ = mgr.mcp_settings.save();
+                }
+            }
+            mgr.notify_tools_changed();
             if let Some(status) = build_extension_status(&mgr, &ext_id) {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionEnabled {
                     extension: status,
@@ -308,6 +353,7 @@ pub async fn extension_disable(
     let mut mgr = state.write().await;
     match mgr.disable_extension(&ext_id) {
         Ok(()) => {
+            mgr.notify_tools_changed();
             if let Some(status) = build_extension_status(&mgr, &ext_id) {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionDisabled {
                     extension: status,

@@ -44,6 +44,15 @@ pub struct OperationDef {
     /// Human-readable label for the scope (shown in approval dialogs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope_description: Option<String>,
+    /// When true, this operation is exposed as an MCP tool so AI clients can
+    /// call it directly via the MCP gateway. Tool name: `{ext_id}.{op_name}`.
+    #[serde(default)]
+    pub mcp_expose: bool,
+    /// Optional richer description for the MCP tool listing. AI clients see this
+    /// instead of `description` when present. Use for longer instructions,
+    /// usage hints, or examples that would clutter the UI-facing description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_description: Option<String>,
 }
 
 /// Successful result from executing an operation.
@@ -98,9 +107,12 @@ pub enum ExtensionError {
 /// The core extension trait. Each extension implements this trait,
 /// is registered in the ExtensionRegistry, and exposed via the Host API.
 ///
-/// Extensions are pure infrastructure — they provide capabilities, not user-facing tools.
-/// Only plugins expose MCP tools and UIs. The call chain is:
-/// AI → MCP gateway → Plugin MCP tool → Host API /v1/extensions/{ext}/{op} → Extension → host CLI
+/// Extensions provide capabilities that plugins consume via the Host API:
+///   Plugin → Host API /v1/extensions/{ext}/{op} → Extension
+///
+/// Operations with `mcp_expose: true` are also registered as MCP tools,
+/// allowing AI clients to call them directly:
+///   AI → MCP gateway → Extension
 #[async_trait]
 pub trait Extension: Send + Sync + 'static {
     /// Unique identifier, e.g. "weather" or "file_sync"

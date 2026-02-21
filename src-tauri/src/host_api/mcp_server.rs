@@ -243,6 +243,46 @@ impl ServerHandler for NexusMcpServer {
             }
         }
 
+        // 4. Extension MCP tools (operations with mcp_expose: true)
+        drop(mgr);
+        for ext_tool in super::nexus_mcp::extension_mcp_tools(&self.state).await {
+            let ext_id = &ext_tool.plugin_id;
+            let local_name = ext_tool
+                .name
+                .strip_prefix(&format!("{}.", ext_id))
+                .unwrap_or(&ext_tool.name);
+
+            let mgr = self.state.read().await;
+            let ext_mcp = mgr.mcp_settings.plugins.get(ext_id);
+            let ext_enabled = ext_mcp.is_some_and(|s| s.enabled);
+            if !ext_enabled {
+                continue;
+            }
+            let tool_enabled = ext_mcp
+                .is_some_and(|s| s.enabled_tools.contains(&local_name.to_string()));
+            if !tool_enabled {
+                continue;
+            }
+            drop(mgr);
+
+            let schema = match ext_tool.input_schema {
+                serde_json::Value::Object(map) => map,
+                _ => serde_json::Map::new(),
+            };
+
+            tools.push(Tool {
+                name: Cow::Owned(ext_tool.name),
+                title: None,
+                description: Some(Cow::Owned(ext_tool.description)),
+                input_schema: Arc::new(schema),
+                output_schema: None,
+                annotations: None,
+                execution: None,
+                icons: None,
+                meta: None,
+            });
+        }
+
         Ok(ListToolsResult {
             tools,
             next_cursor: None,
@@ -301,6 +341,73 @@ impl ServerHandler for NexusMcpServer {
                     None,
                 )),
             };
+        }
+
+        // Extension MCP tools: {ext_id}.{operation}
+        if let Some(dot_pos) = tool_name.find('.') {
+            let ext_id = &tool_name[..dot_pos];
+            let operation = &tool_name[dot_pos + 1..];
+
+            // Check if this is a registered extension with an mcp_expose operation
+            let is_ext_mcp = {
+                let mgr = self.state.read().await;
+                mgr.extensions
+                    .get(ext_id)
+                    .is_some_and(|ext| {
+                        ext.operations()
+                            .iter()
+                            .any(|op| op.name == operation && op.mcp_expose)
+                    })
+            };
+
+            if is_ext_mcp {
+                let arguments = request
+                    .arguments
+                    .map(serde_json::Value::Object)
+                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+                // Check MCP settings enable
+                let mgr = self.state.read().await;
+                let ext_mcp = mgr.mcp_settings.plugins.get(ext_id);
+                let enabled = ext_mcp.is_some_and(|s| {
+                    s.enabled && s.enabled_tools.contains(&operation.to_string())
+                });
+                drop(mgr);
+
+                if !enabled {
+                    return Err(McpError::invalid_request(
+                        format!("Tool '{}.{}' is not enabled", ext_id, operation),
+                        None,
+                    ));
+                }
+
+                return match super::nexus_mcp::handle_extension_call(
+                    ext_id,
+                    operation,
+                    &arguments,
+                    &self.state,
+                    &self.approval_bridge,
+                )
+                .await
+                {
+                    Ok(resp) => {
+                        let content: Vec<Content> = resp
+                            .content
+                            .into_iter()
+                            .map(|item| Content::text(item.text))
+                            .collect();
+                        if resp.is_error {
+                            Ok(CallToolResult::error(content))
+                        } else {
+                            Ok(CallToolResult::success(content))
+                        }
+                    }
+                    Err(_status) => Err(McpError::internal_error(
+                        format!("Extension tool '{}.{}' failed", ext_id, operation),
+                        None,
+                    )),
+                };
+            }
         }
 
         // Resolve namespaced tool → plugin_id + local_name

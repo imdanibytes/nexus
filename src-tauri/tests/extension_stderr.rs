@@ -49,6 +49,8 @@ fn test_manifest() -> ExtensionManifest {
             input_schema: json!({"type": "object", "properties": {}}),
             scope_key: None,
             scope_description: None,
+            mcp_expose: false,
+            mcp_description: None,
         }],
         capabilities: vec![],
         author_public_key: "dGVzdA==".into(), // dummy base64

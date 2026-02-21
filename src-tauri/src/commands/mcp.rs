@@ -55,6 +55,12 @@ pub async fn mcp_set_enabled(
             .collect();
         // Include the virtual "nexus" plugin for built-in MCP tools
         plugin_ids.push("nexus".to_string());
+        // Include extension IDs for extension MCP tools
+        for ext_info in mgr.extensions.list() {
+            if ext_info.operations.iter().any(|op| op.mcp_expose) {
+                plugin_ids.push(ext_info.id);
+            }
+        }
 
         for pid in &plugin_ids {
             let prefix = format!("{}.", pid);
@@ -145,6 +151,7 @@ pub async fn mcp_list_tools(
     // Append built-in Nexus management tools
     let nexus_mcp = mgr.mcp_settings.plugins.get("nexus");
     let nexus_plugin_enabled = nexus_mcp.is_some_and(|s| s.enabled);
+    let mcp_global_enabled = mgr.mcp_settings.enabled;
     for builtin in crate::host_api::nexus_mcp::builtin_tools() {
         let local_name = builtin.name.strip_prefix("nexus.").unwrap_or(&builtin.name);
         let tool_in_whitelist =
@@ -157,12 +164,45 @@ pub async fn mcp_list_tools(
             plugin_id: "nexus".to_string(),
             plugin_name: "Nexus".to_string(),
             plugin_running: true,
-            mcp_global_enabled: mgr.mcp_settings.enabled,
+            mcp_global_enabled,
             mcp_plugin_enabled: nexus_plugin_enabled,
             tool_enabled: tool_in_whitelist,
             required_permissions: vec![],
             permissions_granted: true,
             requires_approval: builtin.requires_approval,
+        });
+    }
+
+    // Drop the read lock before calling extension_mcp_tools (which acquires its own)
+    drop(mgr);
+
+    // Append extension MCP tools (operations with mcp_expose: true)
+    for ext_tool in crate::host_api::nexus_mcp::extension_mcp_tools(&state).await {
+        let ext_id = &ext_tool.plugin_id;
+        let local_name = ext_tool
+            .name
+            .strip_prefix(&format!("{}.", ext_id))
+            .unwrap_or(&ext_tool.name);
+
+        let mgr = state.read().await;
+        let ext_mcp = mgr.mcp_settings.plugins.get(ext_id);
+        let ext_plugin_enabled = ext_mcp.is_some_and(|s| s.enabled);
+        let tool_in_whitelist =
+            ext_mcp.is_some_and(|s| s.enabled_tools.contains(&local_name.to_string()));
+
+        tools.push(McpToolStatus {
+            name: ext_tool.name,
+            description: ext_tool.description,
+            input_schema: ext_tool.input_schema,
+            plugin_id: ext_id.clone(),
+            plugin_name: ext_tool.plugin_name,
+            plugin_running: true, // extension is running if it's in the registry
+            mcp_global_enabled,
+            mcp_plugin_enabled: ext_plugin_enabled,
+            tool_enabled: tool_in_whitelist,
+            required_permissions: vec![],
+            permissions_granted: true,
+            requires_approval: ext_tool.requires_approval,
         });
     }
 

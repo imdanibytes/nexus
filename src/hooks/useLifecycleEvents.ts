@@ -132,6 +132,7 @@ export function useLifecycleEvents() {
           break;
         case "extension:error":
           setExtensionBusy(e.ext_id, null);
+          setInstallStatus(null);
           addNotification(`Extension ${e.action} failed: ${e.message}`, "error");
           break;
       }

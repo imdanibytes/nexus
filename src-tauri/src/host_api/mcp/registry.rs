@@ -115,7 +115,7 @@ impl McpRegistry {
         if !mgr.mcp_settings.enabled { return resources; }
         for (plugin_id, cache) in mgr.mcp_clients.iter() {
             let plugin_mcp = mgr.mcp_settings.plugins.get(plugin_id);
-            if !plugin_mcp.map_or(true, |s| s.enabled) { continue; }
+            if !plugin_mcp.is_some_and(|s| s.enabled) { continue; }
             if let Some(plugin) = mgr.storage.get(plugin_id) {
                 if !plugin.manifest.permissions.iter().all(|perm| mgr.permissions.has_permission(plugin_id, perm)) { continue; }
             }
@@ -133,7 +133,7 @@ impl McpRegistry {
         let mut templates = Vec::new();
         if !mgr.mcp_settings.enabled { return templates; }
         for (plugin_id, cache) in mgr.mcp_clients.iter() {
-            if !mgr.mcp_settings.plugins.get(plugin_id).map_or(true, |s| s.enabled) { continue; }
+            if !mgr.mcp_settings.plugins.get(plugin_id).is_some_and(|s| s.enabled) { continue; }
             for t in &cache.resource_templates { templates.push(t.clone()); }
         }
         templates
@@ -145,7 +145,7 @@ impl McpRegistry {
         if !mgr.mcp_settings.enabled { return prompts; }
         for (plugin_id, cache) in mgr.mcp_clients.iter() {
             let plugin_mcp = mgr.mcp_settings.plugins.get(plugin_id);
-            if !plugin_mcp.map_or(true, |s| s.enabled) { continue; }
+            if !plugin_mcp.is_some_and(|s| s.enabled) { continue; }
             for p in &cache.prompts {
                 if !plugin_mcp.is_some_and(|s| s.disabled_prompts.contains(&p.name)) {
                     let mut p_clone = p.clone();

@@ -462,6 +462,45 @@ export async function apiKeyRegenerateDefault(): Promise<GeneratedApiKey> {
   return invoke("api_key_regenerate_default");
 }
 
+// Audit
+
+import type { AuditLogRow } from "../types/audit";
+
+export async function auditQuery(params: {
+  action?: string;
+  actor?: string;
+  source_id?: string;
+  severity?: string;
+  subject?: string;
+  result?: string;
+  since?: string;
+  until?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AuditLogRow[]> {
+  return invoke("audit_query", params);
+}
+
+export async function auditCount(params: {
+  action?: string;
+  actor?: string;
+  source_id?: string;
+  severity?: string;
+  subject?: string;
+  result?: string;
+  since?: string;
+  until?: string;
+}): Promise<number> {
+  return invoke("audit_count", params);
+}
+
+export async function auditExport(params: {
+  since?: string;
+  until?: string;
+}): Promise<string> {
+  return invoke("audit_export", params);
+}
+
 // Extension Resources
 
 export async function extensionResourceList(

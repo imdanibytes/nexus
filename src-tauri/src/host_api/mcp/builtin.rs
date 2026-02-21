@@ -800,7 +800,10 @@ async fn exec_plugin_start(args: &serde_json::Value, state: &AppState) -> Result
     let plugin_id = require_str(args, "plugin_id")?;
     let mut mgr = state.write().await;
     match mgr.start(&plugin_id).await {
-        Ok(()) => { mgr.notify_tools_changed(); ok_json(&json!({ "status": "started", "plugin_id": plugin_id })) }
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            ok_json(&json!({ "status": "started", "plugin_id": plugin_id }))
+        }
         Err(e) => ok_error(format!("Failed to start '{}': {}", plugin_id, e)),
     }
 }
@@ -809,7 +812,10 @@ async fn exec_plugin_stop(args: &serde_json::Value, state: &AppState) -> Result<
     let plugin_id = require_str(args, "plugin_id")?;
     let mut mgr = state.write().await;
     match mgr.stop(&plugin_id).await {
-        Ok(()) => { mgr.notify_tools_changed(); ok_json(&json!({ "status": "stopped", "plugin_id": plugin_id })) }
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            ok_json(&json!({ "status": "stopped", "plugin_id": plugin_id }))
+        }
         Err(e) => ok_error(format!("Failed to stop '{}': {}", plugin_id, e)),
     }
 }
@@ -818,7 +824,10 @@ async fn exec_plugin_remove(args: &serde_json::Value, state: &AppState) -> Resul
     let plugin_id = require_str(args, "plugin_id")?;
     let mut mgr = state.write().await;
     match mgr.remove(&plugin_id).await {
-        Ok(()) => { mgr.notify_tools_changed(); ok_json(&json!({ "status": "removed", "plugin_id": plugin_id })) }
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            ok_json(&json!({ "status": "removed", "plugin_id": plugin_id }))
+        }
         Err(e) => ok_error(format!("Failed to remove '{}': {}", plugin_id, e)),
     }
 }
@@ -833,7 +842,10 @@ async fn exec_plugin_install(args: &serde_json::Value, state: &AppState) -> Resu
     let plugin_id = manifest.id.clone();
     let mut mgr = state.write().await;
     match mgr.install(manifest, vec![], vec![], Some(&manifest_url), None).await {
-        Ok(_) => { mgr.notify_tools_changed(); ok_json(&json!({ "status": "installed", "plugin_id": plugin_id })) }
+        Ok(_) => {
+            mgr.notify_tools_changed();
+            ok_json(&json!({ "status": "installed", "plugin_id": plugin_id }))
+        }
         Err(e) => ok_error(format!("Failed to install '{}': {}", plugin_id, e)),
     }
 }
@@ -862,7 +874,10 @@ async fn exec_extension_disable(args: &serde_json::Value, state: &AppState) -> R
     let ext_id = require_str(args, "ext_id")?;
     let mut mgr = state.write().await;
     match mgr.disable_extension(&ext_id) {
-        Ok(()) => { mgr.notify_tools_changed(); ok_json(&json!({ "status": "disabled", "ext_id": ext_id })) }
+        Ok(()) => {
+            mgr.notify_tools_changed();
+            ok_json(&json!({ "status": "disabled", "ext_id": ext_id }))
+        }
         Err(e) => ok_error(format!("Failed to disable '{}': {}", ext_id, e)),
     }
 }
@@ -880,7 +895,9 @@ async fn exec_plugin_install_local(args: &serde_json::Value, state: &AppState) -
     }
     let was_running = { let mgr = state.read().await; mgr.storage.get(&plugin_id).is_some_and(|p| matches!(p.status, crate::plugin_manager::storage::PluginStatus::Running)) };
     let mut mgr = state.write().await;
-    if let Err(e) = mgr.install(manifest, vec![], vec![], None, Some(manifest_path.clone())).await { return ok_error(format!("Failed to install '{}': {}", plugin_id, e)); }
+    if let Err(e) = mgr.install(manifest, vec![], vec![], None, Some(manifest_path.clone())).await {
+        return ok_error(format!("Failed to install '{}': {}", plugin_id, e));
+    }
     if was_running { let _ = mgr.start(&plugin_id).await; }
     mgr.notify_tools_changed();
     ok_json(&json!({ "status": "installed", "plugin_id": plugin_id }))
@@ -897,7 +914,9 @@ async fn exec_extension_install_local(args: &serde_json::Value, state: &AppState
         match crate::extensions::loader::cargo_build_extension(manifest_dir).await { Ok(path) => Some(path), Err(e) => return ok_error(format!("Build failed: {}", e)) }
     } else { None };
     let was_enabled = { let mgr = state.read().await; mgr.extension_loader.storage.get(&ext_id).is_some_and(|e| e.enabled) };
-    { let mut mgr = state.write().await; if let Err(e) = mgr.install_extension_local(manifest_path, binary_override.as_deref()) { return ok_error(format!("Failed to install '{}': {}", ext_id, e)); } }
+    { let mut mgr = state.write().await; if let Err(e) = mgr.install_extension_local(manifest_path, binary_override.as_deref()) {
+        return ok_error(format!("Failed to install '{}': {}", ext_id, e));
+    } }
     if was_enabled { let mut mgr = state.write().await; let _ = mgr.enable_extension(&ext_id); }
     state.read().await.notify_tools_changed();
     ok_json(&json!({ "status": "installed", "ext_id": ext_id }))
@@ -984,7 +1003,16 @@ async fn handle_search_files(args: &serde_json::Value, state: &AppState) -> Resu
     let full_pattern = canonical.join(&pattern).to_string_lossy().to_string();
     let mut matches = Vec::new();
     match glob::glob(&full_pattern) {
-        Ok(paths) => { for entry in paths { if let Ok(p) = entry { matches.push(p.to_string_lossy().to_string()); } if matches.len() >= 1000 { break; } } }
+        Ok(paths) => {
+            for entry in paths {
+                if let Ok(p) = entry {
+                    matches.push(p.to_string_lossy().to_string());
+                }
+                if matches.len() >= 1000 {
+                    break;
+                }
+            }
+        }
         Err(e) => return ok_error(format!("Invalid glob pattern: {}", e)),
     }
     ok_json(&json!({ "pattern": pattern, "base_path": canonical.to_string_lossy(), "matches": matches, "truncated": matches.len() >= 1000 }))
@@ -1079,7 +1107,7 @@ async fn exec_execute_command(args: &serde_json::Value, _state: &AppState) -> Re
             let out = child.wait_with_output().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             ok_json(&json!({ "exit_code": out.status.code(), "stdout": String::from_utf8_lossy(&out.stdout), "stderr": String::from_utf8_lossy(&out.stderr) }))
         }
-        Err(e) => ok_error(format!("Failed to spawn: {}", e))
+        Err(e) => ok_error(format!("Failed to spawn: {}", e)),
     }
 }
 
@@ -1133,13 +1161,16 @@ pub async fn handle_extension_call(ext_id: &str, operation: &str, arguments: &se
                     let _ = mgr.mcp_settings.save();
                 }
                 ApprovalDecision::ApproveOnce => {}
-                ApprovalDecision::Deny => return ok_error(format!("Denied by user"))
+                ApprovalDecision::Deny => return ok_error("Denied by user".to_string())
             }
         }
     }
     match ext_arc.execute(operation, arguments.clone()).await {
-        Ok(result) => { if result.success { ok_json(&result.data) } else { ok_error(result.message.unwrap_or_else(|| "Failed".into())) } }
-        Err(e) => ok_error(format!("Extension error: {}", e))
+        Ok(result) => {
+            if result.success { ok_json(&result.data) }
+            else { ok_error(result.message.unwrap_or_else(|| "Failed".into())) }
+        }
+        Err(e) => ok_error(format!("Extension error: {}", e)),
     }
 }
 

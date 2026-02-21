@@ -1,3 +1,5 @@
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::lifecycle_events::{self, LifecycleEvent};
 use crate::permissions::Permission;
 use crate::plugin_manager::dev_watcher::DevWatcher;
@@ -51,6 +53,7 @@ pub async fn plugin_preview_local(
 #[tauri::command]
 pub async fn plugin_install(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     manifest_url: String,
     approved_permissions: Vec<Permission>,
@@ -62,6 +65,7 @@ pub async fn plugin_install(
         .map_err(|e| e.to_string())?;
 
     let plugin_id = manifest.id.clone();
+    let version = manifest.version.clone();
 
     lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalling {
         message: "Installing plugin...".into(),
@@ -96,13 +100,27 @@ pub async fn plugin_install(
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalled {
                 plugin: plugin.clone(),
             });
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn,
+                action: "plugin.install".into(),
+                subject: Some(plugin_id),
+                result: AuditResult::Success,
+                details: Some(serde_json::json!({"version": version, "source": manifest_url})),
+            });
             Ok(plugin)
         }
         Err(e) => {
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
-                plugin_id,
+                plugin_id: plugin_id.clone(),
                 action: "installing".into(),
                 message: e.to_string(),
+            });
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn,
+                action: "plugin.install".into(),
+                subject: Some(plugin_id),
+                result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
             });
             Err(e)
         }
@@ -112,6 +130,7 @@ pub async fn plugin_install(
 #[tauri::command]
 pub async fn plugin_install_local(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     manifest_path: String,
     approved_permissions: Vec<Permission>,
@@ -157,6 +176,23 @@ pub async fn plugin_install_local(
             .map_err(|e| e.to_string())
     }.await;
 
+    match &result {
+        Ok(_) => audit.record(AuditEntry {
+            actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn,
+            action: "plugin.install".into(),
+            subject: Some(plugin_id.clone()),
+            result: AuditResult::Success,
+            details: Some(serde_json::json!({"local": true})),
+        }),
+        Err(e) => audit.record(AuditEntry {
+            actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn,
+            action: "plugin.install".into(),
+            subject: Some(plugin_id.clone()),
+            result: AuditResult::Failure,
+            details: Some(serde_json::json!({"local": true, "error": e.to_string()})),
+        }),
+    }
+
     match result {
         Ok(plugin) => {
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginInstalled {
@@ -178,6 +214,7 @@ pub async fn plugin_install_local(
 #[tauri::command]
 pub async fn plugin_start(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     plugin_id: String,
 ) -> Result<(), String> {
@@ -194,9 +231,18 @@ pub async fn plugin_start(
             if let Some(plugin) = plugin {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStarted { plugin });
             }
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "plugin.start".into(),
+                subject: Some(plugin_id), result: AuditResult::Success, details: None,
+            });
             Ok(())
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "plugin.start".into(),
+                subject: Some(plugin_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
                 plugin_id,
                 action: "starting".into(),
@@ -210,6 +256,7 @@ pub async fn plugin_start(
 #[tauri::command]
 pub async fn plugin_stop(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     plugin_id: String,
 ) -> Result<(), String> {
@@ -226,9 +273,18 @@ pub async fn plugin_stop(
             if let Some(plugin) = plugin {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStopped { plugin });
             }
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "plugin.stop".into(),
+                subject: Some(plugin_id), result: AuditResult::Success, details: None,
+            });
             Ok(())
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "plugin.stop".into(),
+                subject: Some(plugin_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
                 plugin_id,
                 action: "stopping".into(),
@@ -242,6 +298,7 @@ pub async fn plugin_stop(
 #[tauri::command]
 pub async fn plugin_remove(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     dev_watcher: tauri::State<'_, Arc<DevWatcher>>,
     app: tauri::AppHandle,
     plugin_id: String,
@@ -258,11 +315,20 @@ pub async fn plugin_remove(
         Ok(()) => {
             mgr.notify_tools_changed();
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginRemoved {
-                plugin_id,
+                plugin_id: plugin_id.clone(),
+            });
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "plugin.remove".into(),
+                subject: Some(plugin_id), result: AuditResult::Success, details: None,
             });
             Ok(())
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "plugin.remove".into(),
+                subject: Some(plugin_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
                 plugin_id,
                 action: "removing".into(),
@@ -374,6 +440,7 @@ pub async fn plugin_clear_storage(
 #[tauri::command]
 pub async fn plugin_dev_mode_toggle(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     dev_watcher: tauri::State<'_, Arc<DevWatcher>>,
     app_handle: tauri::AppHandle,
     plugin_id: String,
@@ -422,6 +489,11 @@ pub async fn plugin_dev_mode_toggle(
         }
     }
 
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "plugin.dev_mode".into(),
+        subject: Some(plugin_id), result: AuditResult::Success,
+        details: Some(serde_json::json!({"enabled": enabled})),
+    });
     Ok(())
 }
 
@@ -429,6 +501,7 @@ pub async fn plugin_dev_mode_toggle(
 #[tauri::command]
 pub async fn plugin_rebuild(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app_handle: tauri::AppHandle,
     plugin_id: String,
 ) -> Result<(), String> {
@@ -449,6 +522,11 @@ pub async fn plugin_rebuild(
             .ok_or("Invalid manifest path")?
             .to_path_buf()
     };
+
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "plugin.rebuild".into(),
+        subject: Some(plugin_id.clone()), result: AuditResult::Success, details: None,
+    });
 
     // Spawn in background so the command returns immediately
     let state_arc = state.inner().clone();

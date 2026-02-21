@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::host_api::approval::{ApprovalBridge, ApprovalDecision};
 use crate::permissions::{GrantedPermission, Permission};
 use crate::AppState;
@@ -7,10 +9,12 @@ use crate::AppState;
 #[tauri::command]
 pub async fn permission_grant(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     plugin_id: String,
     permissions: Vec<Permission>,
 ) -> Result<(), String> {
     let mgr = state.read().await;
+    let perm_strs: Vec<String> = permissions.iter().map(|p| p.as_str().to_string()).collect();
     for perm in permissions {
         mgr.permissions
             .grant(&plugin_id, perm, None)
@@ -25,15 +29,22 @@ pub async fn permission_grant(
     }
 
     mgr.notify_tools_changed();
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Critical, action: "permission.grant".into(),
+        subject: Some(plugin_id), result: AuditResult::Success,
+        details: Some(serde_json::json!({"permissions": perm_strs})),
+    });
     Ok(())
 }
 
 #[tauri::command]
 pub async fn permission_revoke(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     plugin_id: String,
     permissions: Vec<Permission>,
 ) -> Result<(), String> {
+    let perm_strs: Vec<String> = permissions.iter().map(|p| p.as_str().to_string()).collect();
     let mgr = state.read().await;
     for perm in &permissions {
         mgr.permissions
@@ -52,15 +63,22 @@ pub async fn permission_revoke(
     }
 
     mgr.notify_tools_changed();
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Critical, action: "permission.revoke".into(),
+        subject: Some(plugin_id), result: AuditResult::Success,
+        details: Some(serde_json::json!({"permissions": perm_strs})),
+    });
     Ok(())
 }
 
 #[tauri::command]
 pub async fn permission_unrevoke(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     plugin_id: String,
     permissions: Vec<Permission>,
 ) -> Result<(), String> {
+    let perm_strs: Vec<String> = permissions.iter().map(|p| p.as_str().to_string()).collect();
     let mgr = state.read().await;
     for perm in &permissions {
         mgr.permissions
@@ -76,6 +94,11 @@ pub async fn permission_unrevoke(
     }
 
     mgr.notify_tools_changed();
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Critical, action: "permission.unrevoke".into(),
+        subject: Some(plugin_id), result: AuditResult::Success,
+        details: Some(serde_json::json!({"permissions": perm_strs})),
+    });
     Ok(())
 }
 
@@ -121,9 +144,11 @@ pub async fn permission_remove_scope(
 /// BEFORE sending the decision on the channel, guaranteeing the scope is
 /// persisted by the time the HTTP handler resumes.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn runtime_approval_respond(
     state: tauri::State<'_, AppState>,
     bridge: tauri::State<'_, Arc<ApprovalBridge>>,
+    audit: tauri::State<'_, AuditWriter>,
     request_id: String,
     decision: ApprovalDecision,
     plugin_id: String,
@@ -170,6 +195,13 @@ pub async fn runtime_approval_respond(
             }
         }
     }
+
+    let decision_str = format!("{:?}", decision);
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Critical, action: "permission.runtime_approval".into(),
+        subject: Some(plugin_id), result: AuditResult::Success,
+        details: Some(serde_json::json!({"decision": decision_str, "category": category})),
+    });
 
     bridge.respond(&request_id, decision);
     Ok(())

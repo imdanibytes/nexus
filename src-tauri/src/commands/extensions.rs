@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tauri::Manager;
 
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::extensions::capability::Capability;
 use crate::extensions::manifest::ResourceTypeDef;
 use crate::extensions::registry::ExtensionRegistry;
@@ -228,6 +231,7 @@ pub async fn extension_list(
 #[tauri::command]
 pub async fn extension_install(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     manifest_url: String,
 ) -> Result<InstalledExtension, String> {
@@ -271,9 +275,19 @@ pub async fn extension_install(
                     extension: status,
                 });
             }
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.install".into(),
+                subject: Some(ext_id), result: AuditResult::Success,
+                details: Some(serde_json::json!({"source": manifest_url})),
+            });
             Ok(installed)
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.install".into(),
+                subject: Some(ext_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
                 ext_id,
                 action: "installing".into(),
@@ -288,6 +302,7 @@ pub async fn extension_install(
 #[tauri::command]
 pub async fn extension_enable(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     ext_id: String,
 ) -> Result<(), String> {
@@ -298,6 +313,17 @@ pub async fn extension_enable(
     let mut mgr = state.write().await;
     match mgr.enable_extension(&ext_id) {
         Ok(()) => {
+            // Wire event bus + route executor + event store into the newly enabled extension
+            if let Some(ext) = mgr.extensions.get_arc(&ext_id) {
+                let bus: crate::event_bus::SharedEventBus = app.state::<crate::event_bus::SharedEventBus>().inner().clone();
+                ext.set_event_bus(bus);
+                ext.set_route_executor(crate::event_bus::executor::RouteActionExecutor::new(
+                    state.inner().clone(),
+                    app.clone(),
+                ));
+                let store: crate::event_bus::SharedEventStore = app.state::<crate::event_bus::SharedEventStore>().inner().clone();
+                ext.set_event_store(store);
+            }
             // Auto-create MCP settings for extensions with mcp_expose operations
             if let Some(ext) = mgr.extensions.get(&ext_id) {
                 let mcp_ops: Vec<String> = ext
@@ -326,9 +352,18 @@ pub async fn extension_enable(
                     extension: status,
                 });
             }
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "extension.enable".into(),
+                subject: Some(ext_id), result: AuditResult::Success, details: None,
+            });
             Ok(())
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "extension.enable".into(),
+                subject: Some(ext_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
                 ext_id,
                 action: "enabling".into(),
@@ -343,6 +378,7 @@ pub async fn extension_enable(
 #[tauri::command]
 pub async fn extension_disable(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     ext_id: String,
 ) -> Result<(), String> {
@@ -359,9 +395,18 @@ pub async fn extension_disable(
                     extension: status,
                 });
             }
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "extension.disable".into(),
+                subject: Some(ext_id), result: AuditResult::Success, details: None,
+            });
             Ok(())
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "extension.disable".into(),
+                subject: Some(ext_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
                 ext_id,
                 action: "disabling".into(),
@@ -376,6 +421,7 @@ pub async fn extension_disable(
 #[tauri::command]
 pub async fn extension_remove(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     ext_id: String,
 ) -> Result<(), String> {
@@ -413,11 +459,20 @@ pub async fn extension_remove(
     match mgr.remove_extension(&ext_id) {
         Ok(()) => {
             lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionRemoved {
-                ext_id,
+                ext_id: ext_id.clone(),
+            });
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.remove".into(),
+                subject: Some(ext_id), result: AuditResult::Success, details: None,
             });
             Ok(())
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.remove".into(),
+                subject: Some(ext_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
                 ext_id,
                 action: "removing".into(),
@@ -446,6 +501,7 @@ use crate::extensions::loader::cargo_build_extension;
 #[tauri::command]
 pub async fn extension_install_local(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     app: tauri::AppHandle,
     manifest_path: String,
 ) -> Result<InstalledExtension, String> {
@@ -492,14 +548,38 @@ pub async fn extension_install_local(
         binary_override.as_deref(),
     ) {
         Ok(installed) => {
+            // Wire event bus + route executor + event store into the newly installed extension
+            if let Some(ext) = mgr.extensions.get_arc(&ext_id) {
+                if let Some(bus) = app.try_state::<crate::event_bus::SharedEventBus>() {
+                    ext.set_event_bus(bus.inner().clone());
+                }
+                let route_state: AppState = state.inner().clone();
+                ext.set_route_executor(crate::event_bus::executor::RouteActionExecutor::new(
+                    route_state,
+                    app.clone(),
+                ));
+                if let Some(store) = app.try_state::<crate::event_bus::SharedEventStore>() {
+                    ext.set_event_store(store.inner().clone());
+                }
+            }
             if let Some(status) = build_extension_status(&mgr, &ext_id) {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
                     extension: status,
                 });
             }
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.install".into(),
+                subject: Some(ext_id), result: AuditResult::Success,
+                details: Some(serde_json::json!({"local": true})),
+            });
             Ok(installed)
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.install".into(),
+                subject: Some(ext_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"local": true, "error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
                 ext_id,
                 action: "installing".into(),

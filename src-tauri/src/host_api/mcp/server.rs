@@ -14,6 +14,7 @@ use rmcp::service::{NotificationContext, RequestContext};
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler};
 
 use crate::AppState;
+use crate::audit::writer::AuditWriter;
 use super::registry::McpRegistry;
 use crate::host_api::approval::ApprovalBridge;
 
@@ -27,8 +28,8 @@ pub struct NexusMcpServer {
 }
 
 impl NexusMcpServer {
-    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>) -> Self {
-        let registry = Arc::new(McpRegistry::new(state.clone(), approval_bridge));
+    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>, audit: AuditWriter) -> Self {
+        let registry = Arc::new(McpRegistry::new(state.clone(), approval_bridge, audit));
         Self { state, registry }
     }
 }
@@ -66,7 +67,7 @@ impl ServerHandler for NexusMcpServer {
                     // Wait for the tool version counter to bump in the PluginManager
                     if rx.changed().await.is_err() { break; }
                     // Ref: MCP Spec - "Notifications" section -> `notifications/tools/list_changed`
-                    if let Err(_) = peer.notify_tool_list_changed().await { break; }
+                    if peer.notify_tool_list_changed().await.is_err() { break; }
                 }
             });
         }

@@ -9,6 +9,7 @@ import { McpTab } from "./McpTab";
 import { ExtensionsTab } from "./ExtensionsTab";
 import { UpdatesTab } from "./UpdatesTab";
 import { HelpTab } from "./HelpTab";
+import { AuditTab } from "./AuditTab";
 import {
   Settings,
   Monitor,
@@ -18,6 +19,7 @@ import {
   Blocks,
   ArrowUpCircle,
   HelpCircle,
+  ScrollText,
 } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SettingsShell } from "@imdanibytes/nexus-ui";
@@ -31,6 +33,7 @@ type SettingsTab =
   | "mcp"
   | "extensions"
   | "updates"
+  | "audit"
   | "help";
 
 const TAB_DEFS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] = [
@@ -41,6 +44,7 @@ const TAB_DEFS: { id: SettingsTab; labelKey: string; icon: typeof Settings }[] =
   { id: "mcp", labelKey: "tabs.mcp", icon: Cpu },
   { id: "extensions", labelKey: "tabs.extensions", icon: Blocks },
   { id: "updates", labelKey: "tabs.updates", icon: ArrowUpCircle },
+  { id: "audit", labelKey: "tabs.audit", icon: ScrollText },
   { id: "help", labelKey: "tabs.help", icon: HelpCircle },
 ];
 
@@ -74,6 +78,7 @@ const TAB_COMPONENTS: Record<SettingsTab, React.FC> = {
   mcp: McpTab,
   extensions: ExtensionsTab,
   updates: UpdatesTab,
+  audit: AuditTab,
   help: HelpTab,
 };
 

@@ -9,6 +9,7 @@
     "security": "Seguridad",
     "extensions": "Extensiones",
     "updates": "Actualizaciones",
+    "audit": "Auditoría",
     "help": "Ayuda"
   },
   "general": {
@@ -193,6 +194,23 @@
     "local": "LOCAL",
     "remote": "REMOTO",
     "removeRegistry": "Eliminar registro"
+  },
+  "auditTab": {
+    "title": "Registro de Auditoría",
+    "description": "Registro estructurado de todas las operaciones realizadas en Nexus. Las entradas se conservan durante 30 días.",
+    "export": "Exportar",
+    "category": "Categoría",
+    "filterSubject": "Filtrar por sujeto...",
+    "noEntries": "No se encontraron entradas de auditoría.",
+    "result_all": "Todos",
+    "result_success": "Éxito",
+    "result_failure": "Fallo",
+    "totalEntries_one": "{{count}} entrada",
+    "totalEntries_other": "{{count}} entradas",
+    "severity_all": "Todos",
+    "severity_info": "Info",
+    "severity_warn": "Aviso",
+    "severity_critical": "Crítico"
   },
   "help": {
     "pluginStatusIndicators": "Indicadores de Estado de Plugins",

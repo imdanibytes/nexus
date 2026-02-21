@@ -9,6 +9,7 @@
     "security": "Sicherheit",
     "extensions": "Erweiterungen",
     "updates": "Updates",
+    "audit": "Audit",
     "help": "Hilfe"
   },
   "general": {
@@ -193,6 +194,23 @@
     "local": "LOKAL",
     "remote": "REMOTE",
     "removeRegistry": "Registry entfernen"
+  },
+  "auditTab": {
+    "title": "Audit-Log",
+    "description": "Strukturiertes Protokoll aller in Nexus durchgeführten Operationen. Einträge werden 30 Tage aufbewahrt.",
+    "export": "Exportieren",
+    "category": "Kategorie",
+    "filterSubject": "Nach Betreff filtern...",
+    "noEntries": "Keine Audit-Einträge gefunden.",
+    "result_all": "Alle",
+    "result_success": "Erfolg",
+    "result_failure": "Fehler",
+    "totalEntries_one": "{{count}} Eintrag",
+    "totalEntries_other": "{{count}} Einträge",
+    "severity_all": "Alle",
+    "severity_info": "Info",
+    "severity_warn": "Warnung",
+    "severity_critical": "Kritisch"
   },
   "help": {
     "pluginStatusIndicators": "Plugin-Statusanzeigen",

@@ -9,6 +9,7 @@
     "security": "セキュリティ",
     "extensions": "エクステンション",
     "updates": "アップデート",
+    "audit": "監査",
     "help": "ヘルプ"
   },
   "general": {
@@ -193,6 +194,23 @@
     "local": "ローカル",
     "remote": "リモート",
     "removeRegistry": "レジストリを削除"
+  },
+  "auditTab": {
+    "title": "監査ログ",
+    "description": "Nexus で実行されたすべての操作の構造化ログ。エントリは30日間保持されます。",
+    "export": "エクスポート",
+    "category": "カテゴリ",
+    "filterSubject": "対象でフィルタ...",
+    "noEntries": "監査エントリが見つかりません。",
+    "result_all": "すべて",
+    "result_success": "成功",
+    "result_failure": "失敗",
+    "totalEntries_one": "{{count}} 件",
+    "totalEntries_other": "{{count}} 件",
+    "severity_all": "すべて",
+    "severity_info": "情報",
+    "severity_warn": "警告",
+    "severity_critical": "重大"
   },
   "help": {
     "pluginStatusIndicators": "プラグインの状態インジケーター",

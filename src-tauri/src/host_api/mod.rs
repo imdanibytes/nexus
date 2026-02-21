@@ -27,6 +27,7 @@ use utoipa::openapi::security::{Http, HttpAuthScheme, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
 use crate::api_keys::ApiKeyStore;
+use crate::audit::writer::AuditWriter;
 use crate::event_bus::SharedEventBus;
 use crate::oauth;
 use crate::ActiveTheme;
@@ -151,6 +152,7 @@ impl Modify for SecurityAddon {
 )]
 pub struct ApiDoc;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_server(
     state: AppState,
     approvals: Arc<ApprovalBridge>,
@@ -158,6 +160,9 @@ pub async fn start_server(
     active_theme: ActiveTheme,
     api_key_store: ApiKeyStore,
     event_bus: SharedEventBus,
+    route_executor: crate::event_bus::executor::RouteActionExecutor,
+    event_store: crate::event_bus::SharedEventStore,
+    audit: AuditWriter,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(|origin, _| {
@@ -295,7 +300,9 @@ pub async fn start_server(
         ))
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(approvals.clone()))
+        .layer(Extension(route_executor))
         .layer(Extension(event_bus))
+        .layer(Extension(event_store))
         // 5 MB request body limit for all authenticated routes
         .layer(DefaultBodyLimit::max(5 * 1024 * 1024));
 
@@ -310,11 +317,15 @@ pub async fn start_server(
 
     let mcp_state_for_factory = state.clone();
     let mcp_approvals_for_factory = approvals.clone();
+    let audit_for_oauth = audit.clone();
+    let audit_for_mcp_auth = audit.clone();
+    let mcp_audit_for_factory = audit;
     let mcp_service = StreamableHttpService::new(
         move || {
             Ok(mcp::NexusMcpServer::new(
                 mcp_state_for_factory.clone(),
                 mcp_approvals_for_factory.clone(),
+                mcp_audit_for_factory.clone(),
             ))
         },
         Arc::new(rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default()),
@@ -333,7 +344,8 @@ pub async fn start_server(
         ))
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(mcp_session_store))
-        .layer(Extension(api_key_store));
+        .layer(Extension(api_key_store))
+        .layer(Extension(audit_for_mcp_auth));
 
     // OAuth 2.1 discovery + authorization endpoints (public, no auth required)
     // Global rate limit: 10 requests per 10 seconds across all callers
@@ -361,7 +373,8 @@ pub async fn start_server(
         .layer(Extension(oauth_store.clone()))
         .layer(Extension(approvals.clone()))
         .layer(Extension(pending_auth))
-        .layer(Extension(active_theme.clone()));
+        .layer(Extension(active_theme.clone()))
+        .layer(Extension(audit_for_oauth));
 
     let theme_routes = Router::new()
         .route("/api/v1/theme.css", routing::get(theme::theme_css))

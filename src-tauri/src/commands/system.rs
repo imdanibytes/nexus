@@ -1,3 +1,5 @@
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::runtime::ContainerFilters;
 use crate::ActiveTheme;
 use crate::AppState;
@@ -123,13 +125,20 @@ pub async fn get_resource_quotas(
 #[tauri::command]
 pub async fn save_resource_quotas(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     cpu_percent: Option<f64>,
     memory_mb: Option<u64>,
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
     mgr.settings.cpu_quota_percent = cpu_percent;
     mgr.settings.memory_limit_mb = memory_mb;
-    mgr.settings.save().map_err(|e| e.to_string())
+    mgr.settings.save().map_err(|e| e.to_string())?;
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "settings.quotas".into(),
+        subject: None, result: AuditResult::Success,
+        details: Some(serde_json::json!({"cpu_percent": cpu_percent, "memory_mb": memory_mb})),
+    });
+    Ok(())
 }
 
 #[tauri::command]
@@ -143,33 +152,54 @@ pub async fn get_update_check_interval(
 #[tauri::command]
 pub async fn set_update_check_interval(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     minutes: u32,
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
     mgr.settings.update_check_interval_minutes = minutes;
-    mgr.settings.save().map_err(|e| e.to_string())
+    mgr.settings.save().map_err(|e| e.to_string())?;
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "settings.update_interval".into(),
+        subject: None, result: AuditResult::Success,
+        details: Some(serde_json::json!({"minutes": minutes})),
+    });
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn set_language(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     language: String,
 ) -> Result<(), String> {
     let mut mgr = state.write().await;
-    mgr.settings.language = language;
-    mgr.settings.save().map_err(|e| e.to_string())
+    mgr.settings.language = language.clone();
+    mgr.settings.save().map_err(|e| e.to_string())?;
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "settings.language".into(),
+        subject: None, result: AuditResult::Success,
+        details: Some(serde_json::json!({"language": language})),
+    });
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn set_theme(
     state: tauri::State<'_, AppState>,
     active: tauri::State<'_, ActiveTheme>,
+    audit: tauri::State<'_, AuditWriter>,
     theme: String,
 ) -> Result<(), String> {
     active.set(theme.clone());
     let mut mgr = state.write().await;
-    mgr.settings.theme = theme;
-    mgr.settings.save().map_err(|e| e.to_string())
+    mgr.settings.theme = theme.clone();
+    mgr.settings.save().map_err(|e| e.to_string())?;
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "settings.theme".into(),
+        subject: None, result: AuditResult::Success,
+        details: Some(serde_json::json!({"theme": theme})),
+    });
+    Ok(())
 }
 
 /// HEAD a URL to check if it's reachable (2xx/3xx = true).

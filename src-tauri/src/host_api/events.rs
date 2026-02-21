@@ -10,9 +10,10 @@ use serde_json::Value;
 use utoipa::ToSchema;
 
 use crate::event_bus::cloud_event::{CloudEvent, PublishRequest};
+use crate::event_bus::executor::RouteActionExecutor;
 use crate::event_bus::log::EventLogQuery;
 use crate::event_bus::subscription::SubscriberKind;
-use crate::event_bus::SharedEventBus;
+use crate::event_bus::{SharedEventBus, SharedEventStore};
 
 use super::middleware::AuthenticatedPlugin;
 
@@ -99,16 +100,22 @@ pub struct EventErrorResponse {
 pub async fn publish_event(
     Extension(auth): Extension<AuthenticatedPlugin>,
     Extension(event_bus): Extension<SharedEventBus>,
+    Extension(executor): Extension<RouteActionExecutor>,
+    Extension(event_store): Extension<SharedEventStore>,
     Json(req): Json<PublishRequest>,
 ) -> Result<Json<PublishResponse>, (StatusCode, Json<EventErrorResponse>)> {
     let source = format!("nexus://plugin/{}", auth.plugin_id);
     let event = req.into_cloud_event(source);
     let event_id = event.id.clone();
 
-    let mut bus = event_bus.write().await;
-    let _actions = bus.publish(event);
+    let actions = {
+        let mut bus = event_bus.write().await;
+        bus.publish(event.clone())
+    };
 
-    // TODO: spawn route action execution on separate tokio tasks
+    if !actions.is_empty() {
+        executor.execute_durable(&event_store, actions, &event);
+    }
 
     Ok(Json(PublishResponse { event_id }))
 }

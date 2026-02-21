@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::extensions::storage::InstalledExtension;
 use crate::lifecycle_events::{self, LifecycleEvent};
 use crate::plugin_manager::registry;
@@ -70,6 +72,7 @@ pub async fn dismiss_update(
 pub async fn update_plugin(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     manifest_url: String,
     expected_digest: Option<String>,
     build_context: Option<String>,
@@ -96,6 +99,11 @@ pub async fn update_plugin(
     match mgr.update_plugin(manifest, expected_digest, Some(&app)).await {
         Ok(result) => {
             mgr.notify_tools_changed();
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "plugin.update".into(),
+                subject: Some(plugin_id.clone()), result: AuditResult::Success,
+                details: Some(serde_json::json!({"version": result.manifest.version})),
+            });
             if result.status == PluginStatus::Running {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::PluginStarted {
                     plugin: result.clone(),
@@ -108,6 +116,11 @@ pub async fn update_plugin(
             Ok(result)
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "plugin.update".into(),
+                subject: Some(plugin_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::PluginError {
                 plugin_id,
                 action: "updating".into(),
@@ -123,6 +136,7 @@ pub async fn update_plugin(
 pub async fn update_extension(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
+    audit: tauri::State<'_, AuditWriter>,
     manifest_url: String,
 ) -> Result<InstalledExtension, String> {
     let manifest = registry::fetch_extension_manifest(&manifest_url)
@@ -133,6 +147,11 @@ pub async fn update_extension(
     let mut mgr = state.write().await;
     match mgr.update_extension(manifest, false, Some(&manifest_url)).await {
         Ok(installed) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.update".into(),
+                subject: Some(ext_id.clone()), result: AuditResult::Success,
+                details: Some(serde_json::json!({"version": installed.manifest.version})),
+            });
             if let Some(status) = build_extension_status(&mgr, &ext_id) {
                 lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionInstalled {
                     extension: status,
@@ -141,6 +160,11 @@ pub async fn update_extension(
             Ok(installed)
         }
         Err(e) => {
+            audit.record(AuditEntry {
+                actor: AuditActor::User, source_id: None, severity: AuditSeverity::Warn, action: "extension.update".into(),
+                subject: Some(ext_id.clone()), result: AuditResult::Failure,
+                details: Some(serde_json::json!({"error": e.to_string()})),
+            });
             lifecycle_events::emit(Some(&app), LifecycleEvent::ExtensionError {
                 ext_id,
                 action: "updating".into(),

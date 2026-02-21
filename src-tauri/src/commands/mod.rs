@@ -1,4 +1,5 @@
 pub mod api_keys;
+pub mod audit;
 pub mod app_updater;
 pub mod events;
 pub mod extensions;

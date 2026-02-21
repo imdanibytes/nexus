@@ -9,6 +9,7 @@
     "security": "Security",
     "extensions": "Extensions",
     "updates": "Updates",
+    "audit": "Audit",
     "help": "Help"
   },
   "general": {
@@ -193,6 +194,23 @@
     "local": "LOCAL",
     "remote": "REMOTE",
     "removeRegistry": "Remove registry"
+  },
+  "auditTab": {
+    "title": "Audit Log",
+    "description": "Structured log of all operations performed in Nexus. Entries are retained for 30 days.",
+    "export": "Export",
+    "category": "Category",
+    "filterSubject": "Filter by subject...",
+    "noEntries": "No audit entries found.",
+    "result_all": "All",
+    "result_success": "Success",
+    "result_failure": "Failure",
+    "totalEntries_one": "{{count}} entry",
+    "totalEntries_other": "{{count}} entries",
+    "severity_all": "All",
+    "severity_info": "Info",
+    "severity_warn": "Warn",
+    "severity_critical": "Critical"
   },
   "help": {
     "pluginStatusIndicators": "Plugin Status Indicators",

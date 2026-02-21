@@ -20,6 +20,7 @@ use rmcp::model::*;
 use rmcp::ErrorData as McpError;
 use crate::AppState;
 use super::builtin;
+use crate::audit::writer::AuditWriter;
 use crate::plugin_manager::storage::{PluginStatus, McpPluginSettings};
 use crate::host_api::approval::{ApprovalBridge, ApprovalDecision, ApprovalRequest};
 use crate::permissions::Permission;
@@ -27,11 +28,12 @@ use crate::permissions::Permission;
 pub struct McpRegistry {
     state: AppState,
     approval_bridge: Arc<ApprovalBridge>,
+    audit: AuditWriter,
 }
 
 impl McpRegistry {
-    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>) -> Self {
-        Self { state, approval_bridge }
+    pub fn new(state: AppState, approval_bridge: Arc<ApprovalBridge>, audit: AuditWriter) -> Self {
+        Self { state, approval_bridge, audit }
     }
 
     /// Aggregates all available tools from all providers.
@@ -158,7 +160,64 @@ impl McpRegistry {
     }
 
     /// Routes a tool call to the correct provider and handles runtime approval.
+    ///
+    /// **Security audit**: Every MCP tool invocation is recorded in the audit log,
+    /// regardless of whether the tool is read-only or mutating. MCP is an external
+    /// interface — AI clients can read plugin inventories, filesystem contents, and
+    /// system configuration. In a security context, all access must be logged for
+    /// compliance and incident investigation.
     pub async fn call_tool(&self, name: &str, arguments: Option<serde_json::Map<String, serde_json::Value>>) -> Result<CallToolResult, McpError> {
+        // Extract the primary subject from arguments before dispatch (for the audit trail).
+        let subject = arguments.as_ref().and_then(|args| {
+            args.get("plugin_id")
+                .or_else(|| args.get("ext_id"))
+                .or_else(|| args.get("path"))
+                .or_else(|| args.get("command"))
+                .or_else(|| args.get("manifest_url"))
+                .or_else(|| args.get("manifest_path"))
+                .or_else(|| args.get("query"))
+                .or_else(|| args.get("url"))
+                .or_else(|| args.get("pattern"))
+                .and_then(|v| v.as_str())
+                .map(String::from)
+        });
+
+        let result = self.dispatch_tool(name, arguments).await;
+
+        // Security audit: record every MCP tool invocation.
+        // Severity is derived from the tool's nature — execute_command and
+        // destructive operations are Critical, mutating tools are Warn,
+        // read-only tools are Info.
+        use crate::audit::{AuditEntry, AuditActor, AuditSeverity, AuditResult as AuditRes};
+        let severity = match name {
+            n if n.contains("execute_command") => AuditSeverity::Critical,
+            n if n.contains("plugin_remove") || n.contains("extension_remove") => AuditSeverity::Critical,
+            n if n.contains("plugin_install") || n.contains("plugin_start")
+                || n.contains("plugin_stop") || n.contains("extension_enable")
+                || n.contains("extension_disable") || n.contains("extension_install") => AuditSeverity::Warn,
+            // File writes and edits from an external client warrant Warn
+            n if n.contains("write_file") || n.contains("edit_file") => AuditSeverity::Warn,
+            _ => AuditSeverity::Info,
+        };
+        let audit_result = match &result {
+            Ok(_) => AuditRes::Success,
+            Err(_) => AuditRes::Failure,
+        };
+        self.audit.record(AuditEntry {
+            actor: AuditActor::McpClient,
+            source_id: None, // TODO: thread MCP session/client identity here
+            severity,
+            action: format!("mcp.{}", name),
+            subject,
+            result: audit_result,
+            details: None,
+        });
+
+        result
+    }
+
+    /// Internal dispatch — routes to builtin, extension, or plugin handler.
+    async fn dispatch_tool(&self, name: &str, arguments: Option<serde_json::Map<String, serde_json::Value>>) -> Result<CallToolResult, McpError> {
         // 1. Check for built-in namespace
         if let Some(local_name) = name.strip_prefix("nexus.") {
             return self.call_builtin(local_name, arguments).await;

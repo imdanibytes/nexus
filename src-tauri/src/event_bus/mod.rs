@@ -1,6 +1,9 @@
 pub mod cloud_event;
+pub mod executor;
 pub mod log;
+pub mod retry_worker;
 pub mod routing;
+pub mod store;
 pub mod subscription;
 
 use std::path::Path;
@@ -15,6 +18,9 @@ use subscription::{parse_pattern, SubscriberKind, Subscription};
 
 /// Thread-safe shared handle to the event bus.
 pub type SharedEventBus = Arc<RwLock<EventBus>>;
+
+/// Thread-safe shared handle to the durable event store.
+pub type SharedEventStore = Arc<store::EventStore>;
 
 /// In-process CloudEvents event bus with pub/sub, routing rules, and an event log.
 pub struct EventBus {

@@ -9,6 +9,7 @@
     "mcp": "Tab label — MCP gateway configuration",
     "extensions": "Tab label — host extension management",
     "updates": "Tab label — update management",
+    "audit": "Tab label — audit log viewer",
     "help": "Tab label — help and tips"
   },
   "general": {
@@ -177,6 +178,23 @@
     "local": "Badge — registry is local (uppercase)",
     "remote": "Badge — registry is remote (uppercase)",
     "removeRegistry": "Button tooltip — remove a registry source"
+  },
+  "auditTab": {
+    "title": "Card heading — audit log section",
+    "description": "Help text — explains what the audit log shows and retention period",
+    "export": "Button label — download audit entries as JSON",
+    "category": "Select label — filter by action category (plugin/extension/permission/security/settings)",
+    "filterSubject": "Input placeholder — filter audit entries by target entity ID",
+    "noEntries": "Empty state — no audit entries match the current filters",
+    "result_all": "Chip label — show all results (success + failure)",
+    "result_success": "Chip label — filter to successful operations only",
+    "result_failure": "Chip label — filter to failed operations only",
+    "totalEntries_one": "Status text — total entry count (singular)",
+    "totalEntries_other": "Status text — total entry count (plural)",
+    "severity_all": "Chip label — show all severity levels",
+    "severity_info": "Chip label — show info-level audit entries (routine operations)",
+    "severity_warn": "Chip label — show warn-level audit entries (state-changing operations)",
+    "severity_critical": "Chip label — show critical-level audit entries (security-sensitive operations)"
   },
   "help": {
     "pluginStatusIndicators": "Section heading — explains plugin status dots",

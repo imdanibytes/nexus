@@ -11,6 +11,8 @@ use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
 use crate::api_keys::ApiKeyStore;
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::oauth::validation::{validate_bearer, TokenValidation};
 use crate::oauth::OAuthStore;
 use crate::permissions::rar;
@@ -168,6 +170,8 @@ pub async fn gateway_auth_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
+    let audit = req.extensions().get::<AuditWriter>().cloned();
+
     let mcp_sessions = match req.extensions().get::<McpSessionStore>().cloned() {
         Some(store) => store,
         None => {
@@ -252,6 +256,20 @@ pub async fn gateway_auth_middleware(
                     {
                         mcp_sessions.mark_authenticated(session_id);
                         log::info!("MCP session authenticated (API key): {}", session_id);
+                        if let Some(ref audit) = audit {
+                            audit.record(AuditEntry {
+                                actor: AuditActor::McpClient,
+                                source_id: Some(key.name.clone()),
+                                severity: AuditSeverity::Info,
+                                action: "mcp.session.auth".into(),
+                                subject: Some(session_id.to_string()),
+                                result: AuditResult::Success,
+                                details: Some(serde_json::json!({
+                                    "method": "api_key",
+                                    "key_prefix": key.prefix,
+                                })),
+                            });
+                        }
                     }
 
                     return Ok(resp);
@@ -260,6 +278,20 @@ pub async fn gateway_auth_middleware(
 
             // nxk_ prefix but invalid key — respond per RFC 6750 §3.1.
             log::info!("MCP API key invalid — returning 401");
+            if let Some(ref audit) = audit {
+                audit.record(AuditEntry {
+                    actor: AuditActor::McpClient,
+                    source_id: None,
+                    severity: AuditSeverity::Critical,
+                    action: "mcp.session.auth".into(),
+                    subject: None,
+                    result: AuditResult::Failure,
+                    details: Some(serde_json::json!({
+                        "method": "api_key",
+                        "error": "invalid_key",
+                    })),
+                });
+            }
             let resp = Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .header(
@@ -329,12 +361,40 @@ pub async fn gateway_auth_middleware(
             {
                 mcp_sessions.mark_authenticated(session_id);
                 log::info!("MCP session authenticated (OAuth): {}", session_id);
+                if let Some(ref audit) = audit {
+                    audit.record(AuditEntry {
+                        actor: AuditActor::McpClient,
+                        source_id: Some(client_name.clone()),
+                        severity: AuditSeverity::Info,
+                        action: "mcp.session.auth".into(),
+                        subject: Some(session_id.to_string()),
+                        result: AuditResult::Success,
+                        details: Some(serde_json::json!({
+                            "method": "oauth",
+                            "plugin_id": plugin_id,
+                        })),
+                    });
+                }
             }
             return Ok(resp);
         }
         TokenValidation::Invalid => {
             // RFC 6750 §3.1: error="invalid_token" hint for expired/revoked tokens.
             log::info!("MCP Bearer token invalid/expired — returning invalid_token hint");
+            if let Some(ref audit) = audit {
+                audit.record(AuditEntry {
+                    actor: AuditActor::McpClient,
+                    source_id: None,
+                    severity: AuditSeverity::Warn,
+                    action: "mcp.session.auth".into(),
+                    subject: None,
+                    result: AuditResult::Failure,
+                    details: Some(serde_json::json!({
+                        "method": "oauth",
+                        "error": "invalid_token",
+                    })),
+                });
+            }
             let resp = Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .header(

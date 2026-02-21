@@ -9,6 +9,7 @@
     "security": "安全",
     "extensions": "扩展",
     "updates": "更新",
+    "audit": "审计",
     "help": "帮助"
   },
   "general": {
@@ -193,6 +194,23 @@
     "local": "本地",
     "remote": "远程",
     "removeRegistry": "移除注册源"
+  },
+  "auditTab": {
+    "title": "审计日志",
+    "description": "Nexus 中所有操作的结构化日志。条目保留 30 天。",
+    "export": "导出",
+    "category": "类别",
+    "filterSubject": "按对象筛选...",
+    "noEntries": "未找到审计条目。",
+    "result_all": "全部",
+    "result_success": "成功",
+    "result_failure": "失败",
+    "totalEntries_one": "{{count}} 条记录",
+    "totalEntries_other": "{{count}} 条记录",
+    "severity_all": "全部",
+    "severity_info": "信息",
+    "severity_warn": "警告",
+    "severity_critical": "严重"
   },
   "help": {
     "pluginStatusIndicators": "插件状态指示器",

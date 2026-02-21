@@ -1,4 +1,6 @@
 use crate::api_keys::ApiKeyStore;
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::plugin_manager::storage::{McpPluginSettings, McpSettings};
 use crate::AppState;
 use serde::Serialize;
@@ -30,6 +32,7 @@ pub async fn mcp_get_settings(
 #[tauri::command]
 pub async fn mcp_set_enabled(
     state: tauri::State<'_, AppState>,
+    audit: tauri::State<'_, AuditWriter>,
     scope: String,
     enabled: bool,
 ) -> Result<(), String> {
@@ -97,6 +100,11 @@ pub async fn mcp_set_enabled(
 
     mgr.mcp_settings.save().map_err(|e| e.to_string())?;
     mgr.notify_tools_changed();
+    audit.record(AuditEntry {
+        actor: AuditActor::User, source_id: None, severity: AuditSeverity::Info, action: "settings.mcp.toggle".into(),
+        subject: None, result: AuditResult::Success,
+        details: Some(serde_json::json!({"scope": scope, "enabled": enabled})),
+    });
     Ok(())
 }
 

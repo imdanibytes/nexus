@@ -94,6 +94,10 @@ pub struct ProcessExtension {
     ipc_router: Mutex<Option<Arc<dyn IpcRouter>>>,
     /// Event bus for event.publish / event.subscribe IPC. Set after creation.
     event_bus: Mutex<Option<crate::event_bus::SharedEventBus>>,
+    /// Route action executor for dispatching actions from event.publish. Set after creation.
+    route_executor: Mutex<Option<crate::event_bus::executor::RouteActionExecutor>>,
+    /// Durable event store for persisting events and tracking deliveries. Set after creation.
+    event_store: Mutex<Option<crate::event_bus::SharedEventStore>>,
 }
 
 struct ProcessHandle {
@@ -117,18 +121,14 @@ impl ProcessExtension {
             next_id: AtomicU64::new(0),
             ipc_router: Mutex::new(None),
             event_bus: Mutex::new(None),
+            route_executor: Mutex::new(None),
+            event_store: Mutex::new(None),
         }
     }
 
     /// Set the data directory for this extension (passed in initialize params).
     pub fn set_data_dir(&mut self, dir: PathBuf) {
         self.data_dir = Some(dir);
-    }
-
-    /// Set the event bus for event.publish / event.subscribe IPC.
-    pub fn set_event_bus(&self, bus: crate::event_bus::SharedEventBus) {
-        let mut guard = self.event_bus.lock().expect("event_bus lock poisoned");
-        *guard = Some(bus);
     }
 
     /// Spawn the child process and send the `initialize` message.
@@ -485,14 +485,24 @@ impl ProcessExtension {
                                 let event = pr.into_cloud_event(source);
                                 let event_id = event.id.clone();
                                 // Publish synchronously using block_in_place since we hold the process mutex
+                                let event_clone = event.clone();
                                 let actions = tokio::task::block_in_place(|| {
                                     tokio::runtime::Handle::current().block_on(async {
                                         let mut bus = bus.write().await;
                                         bus.publish(event)
                                     })
                                 });
-                                // TODO: execute route actions (spawned by caller)
-                                let _ = actions;
+                                // Dispatch route actions via durable delivery (or fire-and-forget fallback)
+                                if !actions.is_empty() {
+                                    if let Some(executor) = self.route_executor.lock().expect("route_executor lock").as_ref() {
+                                        let store = self.event_store.lock().expect("event_store lock").clone();
+                                        if let Some(ref store) = store {
+                                            executor.execute_durable(store, actions, &event_clone);
+                                        } else {
+                                            executor.execute(actions, event_clone);
+                                        }
+                                    }
+                                }
                                 JsonRpcResponseOut {
                                     jsonrpc: "2.0",
                                     result: Some(serde_json::json!({"event_id": event_id})),
@@ -622,6 +632,21 @@ impl Extension for ProcessExtension {
     fn set_ipc_router(&self, router: Arc<dyn IpcRouter>) {
         let mut guard = self.ipc_router.lock().expect("ipc_router lock poisoned");
         *guard = Some(router);
+    }
+
+    fn set_event_bus(&self, bus: crate::event_bus::SharedEventBus) {
+        let mut guard = self.event_bus.lock().expect("event_bus lock poisoned");
+        *guard = Some(bus);
+    }
+
+    fn set_route_executor(&self, executor: crate::event_bus::executor::RouteActionExecutor) {
+        let mut guard = self.route_executor.lock().expect("route_executor lock poisoned");
+        *guard = Some(executor);
+    }
+
+    fn set_event_store(&self, store: crate::event_bus::SharedEventStore) {
+        let mut guard = self.event_store.lock().expect("event_store lock poisoned");
+        *guard = Some(store);
     }
 }
 

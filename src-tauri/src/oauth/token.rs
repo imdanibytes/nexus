@@ -6,6 +6,8 @@ use axum::response::{IntoResponse, Response};
 use axum::{Form, Json};
 use chrono::Utc;
 
+use crate::audit::writer::AuditWriter;
+use crate::audit::{AuditActor, AuditEntry, AuditResult, AuditSeverity};
 use crate::permissions::rar::AuthorizationDetail;
 
 use super::store::OAuthStore;
@@ -20,12 +22,14 @@ use super::types::{AccessToken, TokenRequest, TokenResponse};
 /// - `refresh_token` — rotate refresh token for new tokens
 pub async fn token_exchange(
     Extension(store): Extension<Arc<OAuthStore>>,
+    audit: Option<Extension<AuditWriter>>,
     Form(req): Form<TokenRequest>,
 ) -> Response {
+    let audit = audit.map(|Extension(a)| a);
     match req.grant_type.as_str() {
-        "authorization_code" => handle_authorization_code(store, req),
-        "refresh_token" => handle_refresh_token(store, req),
-        "client_credentials" => handle_client_credentials(store, req),
+        "authorization_code" => handle_authorization_code(store, req, audit.as_ref()),
+        "refresh_token" => handle_refresh_token(store, req, audit.as_ref()),
+        "client_credentials" => handle_client_credentials(store, req, audit.as_ref()),
         _ => oauth_error(
             StatusCode::BAD_REQUEST,
             "unsupported_grant_type",
@@ -34,7 +38,7 @@ pub async fn token_exchange(
     }
 }
 
-fn handle_authorization_code(store: Arc<OAuthStore>, req: TokenRequest) -> Response {
+fn handle_authorization_code(store: Arc<OAuthStore>, req: TokenRequest, audit: Option<&AuditWriter>) -> Response {
     let Some(code) = req.code.as_deref() else {
         return oauth_error(StatusCode::BAD_REQUEST, "invalid_request", "Missing 'code'");
     };
@@ -53,6 +57,17 @@ fn handle_authorization_code(store: Arc<OAuthStore>, req: TokenRequest) -> Respo
         Ok(pair) => pair,
         Err(e) => {
             log::warn!("OAuth token exchange failed: {}", e);
+            if let Some(audit) = audit {
+                audit.record(AuditEntry {
+                    actor: AuditActor::McpClient,
+                    source_id: Some(client_id.to_string()),
+                    severity: AuditSeverity::Critical,
+                    action: "security.oauth.token".into(),
+                    subject: Some("authorization_code".into()),
+                    result: AuditResult::Failure,
+                    details: Some(serde_json::json!({ "error": e.to_string() })),
+                });
+            }
             return oauth_error(StatusCode::BAD_REQUEST, e, "Token exchange failed");
         }
     };
@@ -62,6 +77,21 @@ fn handle_authorization_code(store: Arc<OAuthStore>, req: TokenRequest) -> Respo
         access.client_name,
         refresh.is_some(),
     );
+
+    if let Some(audit) = audit {
+        audit.record(AuditEntry {
+            actor: AuditActor::McpClient,
+            source_id: Some(client_id.to_string()),
+            severity: AuditSeverity::Critical,
+            action: "security.oauth.token".into(),
+            subject: Some("authorization_code".into()),
+            result: AuditResult::Success,
+            details: Some(serde_json::json!({
+                "client_name": access.client_name,
+                "has_refresh": refresh.is_some(),
+            })),
+        });
+    }
 
     let ttl = expires_in(&access);
     Json(TokenResponse {
@@ -74,7 +104,7 @@ fn handle_authorization_code(store: Arc<OAuthStore>, req: TokenRequest) -> Respo
     .into_response()
 }
 
-fn handle_refresh_token(store: Arc<OAuthStore>, req: TokenRequest) -> Response {
+fn handle_refresh_token(store: Arc<OAuthStore>, req: TokenRequest, audit: Option<&AuditWriter>) -> Response {
     let Some(refresh_token) = req.refresh_token.as_deref() else {
         return oauth_error(StatusCode::BAD_REQUEST, "invalid_request", "Missing 'refresh_token'");
     };
@@ -86,6 +116,17 @@ fn handle_refresh_token(store: Arc<OAuthStore>, req: TokenRequest) -> Response {
         Ok(pair) => pair,
         Err(e) => {
             log::warn!("OAuth refresh failed: {}", e);
+            if let Some(audit) = audit {
+                audit.record(AuditEntry {
+                    actor: AuditActor::McpClient,
+                    source_id: Some(client_id.to_string()),
+                    severity: AuditSeverity::Critical,
+                    action: "security.oauth.token".into(),
+                    subject: Some("refresh_token".into()),
+                    result: AuditResult::Failure,
+                    details: Some(serde_json::json!({ "error": e.to_string() })),
+                });
+            }
             return oauth_error(StatusCode::BAD_REQUEST, e, "Refresh failed");
         }
     };
@@ -94,6 +135,18 @@ fn handle_refresh_token(store: Arc<OAuthStore>, req: TokenRequest) -> Response {
         "OAuth token refreshed: client={} grant=refresh_token",
         access.client_name
     );
+
+    if let Some(audit) = audit {
+        audit.record(AuditEntry {
+            actor: AuditActor::McpClient,
+            source_id: Some(client_id.to_string()),
+            severity: AuditSeverity::Info,
+            action: "security.oauth.token".into(),
+            subject: Some("refresh_token".into()),
+            result: AuditResult::Success,
+            details: Some(serde_json::json!({ "client_name": access.client_name })),
+        });
+    }
 
     let details = if access.authorization_details.is_empty() {
         None
@@ -112,7 +165,7 @@ fn handle_refresh_token(store: Arc<OAuthStore>, req: TokenRequest) -> Response {
     .into_response()
 }
 
-fn handle_client_credentials(store: Arc<OAuthStore>, req: TokenRequest) -> Response {
+fn handle_client_credentials(store: Arc<OAuthStore>, req: TokenRequest, audit: Option<&AuditWriter>) -> Response {
     let Some(client_id) = req.client_id.as_deref() else {
         return oauth_error(StatusCode::BAD_REQUEST, "invalid_request", "Missing 'client_id'");
     };
@@ -133,6 +186,17 @@ fn handle_client_credentials(store: Arc<OAuthStore>, req: TokenRequest) -> Respo
         Ok(pair) => pair,
         Err(e) => {
             log::warn!("OAuth client_credentials failed: {}", e);
+            if let Some(audit) = audit {
+                audit.record(AuditEntry {
+                    actor: AuditActor::McpClient,
+                    source_id: Some(client_id.to_string()),
+                    severity: AuditSeverity::Critical,
+                    action: "security.oauth.token".into(),
+                    subject: Some("client_credentials".into()),
+                    result: AuditResult::Failure,
+                    details: Some(serde_json::json!({ "error": e.to_string() })),
+                });
+            }
             return oauth_error(StatusCode::UNAUTHORIZED, e, "Client authentication failed");
         }
     };
@@ -142,6 +206,21 @@ fn handle_client_credentials(store: Arc<OAuthStore>, req: TokenRequest) -> Respo
         access.client_name,
         access.authorization_details.len(),
     );
+
+    if let Some(audit) = audit {
+        audit.record(AuditEntry {
+            actor: AuditActor::McpClient,
+            source_id: Some(client_id.to_string()),
+            severity: AuditSeverity::Critical,
+            action: "security.oauth.token".into(),
+            subject: Some("client_credentials".into()),
+            result: AuditResult::Success,
+            details: Some(serde_json::json!({
+                "client_name": access.client_name,
+                "auth_details_count": access.authorization_details.len(),
+            })),
+        });
+    }
 
     let details = if access.authorization_details.is_empty() {
         None

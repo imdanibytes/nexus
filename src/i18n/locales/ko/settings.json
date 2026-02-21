@@ -9,6 +9,7 @@
     "security": "보안",
     "extensions": "확장 기능",
     "updates": "업데이트",
+    "audit": "감사 로그",
     "help": "도움말"
   },
   "general": {
@@ -193,6 +194,23 @@
     "local": "로컬",
     "remote": "원격",
     "removeRegistry": "레지스트리 제거"
+  },
+  "auditTab": {
+    "title": "감사 로그",
+    "description": "Nexus에서 수행된 모든 작업의 구조화된 로그입니다. 항목은 30일간 보관됩니다.",
+    "export": "내보내기",
+    "category": "카테고리",
+    "filterSubject": "대상으로 필터...",
+    "noEntries": "감사 항목이 없습니다.",
+    "result_all": "전체",
+    "result_success": "성공",
+    "result_failure": "실패",
+    "totalEntries_one": "{{count}}개 항목",
+    "totalEntries_other": "{{count}}개 항목",
+    "severity_all": "전체",
+    "severity_info": "정보",
+    "severity_warn": "경고",
+    "severity_critical": "심각"
   },
   "help": {
     "pluginStatusIndicators": "플러그인 상태 표시",

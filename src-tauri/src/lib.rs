@@ -1,4 +1,5 @@
 pub mod api_keys;
+pub mod audit;
 mod commands;
 mod error;
 pub mod event_bus;
@@ -149,6 +150,51 @@ pub fn run() {
             let event_bus: SharedEventBus = event_bus::create_event_bus(&data_dir);
             app.manage(event_bus.clone());
 
+            // Route action executor — dispatches routing rule actions when events are published
+            let route_executor = event_bus::executor::RouteActionExecutor::new(
+                state.clone(),
+                app_handle.clone(),
+            );
+
+            // Durable event store (SQLite) — persists events and tracks delivery with retry
+            let event_store: event_bus::SharedEventStore = Arc::new(
+                event_bus::store::EventStore::new(&data_dir)
+                    .expect("failed to initialize event store"),
+            );
+            app.manage(event_store.clone());
+
+            // Audit subsystem — SQLite-backed structured audit log
+            let audit_store = Arc::new(
+                audit::store::AuditStore::new(&data_dir)
+                    .expect("failed to initialize audit store"),
+            );
+            let (audit_writer, audit_future) = audit::writer::create(audit_store.clone());
+            let audit_writer_for_server = audit_writer.clone();
+            app.manage(audit_store);
+            app.manage(audit_writer);
+            tauri::async_runtime::spawn(audit_future);
+
+            // Wire event bus + route executor + event store into all registered extensions
+            {
+                let mgr = state.blocking_read();
+                for ext_info in mgr.extensions.list() {
+                    if let Some(ext) = mgr.extensions.get_arc(&ext_info.id) {
+                        ext.set_event_bus(event_bus.clone());
+                        ext.set_route_executor(route_executor.clone());
+                        ext.set_event_store(event_store.clone());
+                    }
+                }
+            }
+
+            // Spawn background retry worker for durable event delivery
+            {
+                let store = event_store.clone();
+                let executor = route_executor.clone();
+                tauri::async_runtime::spawn(async move {
+                    event_bus::retry_worker::run(store, executor).await;
+                });
+            }
+
             // Active theme — shared between Tauri UI and Axum (OAuth consent page)
             let theme = {
                 let mgr = state.blocking_read();
@@ -206,6 +252,8 @@ pub fn run() {
             let theme_clone = theme.clone();
             let api_keys_clone = api_key_store.clone();
             let event_bus_clone = event_bus.clone();
+            let route_executor_clone = route_executor.clone();
+            let event_store_clone = event_store.clone();
             tauri::async_runtime::spawn(async move {
                 // Ensure nexus-bridge Docker network exists
                 if let Err(e) = runtime_clone.ensure_network("nexus-bridge").await {
@@ -213,7 +261,7 @@ pub fn run() {
                 }
 
                 // Start the Host API server
-                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone, api_keys_clone, event_bus_clone).await {
+                if let Err(e) = host_api::start_server(state_clone, approval_bridge, oauth_clone, theme_clone, api_keys_clone, event_bus_clone, route_executor_clone, event_store_clone, audit_writer_for_server).await {
                     log::error!("Host API server failed: {}", e);
                 }
             });
@@ -348,6 +396,9 @@ pub fn run() {
             commands::app_updater::download_app_update,
             commands::app_updater::get_update_channel,
             commands::app_updater::set_update_channel,
+            commands::audit::audit_query,
+            commands::audit::audit_count,
+            commands::audit::audit_export,
             notification::send_notification,
         ])
         .build(tauri::generate_context!())
